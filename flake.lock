@@ -3,11 +3,11 @@
     "CHaP": {
       "flake": false,
       "locked": {
-        "lastModified": 1703398734,
-        "narHash": "sha256-DVaL6dBqgGOOjr3kyHi3NgtD4UrwTVsSMLkpUToyPt4=",
+        "lastModified": 1713175844,
+        "narHash": "sha256-8Xz0kMPvgHp1rsv9FHwEl2N40DzPQv22qk+aUW361mM=",
         "owner": "input-output-hk",
         "repo": "cardano-haskell-packages",
-        "rev": "dbfa903050eb861fcbd0c22dd5a4746f68d6d42e",
+        "rev": "e00be463a34798f98c5d18e1d7cc0b8137547005",
         "type": "github"
       },
       "original": {
@@ -1548,7 +1548,9 @@
     },
     "iogx": {
       "inputs": {
-        "CHaP": "CHaP",
+        "CHaP": [
+          "CHaP"
+        ],
         "easy-purescript-nix": "easy-purescript-nix",
         "flake-utils": "flake-utils_2",
         "hackage": "hackage",
@@ -2771,6 +2773,7 @@
     },
     "root": {
       "inputs": {
+        "CHaP": "CHaP",
         "iogx": "iogx"
       }
     },
