@@ -11,11 +11,23 @@ cabalProject:
 {
   name = "nix-shell";
 
+  packages = [
+    pkgs.scriv
+    pkgs.jq
+  ];
+
+  preCommit = {
+    cabal-fmt.enable = true;
+    cabal-fmt.extraOptions = "--no-tabular";
+    fourmolu.enable = true;
+    hlint.enable = true;
+    shellcheck.enable = true;
+    nixpkgs-fmt.enable = true;
+  };
+
   # prompt = null;
 
   # welcomeMessage = null;
-
-  # packages = [];
 
   # scripts = {
   #   foo = {
@@ -33,14 +45,5 @@ cabalProject:
   # };
 
   # shellHook = "";
-
-  preCommit = {
-    cabal-fmt.enable = true;
-    cabal-fmt.extraOptions = "--no-tabular";
-    fourmolu.enable = true;
-    hlint.enable = true;
-    shellcheck.enable = true;
-    nixpkgs-fmt.enable = true;
-  };
 }
  
