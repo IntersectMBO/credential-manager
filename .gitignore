@@ -17,3 +17,4 @@ state-*
 *.cbor
 *.mnemonic
 .pre-commit-config.yaml
+dist-newstyle/

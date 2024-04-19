@@ -6,22 +6,23 @@
   inputs = {
     iogx = {
       url = "github:input-output-hk/iogx";
-      inputs.CHaP.follows = "CHaP";
+      # inputs.CHaP.follows = "CHaP";
+      # inputs.hackage.follows = "hackage";
       # inputs.haskell-nix.follows = "haskell-nix";
       # inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # nixpkgs.follows = "haskell-nix/nixpkgs";
+    # nixpkgs.follows = "iogx/nixpkgs";
 
     # hackage = {
     #   url = "github:input-output-hk/hackage.nix";
     #   flake = false;
     # };
 
-    CHaP = {
-      url = "github:input-output-hk/cardano-haskell-packages?ref=repo";
-      flake = false;
-    };
+    # CHaP = {
+    #   url = "github:input-output-hk/cardano-haskell-packages?ref=repo";
+    #   flake = false;
+    # };
 
     # haskell-nix = {
     #   url = "github:input-output-hk/haskell.nix";
