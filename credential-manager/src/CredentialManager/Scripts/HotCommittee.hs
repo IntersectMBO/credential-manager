@@ -9,11 +9,11 @@
 {-# OPTIONS_GHC -fno-unbox-small-strict-fields #-}
 {-# OPTIONS_GHC -fno-unbox-strict-fields #-}
 
--- | The cold committee script acts as the credential that is listed in the
--- committee state on-chain and used to authorize hot credentials. All it
--- checks is that the NFT provided at compile time is spent, delegating all
--- other logic to the payment credential holding the NFT.
-module CredentialManager.Scripts.ColdCommittee where
+-- | The hot committee script acts as the credential authorized by the cold
+--     committee credential to vote on governance actions. All it checks is that
+--     the NFT provided at compile time is spent, delegating all other logic to
+--     the payment credential holding the NFT.
+module CredentialManager.Scripts.HotCommittee where
 
 import PlutusLedgerApi.V3 (CurrencySymbol, TxOut (..), Value (getValue))
 import PlutusTx.AssocMap (member)
@@ -23,7 +23,7 @@ import PlutusTx.Prelude
 import qualified Prelude as Haskell
 
 -- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the
--- cold committee script needs.
+-- hot committee script needs.
 data ScriptContext = ScriptContext
   { scriptContextTxInfo :: TxInfo
   , scriptContextPurpose :: ScriptPurpose
@@ -31,7 +31,7 @@ data ScriptContext = ScriptContext
   deriving stock (Haskell.Eq, Haskell.Show)
 
 -- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
--- cold committee script needs.
+-- hot committee script needs.
 data ScriptPurpose
   = Minting BuiltinData
   | Spending BuiltinData
@@ -42,7 +42,7 @@ data ScriptPurpose
   deriving stock (Haskell.Eq, Haskell.Show)
 
 -- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
--- cold committee script needs.
+-- hot committee script needs.
 data TxInfo = TxInfo
   { txInfoInputs :: [TxInInfo]
   , txInfoReferenceInputs :: BuiltinData
@@ -64,19 +64,18 @@ data TxInfo = TxInfo
   deriving stock (Haskell.Show, Haskell.Eq)
 
 -- | A version of PlutusLedgerApi.V3.TxInInfo that only decodes what the
--- cold committee script needs.
+-- hot committee script needs.
 data TxInInfo = TxInInfo
   { txInInfoOutRef :: BuiltinData
   , txInInfoResolved :: TxOut
   }
   deriving stock (Haskell.Show, Haskell.Eq)
 
--- | This script just checks that the hard-coded currency symbol of the NFT is
--- in any spending input of the transaction.
-{-# INLINEABLE coldCommitteeScript #-}
-coldCommitteeScript :: CurrencySymbol -> BuiltinData -> ScriptContext -> Bool
-coldCommitteeScript symbol _ ctx = case scriptContextPurpose ctx of
-  Certifying _ _ -> any inputSpendsToken txInputs
+-- | This script just checks that the hard-coded currency symbol of the "Hot NFT" is
+-- in any spending input of the transaction.# INLINEABLE hotCommitteeScript #-}
+hotCommitteeScript :: CurrencySymbol -> BuiltinData -> ScriptContext -> Bool
+hotCommitteeScript symbol _ ctx = case scriptContextPurpose ctx of
+  Voting _ -> any inputSpendsToken txInputs
   _ -> False
   where
     -- Checks if an input spends a token with the correct currencySymbol

@@ -4,6 +4,7 @@
 module CredentialManager.Scripts where
 
 import CredentialManager.Scripts.ColdCommittee (coldCommitteeScript)
+import CredentialManager.Scripts.HotCommittee (hotCommitteeScript)
 import PlutusLedgerApi.V3 (CurrencySymbol)
 import PlutusTx (
   CompiledCode,
@@ -72,5 +73,12 @@ coldCommittee
   :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
 coldCommittee =
   unsafeApplyCode $$(compile [||wrapThreeArgs coldCommitteeScript||])
+    . liftCodeDef
+    . toBuiltinData
+
+hotCommittee
+  :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
+hotCommittee =
+  unsafeApplyCode $$(compile [||wrapThreeArgs hotCommitteeScript||])
     . liftCodeDef
     . toBuiltinData
