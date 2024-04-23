@@ -29,3 +29,42 @@ test-show-details: direct
 package credential-manager
   tests: True
   ghc-options: -Werror
+
+-- These settings only affect local builds with cabal (i.e. not Nix builds),
+-- where compilation speed is more important than runtime performance.
+package cardano-api
+  optimization: False
+package cardano-ledger-alonzo
+  optimization: False
+package cardano-ledger-babbage
+  optimization: False
+package cardano-ledger-byron
+  optimization: False
+package cardano-ledger-core
+  optimization: False
+package cardano-ledger-pretty
+  optimization: False
+package cardano-ledger-shelley
+  optimization: False
+package ouroboros-consensus
+  optimization: False
+package ouroboros-consensus-byron
+  optimization: False
+package ouroboros-consensus-cardano
+  optimization: False
+package ouroboros-consensus-shelley
+  optimization: False
+package ouroboros-consensus-protocol
+  optimization: False
+package ouroboros-network
+  optimization: False
+package plutus-core
+  optimization: False
+package plutus-ledger-api
+  optimization: False
+package plutus-tx
+  optimization: False
+package plutus-script-utils
+  optimization: False
+package freer-extras
+  optimization: False

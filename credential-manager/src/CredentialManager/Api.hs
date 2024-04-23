@@ -1,8 +1,38 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module CredentialManager.Api where
+module CredentialManager.Api (
+  CertificateHash (..),
+  Identity (..),
+  ColdLockDatum (..),
+  ColdLockRedeemer (..),
+  HotLockDatum (..),
+  HotLockRedeemer (..),
+  readIdentityFromPEMFile,
+  parseIdentityFromPEMBytes,
+) where
 
+import Cardano.Api (
+  AsType (..),
+  Hash,
+  Key (..),
+  PaymentKey,
+  SerialiseAsRawBytes (deserialiseFromRawBytes),
+ )
+import Cardano.Api.Byron (Hash (unPaymentKeyHash))
+import Cardano.Api.Ledger (KeyHash (..), hashToBytes)
+import Control.Monad (unless)
+import Crypto.Hash (SHA256 (SHA256), hashWith)
+import Data.Bifunctor (Bifunctor (..))
+import qualified Data.ByteArray as BA
+import qualified Data.ByteString as BS
+import Data.PEM (PEM (..), pemParseBS)
 import Data.String (IsString)
+import Data.X509 (
+  Certificate (..),
+  PubKey (PubKeyEd25519),
+  decodeSignedCertificate,
+  getCertificate,
+ )
 import GHC.Generics (Generic)
 import qualified PlutusLedgerApi.V3 as PV3
 import qualified PlutusTx.IsData as PlutusTx
@@ -34,6 +64,42 @@ data Identity = Identity
   -- ^ The hash of the identifying X.509 certificate.
   }
   deriving stock (Show, Eq, Ord, Generic)
+
+readIdentityFromPEMFile :: FilePath -> IO (Either String Identity)
+readIdentityFromPEMFile = fmap parseIdentityFromPEMBytes . BS.readFile
+
+parseIdentityFromPEMBytes :: BS.ByteString -> Either String Identity
+parseIdentityFromPEMBytes pemBytes = do
+  PEM{..} <-
+    pemParseBS pemBytes >>= \case
+      [] -> Left "Empty PEM file"
+      [x] -> pure x
+      _ -> Left "Unexpected number of PEM entries found"
+  unless (pemName == "CERTIFICATE") do
+    Left $ "Unexpected PEM name: " <> pemName
+  Certificate{..} <- getCertificate <$> decodeSignedCertificate pemContent
+  pubKey <- x509PubKeyToPaymentKey certPubKey
+  let pubKeyHash = toPlutusPubKeyHash $ verificationKeyHash pubKey
+  let certificateHash = hashCertificate pemBytes
+  pure Identity{..}
+
+hashCertificate :: BS.ByteString -> CertificateHash
+hashCertificate =
+  CertificateHash . PV3.toBuiltin . BS.pack . BA.unpack . hashWith SHA256
+
+toPlutusPubKeyHash :: Hash PaymentKey -> PV3.PubKeyHash
+toPlutusPubKeyHash =
+  PV3.PubKeyHash . PV3.toBuiltin . hashToBytes . unKeyHash . unPaymentKeyHash
+  where
+    unKeyHash (KeyHash h) = h
+
+x509PubKeyToPaymentKey :: PubKey -> Either String (VerificationKey PaymentKey)
+x509PubKeyToPaymentKey (PubKeyEd25519 pk) =
+  first show $
+    deserialiseFromRawBytes (AsVerificationKey AsPaymentKey) $
+      BS.pack $
+        BA.unpack pk
+x509PubKeyToPaymentKey _ = Left "Invalid Public Key Algorithm"
 
 instance PlutusTx.Eq Identity where
   {-# INLINEABLE (==) #-}
