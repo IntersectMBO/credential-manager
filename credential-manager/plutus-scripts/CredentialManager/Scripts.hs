@@ -6,7 +6,12 @@ module CredentialManager.Scripts where
 import CredentialManager.Scripts.ColdCommittee (coldCommitteeScript)
 import CredentialManager.Scripts.ColdNFT (coldNFTScript)
 import CredentialManager.Scripts.HotCommittee (hotCommitteeScript)
-import PlutusLedgerApi.V3 (ColdCommitteeCredential, CurrencySymbol)
+import CredentialManager.Scripts.HotNFT (hotNFTScript)
+import PlutusLedgerApi.V3 (
+  ColdCommitteeCredential,
+  CurrencySymbol,
+  HotCommitteeCredential,
+ )
 import PlutusTx (
   CompiledCode,
   ToData (..),
@@ -16,20 +21,6 @@ import PlutusTx (
   unsafeApplyCode,
  )
 import PlutusTx.Prelude
-
--- | Helper function to wrap a script to error on the return of a False.
-{-# INLINEABLE wrapTwoArgs #-}
-wrapTwoArgs
-  :: (UnsafeFromData a, UnsafeFromData b)
-  => (a -> b -> Bool)
-  -> BuiltinData
-  -> BuiltinData
-  -> ()
-wrapTwoArgs f a ctx =
-  check
-    $ f
-      (unsafeFromBuiltinData a)
-      (unsafeFromBuiltinData ctx)
 
 {-# INLINEABLE wrapThreeArgs #-}
 wrapThreeArgs
@@ -70,6 +61,33 @@ wrapFourArgs f a b c ctx =
       (unsafeFromBuiltinData c)
       (unsafeFromBuiltinData ctx)
 
+{-# INLINEABLE wrapSixArgs #-}
+wrapSixArgs
+  :: ( UnsafeFromData a
+     , UnsafeFromData b
+     , UnsafeFromData c
+     , UnsafeFromData d
+     , UnsafeFromData e
+     , UnsafeFromData f
+     )
+  => (a -> b -> c -> d -> e -> f -> Bool)
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> ()
+wrapSixArgs f a b c d e ctx =
+  check
+    $ f
+      (unsafeFromBuiltinData a)
+      (unsafeFromBuiltinData b)
+      (unsafeFromBuiltinData c)
+      (unsafeFromBuiltinData d)
+      (unsafeFromBuiltinData e)
+      (unsafeFromBuiltinData ctx)
+
 coldCommittee
   :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
 coldCommittee =
@@ -91,3 +109,19 @@ coldNFT =
   unsafeApplyCode $$(compile [||wrapFourArgs coldNFTScript||])
     . liftCodeDef
     . toBuiltinData
+
+hotNFT
+  :: CurrencySymbol
+  -> CurrencySymbol
+  -> HotCommitteeCredential
+  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+hotNFT coldPolicyId hotPolicyId hotCred =
+  unsafeApplyCode
+    ( unsafeApplyCode
+        ( unsafeApplyCode
+            $$(compile [||wrapSixArgs hotNFTScript||])
+            (liftCodeDef (toBuiltinData coldPolicyId))
+        )
+        (liftCodeDef (toBuiltinData hotPolicyId))
+    )
+    (liftCodeDef (toBuiltinData hotCred))
