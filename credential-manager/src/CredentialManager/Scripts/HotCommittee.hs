@@ -10,9 +10,9 @@
 {-# OPTIONS_GHC -fno-unbox-strict-fields #-}
 
 -- | The hot committee script acts as the credential authorized by the cold
---     committee credential to vote on governance actions. All it checks is that
---     the NFT provided at compile time is spent, delegating all other logic to
---     the payment credential holding the NFT.
+-- committee credential to vote on governance actions. All it checks is that
+-- the NFT provided at compile time is spent, delegating all other logic to
+-- the payment credential holding the NFT.
 module CredentialManager.Scripts.HotCommittee where
 
 import PlutusLedgerApi.V3 (CurrencySymbol, TxOut (..), Value (getValue))
