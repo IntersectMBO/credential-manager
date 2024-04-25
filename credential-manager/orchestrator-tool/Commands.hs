@@ -31,6 +31,16 @@ import Commands.ResignDelegation (
   resignDelegationCommandParser,
   runResignDelegationCommand,
  )
+import Commands.RotateCold (
+  RotateColdCommand,
+  rotateColdCommandParser,
+  runRotateColdCommand,
+ )
+import Commands.UnlockCold (
+  UnlockColdCommand,
+  runUnlockColdCommand,
+  unlockColdCommandParser,
+ )
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   InfoMod,
@@ -57,6 +67,8 @@ data ColdNFTCommand
   | Authorize AuthorizeCommand
   | Resign ResignCommand
   | ResignDelegation ResignDelegationCommand
+  | RotateCold RotateColdCommand
+  | UnlockCold UnlockColdCommand
 
 newtype HotNFTCommand
   = InitHotNFT InitHotNFTCommand
@@ -113,6 +125,8 @@ coldNFTCommandParser = info parser description
           , command "authorize" $ Authorize <$> authorizeCommandParser
           , command "resign" $ Resign <$> resignCommandParser
           , command "resign-delegation" $ ResignDelegation <$> resignDelegationCommandParser
+          , command "rotate" $ RotateCold <$> rotateColdCommandParser
+          , command "unlock" $ UnlockCold <$> unlockColdCommandParser
           ]
 
 hotNFTCommandParser :: ParserInfo HotNFTCommand
@@ -151,6 +165,8 @@ runColdNFTCommand = \case
   Authorize cmd -> runAuthorizeCommand cmd
   Resign cmd -> runResignCommand cmd
   ResignDelegation cmd -> runResignDelegationCommand cmd
+  RotateCold cmd -> runRotateColdCommand cmd
+  UnlockCold cmd -> runUnlockColdCommand cmd
 
 runHotNFTCommand :: HotNFTCommand -> IO ()
 runHotNFTCommand = \case
