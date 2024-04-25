@@ -1,6 +1,10 @@
 module Commands where
 
-import Commands.Authorize (AuthorizeCommand, runAuthorizeCommand)
+import Commands.Authorize (
+  AuthorizeCommand,
+  authorizeCommandParser,
+  runAuthorizeCommand,
+ )
 import Commands.InitColdCredential (
   InitColdCredentialCommand,
   initColdCredentialCommandParser,
@@ -21,6 +25,7 @@ import Commands.InitHotNFT (
   initHotNFTCommandParser,
   runInitHotNFTCommand,
  )
+import Commands.Resign (ResignCommand, resignCommandParser, runResignCommand)
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   InfoMod,
@@ -45,6 +50,7 @@ newtype HotCredentialCommand = InitHotCredential InitHotCredentialCommand
 data ColdNFTCommand
   = InitColdNFT InitColdNFTCommand
   | Authorize AuthorizeCommand
+  | Resign ResignCommand
 
 newtype HotNFTCommand
   = InitHotNFT InitHotNFTCommand
@@ -98,6 +104,8 @@ coldNFTCommandParser = info parser description
       hsubparser $
         fold
           [ command "init" $ InitColdNFT <$> initColdNFTCommandParser
+          , command "authorize" $ Authorize <$> authorizeCommandParser
+          , command "resign" $ Resign <$> resignCommandParser
           ]
 
 hotNFTCommandParser :: ParserInfo HotNFTCommand
@@ -134,6 +142,7 @@ runColdNFTCommand :: ColdNFTCommand -> IO ()
 runColdNFTCommand = \case
   InitColdNFT cmd -> runInitColdNFTCommand cmd
   Authorize cmd -> runAuthorizeCommand cmd
+  Resign cmd -> runResignCommand cmd
 
 runHotNFTCommand :: HotNFTCommand -> IO ()
 runHotNFTCommand = \case

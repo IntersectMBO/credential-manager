@@ -32,6 +32,15 @@ import Cardano.Api (
   valueToList,
   writeFileTextEnvelope,
  )
+import Cardano.Api.Ledger (
+  AnchorData,
+  SafeHash,
+  StandardCrypto,
+  Url,
+  hashFromBytes,
+  textToUrl,
+  unsafeMakeSafeHash,
+ )
 import Cardano.Api.Shelley (
   PlutusScript (PlutusScriptSerialised),
   StakeCredential (..),
@@ -45,9 +54,9 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
-import Data.String (IsString (..))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import Options.Applicative (
   Mod,
@@ -63,6 +72,7 @@ import Options.Applicative (
   option,
   readerError,
   short,
+  str,
   strOption,
  )
 import qualified PlutusLedgerApi.V3 as PlutusV1
@@ -168,7 +178,40 @@ readPolicyId = do
 readBase16 :: ReadM ByteString
 readBase16 =
   eitherReader $
-    first (const "Invalid hexadecimal text") . decodeBase16Untyped . fromString
+    first (const "Invalid hexadecimal text")
+      . decodeBase16Untyped
+      . T.encodeUtf8
+      . T.pack
+
+metadataUrlParser :: Mod OptionFields Url -> Parser Url
+metadataUrlParser info =
+  option readUrl $
+    fold
+      [ long "metadata-url"
+      , metavar "URL"
+      ]
+      <> info
+
+readUrl :: ReadM Url
+readUrl = do
+  text <- str
+  textToUrl 128 text
+
+metadataHashParser :: Parser (SafeHash StandardCrypto AnchorData)
+metadataHashParser =
+  option readSafeHash $
+    fold
+      [ long "metadata-hash"
+      , metavar "HASH"
+      , help "Hash of the anchor data as hexadecimal text"
+      ]
+
+readSafeHash :: ReadM (SafeHash StandardCrypto a)
+readSafeHash = do
+  bytes <- readBase16
+  case hashFromBytes bytes of
+    Nothing -> readerError "Unable to read hash"
+    Just hash -> pure $ unsafeMakeSafeHash hash
 
 readIdentityFromPEMFile' :: FilePath -> IO Identity
 readIdentityFromPEMFile' file =
