@@ -41,6 +41,7 @@ import Commands.UnlockCold (
   runUnlockColdCommand,
   unlockColdCommandParser,
  )
+import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   InfoMod,
@@ -70,8 +71,9 @@ data ColdNFTCommand
   | RotateCold RotateColdCommand
   | UnlockCold UnlockColdCommand
 
-newtype HotNFTCommand
+data HotNFTCommand
   = InitHotNFT InitHotNFTCommand
+  | Vote VoteCommand
 
 -- Parsers
 
@@ -140,6 +142,7 @@ hotNFTCommandParser = info parser description
       hsubparser $
         fold
           [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
+          , command "vote" $ Vote <$> voteCommandParser
           ]
 
 -- Implementations
@@ -171,3 +174,4 @@ runColdNFTCommand = \case
 runHotNFTCommand :: HotNFTCommand -> IO ()
 runHotNFTCommand = \case
   InitHotNFT cmd -> runInitHotNFTCommand cmd
+  Vote cmd -> runVoteCommand cmd

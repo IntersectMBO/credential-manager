@@ -34,19 +34,25 @@ import Cardano.Api (
  )
 import Cardano.Api.Ledger (
   AnchorData,
+  GovActionId,
   SafeHash,
   StandardCrypto,
   Url,
+  Voter,
+  VotingProcedure,
+  VotingProcedures (..),
   hashFromBytes,
   textToUrl,
   unsafeMakeSafeHash,
  )
 import Cardano.Api.Shelley (
   PlutusScript (PlutusScriptSerialised),
+  ShelleyLedgerEra,
   StakeCredential (..),
   fromPlutusData,
   scriptDataToJsonDetailedSchema,
  )
+import qualified Cardano.Api.Shelley as Shelley
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Bifunctor (Bifunctor (..))
@@ -54,6 +60,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
+import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as T
@@ -271,6 +278,24 @@ writeCertificateToFile dir file certificate = do
   let path = dir </> file
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing certificate
+
+writeVoteToFile
+  :: FilePath
+  -> FilePath
+  -> Voter StandardCrypto
+  -> GovActionId StandardCrypto
+  -> VotingProcedure (ShelleyLedgerEra ConwayEra)
+  -> IO ()
+writeVoteToFile dir file voter govAction vote = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  let votingProcedures =
+        Shelley.VotingProcedures $
+          VotingProcedures @(ShelleyLedgerEra ConwayEra) $
+            Map.singleton voter $
+              Map.singleton govAction vote
+  either (error . show) pure
+    =<< writeFileTextEnvelope (File path) Nothing votingProcedures
 
 writeScriptToFile
   :: FilePath -> FilePath -> CompiledCode a -> IO (Script PlutusScriptV3)
