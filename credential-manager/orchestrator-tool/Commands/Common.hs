@@ -1,7 +1,12 @@
 module Commands.Common where
 
 import Cardano.Api (
+  Address,
   AsType (..),
+  AssetId (..),
+  AssetName (..),
+  Certificate,
+  ConwayEra,
   File (..),
   FromSomeType (..),
   Key (..),
@@ -10,22 +15,28 @@ import Cardano.Api (
   PlutusScriptV3,
   PlutusScriptVersion (..),
   PolicyId,
+  Quantity (..),
   Script (..),
   SerialiseAsBech32,
   SerialiseAsRawBytes (..),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
+  ShelleyAddr,
   StakeAddressReference (..),
-  ToJSON,
+  Value,
   hashScript,
   readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
   serialiseToBech32,
   serialiseToRawBytesHexText,
+  unsafeHashableScriptData,
+  valueToList,
   writeFileTextEnvelope,
  )
 import Cardano.Api.Shelley (
   PlutusScript (PlutusScriptSerialised),
   StakeCredential (..),
+  fromPlutusData,
+  scriptDataToJsonDetailedSchema,
  )
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -35,6 +46,8 @@ import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
 import Data.String (IsString (..))
+import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.IO as T
 import Options.Applicative (
   Mod,
@@ -53,7 +66,7 @@ import Options.Applicative (
   strOption,
  )
 import qualified PlutusLedgerApi.V3 as PlutusV1
-import PlutusTx (CompiledCode)
+import PlutusTx (CompiledCode, ToData, toData)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 
@@ -77,6 +90,38 @@ networkIdParser =
 
 policyIdParser :: Mod OptionFields PolicyId -> Parser PolicyId
 policyIdParser = option readPolicyId . (<> metavar "POLICY_ID")
+
+utxoFileParser :: Parser FilePath
+utxoFileParser =
+  strOption $
+    fold
+      [ long "utxo-file"
+      , short 'u'
+      , metavar "FILE_PATH"
+      , help
+          "A relative path to a JSON file containing the unspent transaction output holding the NFT. Obtain with cardano-cli query utxo --output-json"
+      , action "file"
+      ]
+
+coldCredentialScriptFileParser :: Parser FilePath
+coldCredentialScriptFileParser =
+  strOption $
+    fold
+      [ long "cold-credential-script-file"
+      , metavar "FILE_PATH"
+      , help "A relative path to the compiled cold credential script file."
+      , action "file"
+      ]
+
+hotCredentialScriptFileParser :: Parser FilePath
+hotCredentialScriptFileParser =
+  strOption $
+    fold
+      [ long "hot-credential-script-file"
+      , metavar "FILE_PATH"
+      , help "A relative path to the compiled hot credential script file."
+      , action "file"
+      ]
 
 outDirParser :: Parser FilePath
 outDirParser =
@@ -156,6 +201,14 @@ readStakeAddressFile =
           error $ "Failed to read stake script file: " <> show err
         Right hash -> pure $ StakeCredentialByScript hash
 
+writeCertificateToFile
+  :: FilePath -> FilePath -> Certificate ConwayEra -> IO ()
+writeCertificateToFile dir file certificate = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  either (error . show) pure
+    =<< writeFileTextEnvelope (File path) Nothing certificate
+
 writeScriptToFile
   :: FilePath -> FilePath -> CompiledCode a -> IO (Script PlutusScriptV3)
 writeScriptToFile dir file code = do
@@ -180,8 +233,36 @@ writeBech32ToFile dir file a = do
   let path = dir </> file
   T.writeFile path $ serialiseToBech32 a
 
-writeJSONToFile :: (ToJSON a) => FilePath -> FilePath -> a -> IO ()
-writeJSONToFile dir file a = do
+writePlutusDataToFile :: (ToData a) => FilePath -> FilePath -> a -> IO ()
+writePlutusDataToFile dir file a = do
   createDirectoryIfMissing True dir
   let path = dir </> file
-  LBS.writeFile path $ encodePretty a
+  LBS.writeFile path $
+    encodePretty $
+      scriptDataToJsonDetailedSchema $
+        unsafeHashableScriptData $
+          fromPlutusData $
+            toData a
+
+writeTxOutValueToFile
+  :: FilePath -> FilePath -> Address ShelleyAddr -> Value -> IO ()
+writeTxOutValueToFile dir file address value = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  T.writeFile path $
+    fold
+      [ serialiseToBech32 address
+      , "+"
+      , T.intercalate " + " $ uncurry renderAsset <$> valueToList value
+      ]
+
+renderAsset :: AssetId -> Quantity -> T.Text
+renderAsset AdaAssetId (Quantity i) = T.pack (show i) <> " lovelace"
+renderAsset (AssetId policyId "") (Quantity i) =
+  T.pack (show i) <> " " <> serialiseToRawBytesHexText policyId
+renderAsset (AssetId policyId (AssetName assetName)) (Quantity i) =
+  T.pack (show i)
+    <> " "
+    <> serialiseToRawBytesHexText policyId
+    <> "."
+    <> decodeUtf8 assetName

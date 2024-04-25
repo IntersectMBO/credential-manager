@@ -1,5 +1,6 @@
 module Commands where
 
+import Commands.Authorize (AuthorizeCommand, runAuthorizeCommand)
 import Commands.InitColdCredential (
   InitColdCredentialCommand,
   initColdCredentialCommandParser,
@@ -14,6 +15,11 @@ import Commands.InitHotCredential (
   InitHotCredentialCommand,
   initHotCredentialCommandParser,
   runInitHotCredentialCommand,
+ )
+import Commands.InitHotNFT (
+  InitHotNFTCommand,
+  initHotNFTCommandParser,
+  runInitHotNFTCommand,
  )
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
@@ -36,10 +42,12 @@ newtype ColdCredentialCommand = InitColdCredential InitColdCredentialCommand
 
 newtype HotCredentialCommand = InitHotCredential InitHotCredentialCommand
 
-newtype ColdNFTCommand
+data ColdNFTCommand
   = InitColdNFT InitColdNFTCommand
+  | Authorize AuthorizeCommand
 
-data HotNFTCommand
+newtype HotNFTCommand
+  = InitHotNFT InitHotNFTCommand
 
 -- Parsers
 
@@ -50,6 +58,7 @@ commandParser =
       [ command "cold-credential" $ ColdCredential <$> coldCredentialCommandParser
       , command "hot-credential" $ HotCredential <$> hotCredentialCommandParser
       , command "cold-nft" $ ColdNFT <$> coldNFTCommandParser
+      , command "hot-nft" $ HotNFT <$> hotNFTCommandParser
       ]
 
 coldCredentialCommandParser :: ParserInfo ColdCredentialCommand
@@ -91,6 +100,19 @@ coldNFTCommandParser = info parser description
           [ command "init" $ InitColdNFT <$> initColdNFTCommandParser
           ]
 
+hotNFTCommandParser :: ParserInfo HotNFTCommand
+hotNFTCommandParser = info parser description
+  where
+    description :: InfoMod HotNFTCommand
+    description = progDesc "Manage the hot NFT locking script."
+
+    parser :: Parser HotNFTCommand
+    parser =
+      hsubparser $
+        fold
+          [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
+          ]
+
 -- Implementations
 
 runCommand :: Command -> IO ()
@@ -111,6 +133,8 @@ runHotCredentialCommand = \case
 runColdNFTCommand :: ColdNFTCommand -> IO ()
 runColdNFTCommand = \case
   InitColdNFT cmd -> runInitColdNFTCommand cmd
+  Authorize cmd -> runAuthorizeCommand cmd
 
 runHotNFTCommand :: HotNFTCommand -> IO ()
-runHotNFTCommand = \case {}
+runHotNFTCommand = \case
+  InitHotNFT cmd -> runInitHotNFTCommand cmd

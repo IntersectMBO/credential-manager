@@ -17,11 +17,10 @@ import Cardano.Api (
   hashScript,
   makeShelleyAddress,
   readFileTextEnvelope,
-  unsafeHashableScriptData,
  )
-import Cardano.Api.Shelley (fromPlutusData, scriptDataToJsonDetailedSchema)
 import Commands.Common (
   StakeCredentialFile,
+  hotCredentialScriptFileParser,
   networkIdParser,
   outDirParser,
   policyIdParser,
@@ -30,7 +29,7 @@ import Commands.Common (
   stakeCredentialFileParser,
   writeBech32ToFile,
   writeHexBytesToFile,
-  writeJSONToFile,
+  writePlutusDataToFile,
   writeScriptToFile,
  )
 import CredentialManager.Api (
@@ -60,7 +59,6 @@ import PlutusLedgerApi.V3 (
   HotCommitteeCredential (..),
   ScriptHash (..),
   toBuiltin,
-  toData,
  )
 
 data InitHotNFTCommand = InitHotNFTCommand
@@ -90,16 +88,6 @@ initHotNFTCommandParser = info parser description
         <*> some votingCertFileParser
         <*> optional stakeCredentialFileParser
         <*> outDirParser
-
-hotCredentialScriptFileParser :: Parser FilePath
-hotCredentialScriptFileParser =
-  strOption $
-    fold
-      [ long "hot-credential-script-file"
-      , metavar "FILE_PATH"
-      , help "A relative path to the compiled hot credential script file."
-      , action "file"
-      ]
 
 votingCertFileParser :: Parser FilePath
 votingCertFileParser =
@@ -166,7 +154,4 @@ runInitHotNFTCommand InitHotNFTCommand{..} = do
   writeBech32ToFile outDir "script.addr" $
     makeShelleyAddress networkId paymentCredential stakeAddress
 
-  let datum = HotLockDatum{..}
-  let datumEncoded = unsafeHashableScriptData $ fromPlutusData $ toData datum
-  writeJSONToFile outDir "datum.json" $
-    scriptDataToJsonDetailedSchema datumEncoded
+  writePlutusDataToFile outDir "datum.json" HotLockDatum{..}
