@@ -45,7 +45,7 @@ import Commands.Common (
  )
 import CredentialManager.Api (
   ColdLockDatum (..),
-  ColdLockRedeemer (AuthorizeHot),
+  ColdLockRedeemer (..),
  )
 import Data.Aeson (eitherDecodeFileStrict)
 import Options.Applicative (

@@ -20,6 +20,8 @@ import Cardano.Api (
 import Commands.Common (
   StakeCredentialFile,
   coldCredentialScriptFileParser,
+  delegationFileParser,
+  membershipFileParser,
   networkIdParser,
   outDirParser,
   readIdentityFromPEMFile',
@@ -91,26 +93,6 @@ caCertFileParser =
       [ long "ca-cert"
       , metavar "FILE_PATH"
       , help "A relative path to the root CA certificate PEM file."
-      , action "file"
-      ]
-
-membershipFileParser :: Parser FilePath
-membershipFileParser =
-  strOption $
-    fold
-      [ long "membership-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a membership user."
-      , action "file"
-      ]
-
-delegationFileParser :: Parser FilePath
-delegationFileParser =
-  strOption $
-    fold
-      [ long "delegation-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a delegation user."
       , action "file"
       ]
 

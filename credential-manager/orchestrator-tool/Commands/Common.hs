@@ -167,6 +167,26 @@ stakeCredentialFileParser =
             ]
     ]
 
+membershipFileParser :: Parser FilePath
+membershipFileParser =
+  strOption $
+    fold
+      [ long "membership-cert"
+      , metavar "FILE_PATH"
+      , help "A relative path to the certificate PEM file of a membership user."
+      , action "file"
+      ]
+
+delegationFileParser :: Parser FilePath
+delegationFileParser =
+  strOption $
+    fold
+      [ long "delegation-cert"
+      , metavar "FILE_PATH"
+      , help "A relative path to the certificate PEM file of a delegation user."
+      , action "file"
+      ]
+
 readPolicyId :: ReadM PolicyId
 readPolicyId = do
   bytes <- readBase16
