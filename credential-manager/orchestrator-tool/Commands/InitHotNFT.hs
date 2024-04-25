@@ -1,8 +1,13 @@
-module Commands.InitHotNFT where
+module Commands.InitHotNFT (
+  InitHotNFTCommand (..),
+  initHotNFTCommandParser,
+  runInitHotNFTCommand,
+) where
 
 import Cardano.Api (
   AsType (..),
   File (..),
+  NetworkId,
   PaymentCredential (..),
   PlutusScriptVersion (..),
   PolicyId,
@@ -14,25 +19,21 @@ import Cardano.Api (
   readFileTextEnvelope,
   unsafeHashableScriptData,
  )
-import qualified Cardano.Api as C
 import Cardano.Api.Shelley (fromPlutusData, scriptDataToJsonDetailedSchema)
-import Commands.InitColdCredential (
-  policyIdParser,
-  scriptHashOutParser,
-  scriptOutParser,
-  writeHexBytesToFile,
-  writeScriptToFile,
- )
-import Commands.InitColdNFT (
-  NetworkType (..),
+import Commands.Common (
   StakeCredentialFile,
   datumOutParser,
-  networkTypeParser,
+  networkIdParser,
+  policyIdParser,
   readIdentityFromPEMFile',
   readStakeAddressFile,
   scriptAddressOutParser,
+  scriptHashOutParser,
+  scriptOutParser,
   stakeCredentialFileParser,
   writeBech32ToFile,
+  writeHexBytesToFile,
+  writeScriptToFile,
  )
 import CredentialManager.Api (
   HotLockDatum (..),
@@ -67,7 +68,7 @@ import PlutusLedgerApi.V3 (
  )
 
 data InitHotNFTCommand = InitHotNFTCommand
-  { networkType :: NetworkType
+  { networkId :: NetworkId
   , coldNFTPolicyId :: PolicyId
   , hotNFTPolicyId :: PolicyId
   , hotCredentialScriptFile :: FilePath
@@ -89,7 +90,7 @@ initHotNFTCommandParser = info parser description
     parser :: Parser InitHotNFTCommand
     parser =
       InitHotNFTCommand
-        <$> networkTypeParser
+        <$> networkIdParser
         <*> policyIdParser coldNFTPolicyIdInfo
         <*> policyIdParser hotNFTPolicyIdInfo
         <*> hotCredentialScriptFileParser
@@ -171,10 +172,6 @@ runInitHotNFTCommand InitHotNFTCommand{..} = do
   let scriptHash = hashScript script
   writeHexBytesToFile scriptHashOut scriptHash
 
-  let networkId = case networkType of
-        Mainnet -> C.Mainnet
-        -- the network magic is unimportant for building addresses
-        Testnet -> C.Testnet $ C.NetworkMagic 1
   let paymentCredential = PaymentCredentialByScript scriptHash
   writeBech32ToFile scriptAddressOut $
     makeShelleyAddress networkId paymentCredential stakeAddress

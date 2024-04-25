@@ -1,52 +1,54 @@
-module Commands.InitColdNFT where
+module Commands.InitColdNFT (
+  InitColdNFTCommand (..),
+  initColdNFTCommandParser,
+  runInitColdNFTCommand,
+) where
 
 import Cardano.Api (
   AsType (..),
   File (..),
-  FromSomeType (..),
-  Key (..),
+  NetworkId,
   PaymentCredential (..),
   PlutusScriptVersion (..),
   Script (..),
-  SerialiseAsBech32,
   SerialiseAsRawBytes (..),
   StakeAddressReference (..),
   hashScript,
   makeShelleyAddress,
   readFileTextEnvelope,
-  readFileTextEnvelopeAnyOf,
-  serialiseToBech32,
   unsafeHashableScriptData,
  )
-import qualified Cardano.Api as C
 import Cardano.Api.Shelley (
-  StakeCredential (..),
   fromPlutusData,
   scriptDataToJsonDetailedSchema,
  )
-import Commands.InitColdCredential (
+import Commands.Common (
+  StakeCredentialFile,
+  datumOutParser,
+  networkIdParser,
+  readIdentityFromPEMFile',
+  readStakeAddressFile,
+  scriptAddressOutParser,
   scriptHashOutParser,
   scriptOutParser,
+  stakeCredentialFileParser,
+  writeBech32ToFile,
   writeHexBytesToFile,
   writeScriptToFile,
  )
 import CredentialManager.Api (
   ColdLockDatum (..),
-  Identity,
-  readIdentityFromPEMFile,
  )
 import qualified CredentialManager.Scripts as Scripts
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as LBS
-import Data.Foldable (Foldable (..), asum)
-import qualified Data.Text.IO as T
+import Data.Foldable (Foldable (..))
 import Options.Applicative (
   Alternative (some),
   InfoMod,
   Parser,
   ParserInfo,
   action,
-  flag',
   help,
   info,
   long,
@@ -63,12 +65,8 @@ import PlutusLedgerApi.V3 (
   toData,
  )
 
-data NetworkType = Mainnet | Testnet
-
-data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
-
 data InitColdNFTCommand = InitColdNFTCommand
-  { networkType :: NetworkType
+  { networkId :: NetworkId
   , coldCredentialScriptFile :: FilePath
   , caCertFile :: FilePath
   , membershipCertFiles :: [FilePath]
@@ -90,7 +88,7 @@ initColdNFTCommandParser = info parser description
     parser :: Parser InitColdNFTCommand
     parser =
       InitColdNFTCommand
-        <$> networkTypeParser
+        <$> networkIdParser
         <*> coldCredentialScriptFileParser
         <*> caCertFileParser
         <*> some membershipFileParser
@@ -100,43 +98,6 @@ initColdNFTCommandParser = info parser description
         <*> scriptHashOutParser
         <*> scriptAddressOutParser
         <*> datumOutParser
-
-networkTypeParser :: Parser NetworkType
-networkTypeParser =
-  asum
-    [ flag' Mainnet $
-        fold
-          [ long "mainnet"
-          , help "Build a mainnet script address"
-          ]
-    , flag' Testnet $
-        fold
-          [ long "testnet"
-          , help "Build a testnet script address"
-          ]
-    ]
-
-stakeCredentialFileParser :: Parser StakeCredentialFile
-stakeCredentialFileParser =
-  asum
-    [ fmap StakeKey $
-        strOption $
-          fold
-            [ long "stake-verification-key-file"
-            , metavar "FILE_PATH"
-            , help
-                "A relative path to the stake verification key to build the script address with."
-            , action "file"
-            ]
-    , fmap StakeScript $
-        strOption $
-          fold
-            [ long "stake-script-file"
-            , metavar "FILE_PATH"
-            , help "A relative path to the stake script to build the script address with."
-            , action "file"
-            ]
-    ]
 
 coldCredentialScriptFileParser :: Parser FilePath
 coldCredentialScriptFileParser =
@@ -178,31 +139,6 @@ delegationFileParser =
       , action "file"
       ]
 
-scriptAddressOutParser :: Parser FilePath
-scriptAddressOutParser =
-  strOption $
-    fold
-      [ long "script-address-out-file"
-      , metavar "FILE_PATH"
-      , help
-          "A relative path to the file where the script address should be written as a bech32 string."
-      , action "file"
-      ]
-
-datumOutParser :: Parser FilePath
-datumOutParser =
-  strOption $
-    fold
-      [ long "datum-out-file"
-      , metavar "FILE_PATH"
-      , help
-          "A relative path to the file where the initial datum should be written as JSON."
-      , action "file"
-      ]
-
-writeBech32ToFile :: (SerialiseAsBech32 a) => FilePath -> a -> IO ()
-writeBech32ToFile file = T.writeFile file . serialiseToBech32
-
 runInitColdNFTCommand :: InitColdNFTCommand -> IO ()
 runInitColdNFTCommand InitColdNFTCommand{..} = do
   coldCredentialScriptResult <-
@@ -238,10 +174,6 @@ runInitColdNFTCommand InitColdNFTCommand{..} = do
   let scriptHash = hashScript script
   writeHexBytesToFile scriptHashOut scriptHash
 
-  let networkId = case networkType of
-        Mainnet -> C.Mainnet
-        -- the network magic is unimportant for building addresses
-        Testnet -> C.Testnet $ C.NetworkMagic 1
   let paymentCredential = PaymentCredentialByScript scriptHash
   writeBech32ToFile scriptAddressOut $
     makeShelleyAddress networkId paymentCredential stakeAddress
@@ -251,34 +183,3 @@ runInitColdNFTCommand InitColdNFTCommand{..} = do
   LBS.writeFile datumOutFile $
     encodePretty $
       scriptDataToJsonDetailedSchema datumEncoded
-
-readStakeAddressFile :: StakeCredentialFile -> IO StakeAddressReference
-readStakeAddressFile =
-  fmap StakeAddressByValue . \case
-    StakeKey file -> do
-      keyResult <- readFileTextEnvelope (AsVerificationKey AsStakeKey) $ File file
-      case keyResult of
-        Left err -> do
-          error $ "Failed to read stake verification key file: " <> show err
-        Right key -> pure $ StakeCredentialByKey $ verificationKeyHash key
-    StakeScript file -> do
-      scriptHashResult <-
-        readFileTextEnvelopeAnyOf
-          [ FromSomeType (AsPlutusScript AsPlutusScriptV3) $
-              hashScript . PlutusScript PlutusScriptV3
-          , FromSomeType (AsPlutusScript AsPlutusScriptV3) $
-              hashScript . PlutusScript PlutusScriptV3
-          , FromSomeType (AsPlutusScript AsPlutusScriptV3) $
-              hashScript . PlutusScript PlutusScriptV3
-          ]
-          (File file)
-      case scriptHashResult of
-        Left err -> do
-          error $ "Failed to read stake script file: " <> show err
-        Right hash -> pure $ StakeCredentialByScript hash
-
-readIdentityFromPEMFile' :: FilePath -> IO Identity
-readIdentityFromPEMFile' file =
-  readIdentityFromPEMFile file >>= \case
-    Left err -> error $ file <> ": " <> err
-    Right a -> pure a

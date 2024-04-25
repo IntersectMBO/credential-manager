@@ -1,7 +1,11 @@
-module Commands.InitHotCredential where
+module Commands.InitHotCredential (
+  InitHotCredentialCommand (..),
+  initHotCredentialCommandParser,
+  runInitHotCredentialCommand,
+) where
 
 import Cardano.Api (PolicyId, hashScript, serialiseToRawBytes)
-import Commands.InitColdCredential (
+import Commands.Common (
   policyIdParser,
   scriptHashOutParser,
   scriptOutParser,
