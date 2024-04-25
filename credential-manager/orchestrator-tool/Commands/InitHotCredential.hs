@@ -6,9 +6,8 @@ module Commands.InitHotCredential (
 
 import Cardano.Api (PolicyId, hashScript, serialiseToRawBytes)
 import Commands.Common (
+  outDirParser,
   policyIdParser,
-  scriptHashOutParser,
-  scriptOutParser,
   writeHexBytesToFile,
   writeScriptToFile,
  )
@@ -30,8 +29,7 @@ import PlutusLedgerApi.V3 (CurrencySymbol (CurrencySymbol), toBuiltin)
 
 data InitHotCredentialCommand = InitHotCredentialCommand
   { policyId :: PolicyId
-  , scriptOut :: FilePath
-  , scriptHashOut :: FilePath
+  , outDir :: FilePath
   }
 
 initHotCredentialCommandParser :: ParserInfo InitHotCredentialCommand
@@ -46,8 +44,7 @@ initHotCredentialCommandParser = info parser description
     parser =
       InitHotCredentialCommand
         <$> policyIdParser policyIdInfo
-        <*> scriptOutParser
-        <*> scriptHashOutParser
+        <*> outDirParser
 
 policyIdInfo :: Mod OptionFields PolicyId
 policyIdInfo =
@@ -64,5 +61,5 @@ runInitHotCredentialCommand InitHotCredentialCommand{..} = do
           CurrencySymbol $
             toBuiltin $
               serialiseToRawBytes policyId
-  script <- writeScriptToFile scriptOut compiledScript
-  writeHexBytesToFile scriptHashOut $ hashScript script
+  script <- writeScriptToFile outDir "script.plutus" compiledScript
+  writeHexBytesToFile outDir "script.hash" $ hashScript script

@@ -22,25 +22,21 @@ import Cardano.Api (
 import Cardano.Api.Shelley (fromPlutusData, scriptDataToJsonDetailedSchema)
 import Commands.Common (
   StakeCredentialFile,
-  datumOutParser,
   networkIdParser,
+  outDirParser,
   policyIdParser,
   readIdentityFromPEMFile',
   readStakeAddressFile,
-  scriptAddressOutParser,
-  scriptHashOutParser,
-  scriptOutParser,
   stakeCredentialFileParser,
   writeBech32ToFile,
   writeHexBytesToFile,
+  writeJSONToFile,
   writeScriptToFile,
  )
 import CredentialManager.Api (
   HotLockDatum (..),
  )
 import qualified CredentialManager.Scripts as Scripts
-import Data.Aeson.Encode.Pretty (encodePretty)
-import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   Alternative (some),
@@ -74,10 +70,7 @@ data InitHotNFTCommand = InitHotNFTCommand
   , hotCredentialScriptFile :: FilePath
   , votingCertFiles :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
-  , scriptOut :: FilePath
-  , scriptHashOut :: FilePath
-  , scriptAddressOut :: FilePath
-  , datumOutFile :: FilePath
+  , outDir :: FilePath
   }
 
 initHotNFTCommandParser :: ParserInfo InitHotNFTCommand
@@ -96,10 +89,7 @@ initHotNFTCommandParser = info parser description
         <*> hotCredentialScriptFileParser
         <*> some votingCertFileParser
         <*> optional stakeCredentialFileParser
-        <*> scriptOutParser
-        <*> scriptHashOutParser
-        <*> scriptAddressOutParser
-        <*> datumOutParser
+        <*> outDirParser
 
 hotCredentialScriptFileParser :: Parser FilePath
 hotCredentialScriptFileParser =
@@ -167,17 +157,16 @@ runInitHotNFTCommand InitHotNFTCommand{..} = do
   let hotCurrency =
         CurrencySymbol $ toBuiltin $ serialiseToRawBytes hotNFTPolicyId
   let compiledScript = Scripts.hotNFT coldCurrency hotCurrency hotCredential
-  script <- writeScriptToFile scriptOut compiledScript
+  script <- writeScriptToFile outDir "script.plutus" compiledScript
 
   let scriptHash = hashScript script
-  writeHexBytesToFile scriptHashOut scriptHash
+  writeHexBytesToFile outDir "script.hash" scriptHash
 
   let paymentCredential = PaymentCredentialByScript scriptHash
-  writeBech32ToFile scriptAddressOut $
+  writeBech32ToFile outDir "script.addr" $
     makeShelleyAddress networkId paymentCredential stakeAddress
 
   let datum = HotLockDatum{..}
   let datumEncoded = unsafeHashableScriptData $ fromPlutusData $ toData datum
-  LBS.writeFile datumOutFile $
-    encodePretty $
-      scriptDataToJsonDetailedSchema datumEncoded
+  writeJSONToFile outDir "datum.json" $
+    scriptDataToJsonDetailedSchema datumEncoded

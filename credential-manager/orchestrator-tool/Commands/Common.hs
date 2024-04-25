@@ -15,6 +15,7 @@ import Cardano.Api (
   SerialiseAsRawBytes (..),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
   StakeAddressReference (..),
+  ToJSON,
   hashScript,
   readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
@@ -27,9 +28,11 @@ import Cardano.Api.Shelley (
   StakeCredential (..),
  )
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
+import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Bifunctor (Bifunctor (..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
 import Data.String (IsString (..))
 import qualified Data.Text.IO as T
@@ -46,10 +49,13 @@ import Options.Applicative (
   metavar,
   option,
   readerError,
+  short,
   strOption,
  )
 import qualified PlutusLedgerApi.V3 as PlutusV1
 import PlutusTx (CompiledCode)
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>))
 
 data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
 
@@ -72,26 +78,16 @@ networkIdParser =
 policyIdParser :: Mod OptionFields PolicyId -> Parser PolicyId
 policyIdParser = option readPolicyId . (<> metavar "POLICY_ID")
 
-scriptOutParser :: Parser FilePath
-scriptOutParser =
+outDirParser :: Parser FilePath
+outDirParser =
   strOption $
     fold
-      [ long "script-out-file"
-      , metavar "FILE_PATH"
+      [ long "out-dir"
+      , short 'o'
+      , metavar "DIRECTORY"
       , help
-          "A relative path to the file where the compiled script should be written as a text envelope."
-      , action "file"
-      ]
-
-scriptHashOutParser :: Parser FilePath
-scriptHashOutParser =
-  strOption $
-    fold
-      [ long "script-hash-out-file"
-      , metavar "FILE_PATH"
-      , help
-          "A relative path to the file where the script hash should be written as a hexadecimal string."
-      , action "file"
+          "A relative path to the directory where the output assets should be written."
+      , action "directory"
       ]
 
 stakeCredentialFileParser :: Parser StakeCredentialFile
@@ -115,28 +111,6 @@ stakeCredentialFileParser =
             , action "file"
             ]
     ]
-
-scriptAddressOutParser :: Parser FilePath
-scriptAddressOutParser =
-  strOption $
-    fold
-      [ long "script-address-out-file"
-      , metavar "FILE_PATH"
-      , help
-          "A relative path to the file where the script address should be written as a bech32 string."
-      , action "file"
-      ]
-
-datumOutParser :: Parser FilePath
-datumOutParser =
-  strOption $
-    fold
-      [ long "datum-out-file"
-      , metavar "FILE_PATH"
-      , help
-          "A relative path to the file where the initial datum should be written as JSON."
-      , action "file"
-      ]
 
 readPolicyId :: ReadM PolicyId
 readPolicyId = do
@@ -182,16 +156,32 @@ readStakeAddressFile =
           error $ "Failed to read stake script file: " <> show err
         Right hash -> pure $ StakeCredentialByScript hash
 
-writeScriptToFile :: FilePath -> CompiledCode a -> IO (Script PlutusScriptV3)
-writeScriptToFile file code = do
+writeScriptToFile
+  :: FilePath -> FilePath -> CompiledCode a -> IO (Script PlutusScriptV3)
+writeScriptToFile dir file code = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
   either (error . show) pure
-    =<< writeFileTextEnvelope (File file) Nothing plutusScript
+    =<< writeFileTextEnvelope (File path) Nothing plutusScript
   pure $ PlutusScript PlutusScriptV3 plutusScript
   where
     plutusScript = PlutusScriptSerialised $ PlutusV1.serialiseCompiledCode code
 
-writeHexBytesToFile :: (SerialiseAsRawBytes a) => FilePath -> a -> IO ()
-writeHexBytesToFile file = T.writeFile file . serialiseToRawBytesHexText
+writeHexBytesToFile
+  :: (SerialiseAsRawBytes a) => FilePath -> FilePath -> a -> IO ()
+writeHexBytesToFile dir file a = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  T.writeFile path $ serialiseToRawBytesHexText a
 
-writeBech32ToFile :: (SerialiseAsBech32 a) => FilePath -> a -> IO ()
-writeBech32ToFile file = T.writeFile file . serialiseToBech32
+writeBech32ToFile :: (SerialiseAsBech32 a) => FilePath -> FilePath -> a -> IO ()
+writeBech32ToFile dir file a = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  T.writeFile path $ serialiseToBech32 a
+
+writeJSONToFile :: (ToJSON a) => FilePath -> FilePath -> a -> IO ()
+writeJSONToFile dir file a = do
+  createDirectoryIfMissing True dir
+  let path = dir </> file
+  LBS.writeFile path $ encodePretty a
