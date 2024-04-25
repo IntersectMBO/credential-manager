@@ -5,6 +5,7 @@ import Cardano.Api (
   File (..),
   PlutusScriptV3,
   PlutusScriptVersion (PlutusScriptV3),
+  PolicyId,
   Script (PlutusScript),
   SerialiseAsRawBytes (deserialiseFromRawBytes, serialiseToRawBytes),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
@@ -44,7 +45,7 @@ import qualified PlutusLedgerApi.V3 as PlutusV1
 import PlutusTx (CompiledCode)
 
 data InitColdCredentialCommand = InitColdCredentialCommand
-  { policyId :: CurrencySymbol
+  { policyId :: PolicyId
   , scriptOut :: FilePath
   , scriptHashOut :: FilePath
   }
@@ -82,11 +83,11 @@ scriptHashOutParser =
       [ long "script-hash-out-file"
       , metavar "FILE_PATH"
       , help
-          "A relative path to the file where the compiled script should be written as a hexadecimal string."
+          "A relative path to the file where the script hash should be written as a hexadecimal string."
       , action "file"
       ]
 
-policyIdInfo :: Mod OptionFields CurrencySymbol
+policyIdInfo :: Mod OptionFields PolicyId
 policyIdInfo =
   fold
     [ long "policy-id"
@@ -94,18 +95,16 @@ policyIdInfo =
     , help "The minting policy ID of the NFT to associate with the cold credential"
     ]
 
-policyIdParser :: Mod OptionFields CurrencySymbol -> Parser CurrencySymbol
-policyIdParser = option readCurrencySymbol . (<> metavar "POLICY_ID")
+policyIdParser :: Mod OptionFields PolicyId -> Parser PolicyId
+policyIdParser = option readPolicyId . (<> metavar "POLICY_ID")
 
-readCurrencySymbol :: ReadM CurrencySymbol
-readCurrencySymbol = do
+readPolicyId :: ReadM PolicyId
+readPolicyId = do
   bytes <- readBase16
-  policyId <-
-    either
-      (readerError . unSerialiseAsRawBytesError)
-      pure
-      $ deserialiseFromRawBytes AsPolicyId bytes
-  pure $ CurrencySymbol $ toBuiltin $ serialiseToRawBytes policyId
+  either
+    (readerError . unSerialiseAsRawBytesError)
+    pure
+    $ deserialiseFromRawBytes AsPolicyId bytes
 
 readBase16 :: ReadM ByteString
 readBase16 =
@@ -114,7 +113,11 @@ readBase16 =
 
 runInitColdCredentialCommand :: InitColdCredentialCommand -> IO ()
 runInitColdCredentialCommand InitColdCredentialCommand{..} = do
-  let compiledScript = Scripts.coldCommittee policyId
+  let compiledScript =
+        Scripts.coldCommittee $
+          CurrencySymbol $
+            toBuiltin $
+              serialiseToRawBytes policyId
   script <- writeScriptToFile scriptOut compiledScript
   writeHexBytesToFile scriptHashOut $ hashScript script
 

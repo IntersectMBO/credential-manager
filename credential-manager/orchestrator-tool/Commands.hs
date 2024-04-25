@@ -5,6 +5,11 @@ import Commands.InitColdCredential (
   initColdCredentialCommandParser,
   runInitColdCredentialCommand,
  )
+import Commands.InitColdNFT (
+  InitColdNFTCommand,
+  initColdNFTCommandParser,
+  runInitColdNFTCommand,
+ )
 import Commands.InitHotCredential (
   InitHotCredentialCommand,
   initHotCredentialCommandParser,
@@ -31,7 +36,8 @@ newtype ColdCredentialCommand = InitColdCredential InitColdCredentialCommand
 
 newtype HotCredentialCommand = InitHotCredential InitHotCredentialCommand
 
-data ColdNFTCommand
+newtype ColdNFTCommand
+  = InitColdNFT InitColdNFTCommand
 
 data HotNFTCommand
 
@@ -43,6 +49,7 @@ commandParser =
     fold
       [ command "cold-credential" $ ColdCredential <$> coldCredentialCommandParser
       , command "hot-credential" $ HotCredential <$> hotCredentialCommandParser
+      , command "cold-nft" $ ColdNFT <$> coldNFTCommandParser
       ]
 
 coldCredentialCommandParser :: ParserInfo ColdCredentialCommand
@@ -71,6 +78,19 @@ hotCredentialCommandParser = info parser description
           [ command "init" $ InitHotCredential <$> initHotCredentialCommandParser
           ]
 
+coldNFTCommandParser :: ParserInfo ColdNFTCommand
+coldNFTCommandParser = info parser description
+  where
+    description :: InfoMod ColdNFTCommand
+    description = progDesc "Manage the cold NFT locking script."
+
+    parser :: Parser ColdNFTCommand
+    parser =
+      hsubparser $
+        fold
+          [ command "init" $ InitColdNFT <$> initColdNFTCommandParser
+          ]
+
 -- Implementations
 
 runCommand :: Command -> IO ()
@@ -89,7 +109,8 @@ runHotCredentialCommand = \case
   InitHotCredential cmd -> runInitHotCredentialCommand cmd
 
 runColdNFTCommand :: ColdNFTCommand -> IO ()
-runColdNFTCommand = \case {}
+runColdNFTCommand = \case
+  InitColdNFT cmd -> runInitColdNFTCommand cmd
 
 runHotNFTCommand :: HotNFTCommand -> IO ()
 runHotNFTCommand = \case {}
