@@ -1,4 +1,7 @@
-module Options where
+module Options (
+  Options (..),
+  options,
+) where
 
 import Commands (Command, commandParser)
 import Data.Foldable (Foldable (..))

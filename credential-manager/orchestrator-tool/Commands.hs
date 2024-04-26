@@ -1,4 +1,8 @@
-module Commands where
+module Commands (
+  Command,
+  commandParser,
+  runCommand,
+) where
 
 import Commands.Authorize (
   AuthorizeCommand,
