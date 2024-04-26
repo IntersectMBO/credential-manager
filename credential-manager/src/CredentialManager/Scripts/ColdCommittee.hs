@@ -15,6 +15,7 @@
 -- other logic to the payment credential holding the NFT.
 module CredentialManager.Scripts.ColdCommittee where
 
+import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (CurrencySymbol, TxOut (..), Value (getValue))
 import PlutusTx.AssocMap (member)
 import qualified PlutusTx.IsData as PlutusTx
@@ -28,7 +29,7 @@ data ScriptContext = ScriptContext
   { scriptContextTxInfo :: TxInfo
   , scriptContextPurpose :: ScriptPurpose
   }
-  deriving stock (Haskell.Eq, Haskell.Show)
+  deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
 -- cold committee script needs.
@@ -39,7 +40,7 @@ data ScriptPurpose
   | Certifying BuiltinData BuiltinData
   | Voting BuiltinData
   | Proposing BuiltinData BuiltinData
-  deriving stock (Haskell.Eq, Haskell.Show)
+  deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
 -- cold committee script needs.
@@ -61,7 +62,7 @@ data TxInfo = TxInfo
   , txInfoCurrentTreasuryAmount :: BuiltinData
   , txInfoTreasuryDonation :: BuiltinData
   }
-  deriving stock (Haskell.Show, Haskell.Eq)
+  deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
 -- | A version of PlutusLedgerApi.V3.TxInInfo that only decodes what the
 -- cold committee script needs.
@@ -69,7 +70,7 @@ data TxInInfo = TxInInfo
   { txInInfoOutRef :: BuiltinData
   , txInInfoResolved :: TxOut
   }
-  deriving stock (Haskell.Show, Haskell.Eq)
+  deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
 -- | This script just checks that the hard-coded currency symbol of the NFT is
 -- in any spending input of the transaction.

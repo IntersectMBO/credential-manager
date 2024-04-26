@@ -20,6 +20,7 @@ import CredentialManager.Api (
   HotLockRedeemer (..),
   Identity (..),
  )
+import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
   CurrencySymbol,
   Datum (..),
@@ -51,7 +52,7 @@ data ScriptContext = ScriptContext
   { scriptContextTxInfo :: TxInfo
   , scriptContextPurpose :: ScriptPurpose
   }
-  deriving stock (Haskell.Eq, Haskell.Show)
+  deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
 -- cold NFT script needs.
@@ -62,7 +63,7 @@ data ScriptPurpose
   | Certifying BuiltinData BuiltinData
   | Voting BuiltinData
   | Proposing BuiltinData BuiltinData
-  deriving stock (Haskell.Eq, Haskell.Show)
+  deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
 -- cold NFT script needs.
@@ -84,7 +85,7 @@ data TxInfo = TxInfo
   , txInfoCurrentTreasuryAmount :: BuiltinData
   , txInfoTreasuryDonation :: BuiltinData
   }
-  deriving stock (Haskell.Show, Haskell.Eq)
+  deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
 -- | Given a UTXO reference and a transaction (`TxInfo`), resolve it to one of the
 -- transaction's inputs (`TxInInfo`).
