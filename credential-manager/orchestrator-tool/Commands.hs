@@ -41,6 +41,11 @@ import Commands.RotateCold (
   rotateColdCommandParser,
   runRotateColdCommand,
  )
+import Commands.RotateHot (
+  RotateHotCommand,
+  rotateHotCommandParser,
+  runRotateHotCommand,
+ )
 import Commands.UnlockCold (
   UnlockColdCommand,
   runUnlockColdCommand,
@@ -80,6 +85,7 @@ data HotNFTCommand
   = InitHotNFT InitHotNFTCommand
   | Vote VoteCommand
   | ResignVoting ResignVotingCommand
+  | RotateHot RotateHotCommand
 
 -- Parsers
 
@@ -150,6 +156,7 @@ hotNFTCommandParser = info parser description
           [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
           , command "vote" $ Vote <$> voteCommandParser
           , command "resignVoting" $ ResignVoting <$> resignVotingCommandParser
+          , command "rotate" $ RotateHot <$> rotateHotCommandParser
           ]
 
 -- Implementations
@@ -183,3 +190,4 @@ runHotNFTCommand = \case
   InitHotNFT cmd -> runInitHotNFTCommand cmd
   Vote cmd -> runVoteCommand cmd
   ResignVoting cmd -> runResignVotingCommand cmd
+  RotateHot cmd -> runRotateHotCommand cmd
