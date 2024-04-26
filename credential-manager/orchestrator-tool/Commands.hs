@@ -31,6 +31,11 @@ import Commands.ResignDelegation (
   resignDelegationCommandParser,
   runResignDelegationCommand,
  )
+import Commands.ResignVoting (
+  ResignVotingCommand,
+  resignVotingCommandParser,
+  runResignVotingCommand,
+ )
 import Commands.RotateCold (
   RotateColdCommand,
   rotateColdCommandParser,
@@ -74,6 +79,7 @@ data ColdNFTCommand
 data HotNFTCommand
   = InitHotNFT InitHotNFTCommand
   | Vote VoteCommand
+  | ResignVoting ResignVotingCommand
 
 -- Parsers
 
@@ -143,6 +149,7 @@ hotNFTCommandParser = info parser description
         fold
           [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
           , command "vote" $ Vote <$> voteCommandParser
+          , command "resignVoting" $ ResignVoting <$> resignVotingCommandParser
           ]
 
 -- Implementations
@@ -175,3 +182,4 @@ runHotNFTCommand :: HotNFTCommand -> IO ()
 runHotNFTCommand = \case
   InitHotNFT cmd -> runInitHotNFTCommand cmd
   Vote cmd -> runVoteCommand cmd
+  ResignVoting cmd -> runResignVotingCommand cmd

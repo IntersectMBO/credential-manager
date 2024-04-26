@@ -1,7 +1,7 @@
-module Commands.RotateCold (
-  RotateColdCommand (..),
-  rotateColdCommandParser,
-  runRotateColdCommand,
+module Commands.ResignVoting (
+  ResignVotingCommand (..),
+  resignVotingCommandParser,
+  runResignVotingCommand,
 ) where
 
 import Cardano.Api (
@@ -23,17 +23,16 @@ import Cardano.Api.Shelley (
   toPlutusData,
  )
 import Commands.Common (
-  delegationCertParser,
-  membershipCertParser,
   outDirParser,
   readIdentityFromPEMFile',
   utxoFileParser,
+  votingCertParser,
   writePlutusDataToFile,
   writeTxOutValueToFile,
  )
 import CredentialManager.Api (
-  ColdLockDatum (..),
-  ColdLockRedeemer (..),
+  HotLockDatum (..),
+  HotLockRedeemer (..),
  )
 import Data.Aeson (eitherDecodeFileStrict)
 import Options.Applicative (
@@ -42,47 +41,42 @@ import Options.Applicative (
   ParserInfo,
   info,
   progDesc,
-  some,
  )
 import PlutusTx (fromData)
 
-data RotateColdCommand = RotateColdCommand
+data ResignVotingCommand = ResignVotingCommand
   { utxoFile :: FilePath
-  , membershipCerts :: [FilePath]
-  , delegationCerts :: [FilePath]
+  , votingCert :: FilePath
   , outDir :: FilePath
   }
 
-rotateColdCommandParser :: ParserInfo RotateColdCommand
-rotateColdCommandParser = info parser description
+resignVotingCommandParser :: ParserInfo ResignVotingCommand
+resignVotingCommandParser = info parser description
   where
-    description :: InfoMod RotateColdCommand
+    description :: InfoMod ResignVotingCommand
     description =
-      progDesc
-        "Spend the cold NFT to rotate membership and delegation keys in the datum."
+      progDesc "Spend the hot NFT to remove a voting user from the datum."
 
-    parser :: Parser RotateColdCommand
+    parser :: Parser ResignVotingCommand
     parser =
-      RotateColdCommand
+      ResignVotingCommand
         <$> utxoFileParser
-        <*> some membershipCertParser
-        <*> some delegationCertParser
+        <*> votingCertParser
         <*> outDirParser
 
-runRotateColdCommand :: RotateColdCommand -> IO ()
-runRotateColdCommand RotateColdCommand{..} = do
+runResignVotingCommand :: ResignVotingCommand -> IO ()
+runResignVotingCommand ResignVotingCommand{..} = do
   utxoResult <- eitherDecodeFileStrict @(TxOut CtxUTxO ConwayEra) utxoFile
-  membershipUsers <- traverse readIdentityFromPEMFile' membershipCerts
-  delegationUsers <- traverse readIdentityFromPEMFile' delegationCerts
+  votingUser <- readIdentityFromPEMFile' votingCert
 
   TxOut (AddressInEra _ address) value txOutDatum _ <- case utxoResult of
     Left err -> do
       error $ "Failed to read utxo file: " <> show err
     Right u -> pure u
 
-  ColdLockDatum certificateAuthority _ _ <- case txOutDatum of
+  HotLockDatum{..} <- case txOutDatum of
     TxOutDatumInline _ datum ->
-      case fromData @ColdLockDatum $ toPlutusData $ getScriptData datum of
+      case fromData $ toPlutusData $ getScriptData datum of
         Nothing -> error "Unable to decode datum in UTxO"
         Just d -> pure d
     TxOutDatumNone -> error "No datum in utxo"
@@ -96,6 +90,10 @@ runRotateColdCommand RotateColdCommand{..} = do
     )
       :: IO (Address ShelleyAddr)
 
-  writePlutusDataToFile outDir "redeemer.json" RotateCold
-  writePlutusDataToFile outDir "datum.json" ColdLockDatum{..}
+  writePlutusDataToFile outDir "redeemer.json" $ ResignVoting votingUser
+  let datum =
+        HotLockDatum
+          { votingUsers = filter (/= votingUser) votingUsers
+          }
+  writePlutusDataToFile outDir "datum.json" datum
   writeTxOutValueToFile outDir "value" shelleyAddress $ txOutValueToValue value

@@ -23,7 +23,7 @@ import Cardano.Api.Shelley (
   toPlutusData,
  )
 import Commands.Common (
-  delegationFileParser,
+  delegationCertParser,
   outDirParser,
   readIdentityFromPEMFile',
   utxoFileParser,
@@ -61,7 +61,7 @@ resignDelegationCommandParser = info parser description
     parser =
       ResignDelegationCommand
         <$> utxoFileParser
-        <*> delegationFileParser
+        <*> delegationCertParser
         <*> outDirParser
 
 runResignDelegationCommand :: ResignDelegationCommand -> IO ()

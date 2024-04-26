@@ -55,7 +55,7 @@ import Commands.Common (
   writeVoteToFile,
  )
 import CredentialManager.Api (
-  ColdLockDatum (..),
+  HotLockDatum (..),
  )
 import qualified CredentialManager.Api as Api
 import Data.Aeson (eitherDecodeFileStrict)
@@ -98,7 +98,7 @@ voteCommandParser = info parser description
   where
     description :: InfoMod VoteCommand
     description =
-      progDesc "Spend the cold NFT to vote a hot credential."
+      progDesc "Spend the hot NFT to vote a hot credential."
 
     parser :: Parser VoteCommand
     parser =
@@ -173,7 +173,7 @@ runVoteCommand VoteCommand{..} = do
 
   datum <- case txOutDatum of
     TxOutDatumInline _ datum ->
-      case fromData @ColdLockDatum $ toPlutusData $ getScriptData datum of
+      case fromData @HotLockDatum $ toPlutusData $ getScriptData datum of
         Nothing -> error "Unable to decode datum in UTxO"
         Just d -> pure d
     TxOutDatumNone -> error "No datum in utxo"

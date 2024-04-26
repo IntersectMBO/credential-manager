@@ -20,8 +20,8 @@ import Cardano.Api (
 import Commands.Common (
   StakeCredentialFile,
   coldCredentialScriptFileParser,
-  delegationFileParser,
-  membershipFileParser,
+  delegationCertParser,
+  membershipCertParser,
   networkIdParser,
   outDirParser,
   readIdentityFromPEMFile',
@@ -81,8 +81,8 @@ initColdNFTCommandParser = info parser description
         <$> networkIdParser
         <*> coldCredentialScriptFileParser
         <*> caCertFileParser
-        <*> some membershipFileParser
-        <*> some delegationFileParser
+        <*> some membershipCertParser
+        <*> some delegationCertParser
         <*> optional stakeCredentialFileParser
         <*> outDirParser
 

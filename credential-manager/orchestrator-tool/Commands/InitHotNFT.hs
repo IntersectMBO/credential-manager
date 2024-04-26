@@ -27,6 +27,7 @@ import Commands.Common (
   readIdentityFromPEMFile',
   readStakeAddressFile,
   stakeCredentialFileParser,
+  votingCertParser,
   writeBech32ToFile,
   writeHexBytesToFile,
   writePlutusDataToFile,
@@ -44,14 +45,11 @@ import Options.Applicative (
   OptionFields,
   Parser,
   ParserInfo,
-  action,
   help,
   info,
   long,
-  metavar,
   optional,
   progDesc,
-  strOption,
  )
 import PlutusLedgerApi.V3 (
   Credential (..),
@@ -66,7 +64,7 @@ data InitHotNFTCommand = InitHotNFTCommand
   , coldNFTPolicyId :: PolicyId
   , hotNFTPolicyId :: PolicyId
   , hotCredentialScriptFile :: FilePath
-  , votingCertFiles :: [FilePath]
+  , votingCerts :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
   , outDir :: FilePath
   }
@@ -85,19 +83,9 @@ initHotNFTCommandParser = info parser description
         <*> policyIdParser coldNFTPolicyIdInfo
         <*> policyIdParser hotNFTPolicyIdInfo
         <*> hotCredentialScriptFileParser
-        <*> some votingCertFileParser
+        <*> some votingCertParser
         <*> optional stakeCredentialFileParser
         <*> outDirParser
-
-votingCertFileParser :: Parser FilePath
-votingCertFileParser =
-  strOption $
-    fold
-      [ long "voting-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a voting user."
-      , action "file"
-      ]
 
 coldNFTPolicyIdInfo :: Mod OptionFields PolicyId
 coldNFTPolicyIdInfo =
@@ -131,7 +119,7 @@ runInitHotNFTCommand InitHotNFTCommand{..} = do
       error $ "Failed to read hot credential script file: " <> show err
     Right script -> pure $ PlutusScript PlutusScriptV3 script
 
-  votingUsers <- traverse readIdentityFromPEMFile' votingCertFiles
+  votingUsers <- traverse readIdentityFromPEMFile' votingCerts
 
   let hotCredentialScriptHash =
         ScriptHash $
