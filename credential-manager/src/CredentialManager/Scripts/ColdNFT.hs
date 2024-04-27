@@ -109,12 +109,10 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
       Nothing -> False
       Just ownInput -> case red of
         AuthorizeHot hotCred ->
-          checkTxOutPreservation
+          checkTxOutPreservation ownInput
             && checkMultiSig delegationUsers
             && checkAuthHotCert
           where
-            checkTxOutPreservation =
-              ownInput `elem` txInfoOutputs txInfo
             checkAuthHotCert =
               txInfoTxCerts txInfo == [TxCertAuthHotCommittee coldCred hotCred]
         ResignDelegation user ->
@@ -130,21 +128,20 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
                 ca
                 membershipUsers
                 (filter (/= user) delegationUsers)
-            resigneeRemoved =
-              let newTxOutput =
-                    ownInput
-                      { txOutDatum =
-                          OutputDatum $ Datum $ toBuiltinData newDatum
-                      }
-               in newTxOutput `elem` txInfoOutputs txInfo
+            resigneeRemoved = case ownOutputs ownInput of
+              [ownOutput] ->
+                ownOutput
+                  == ownInput
+                    { txOutDatum =
+                        OutputDatum $ Datum $ toBuiltinData newDatum
+                    }
+              _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
         ResignCold ->
-          checkTxOutPreservation
+          checkTxOutPreservation ownInput
             && checkMultiSig membershipUsers
             && checkResignationCert
           where
-            checkTxOutPreservation =
-              ownInput `elem` txInfoOutputs txInfo
             checkResignationCert =
               txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
         RotateCold ->
@@ -152,9 +149,7 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
             && checkMultiSig membershipUsers
             && checkNoCerts
           where
-            toSelf (TxOut address _ _ _) = txOutAddress ownInput == address
-            ownOutputs = filter toSelf $ txInfoOutputs txInfo
-            checkOutput = case ownOutputs of
+            checkOutput = case ownOutputs ownInput of
               [TxOut _ value' (OutputDatum (Datum datum')) Nothing] ->
                 let ColdLockDatum ca' membership' delegation' =
                       unsafeFromBuiltinData datum'
@@ -168,13 +163,20 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
         Unlock -> checkMultiSig membershipUsers
     _ -> False
   where
-    txInfo = scriptContextTxInfo ctx
-    checkMultiSig list =
-      majority <= numberOfSignatures && numberOfSignatures > 0
+    ownOutputs ownInput = filter toSelf $ txInfoOutputs txInfo
       where
-        majority = (\x -> divide x 2 + modulo x 2) $ length list
+        toSelf (TxOut address _ _ _) = txOutAddress ownInput == address
+    checkTxOutPreservation ownInput = case ownOutputs ownInput of
+      [output] -> output == ownInput
+      _ -> False
+    txInfo = scriptContextTxInfo ctx
+    checkMultiSig [] = False
+    checkMultiSig list = majority <= numberOfSignatures
+      where
+        uniqueList = nubBy (\a b -> pubKeyHash a == pubKeyHash b) list
+        majority = (\x -> divide x 2 + modulo x 2) $ length uniqueList
         numberOfSignatures =
-          length $ filter (txSignedBy txInfo . pubKeyHash) list
+          length $ filter (txSignedBy txInfo . pubKeyHash) uniqueList
 
 PlutusTx.makeLift ''ScriptPurpose
 PlutusTx.makeIsDataIndexed

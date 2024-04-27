@@ -2,7 +2,7 @@
 
 module CredentialManager.Gen where
 
-import Control.Monad (replicateM, (<=<))
+import Control.Monad (guard, replicateM, (<=<))
 import CredentialManager.Api
 import qualified CredentialManager.Scripts.ColdCommittee as CC
 import qualified CredentialManager.Scripts.ColdNFT as CN
@@ -12,9 +12,13 @@ import Data.Bits (Bits (..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Data (Proxy (..))
+import Data.Foldable (Foldable (..))
 import Data.List (iterate')
 import qualified Data.Map as Map
+import Data.Maybe (mapMaybe)
+import Data.Monoid (Sum (..))
 import Data.Word (Word8)
+import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import PlutusLedgerApi.V3
 import qualified PlutusTx.AssocMap as AMap
@@ -74,7 +78,7 @@ instance Arbitrary ColdCommitteeCredential where
   shrink = genericShrink
 
 instance Arbitrary GovernanceActionId where
-  arbitrary = GovernanceActionId <$> arbitrary <*> chooseIntegerExponential
+  arbitrary = GovernanceActionId <$> arbitrary <*> chooseIntegerHyperbolic
   shrink = genericShrink
 
 instance Arbitrary Vote where
@@ -94,13 +98,10 @@ deriving instance Ord HotCommitteeCredential
 deriving instance Ord Voter
 deriving instance Ord GovernanceActionId
 
-chooseIntegerExponential :: Gen Integer
-chooseIntegerExponential = sized \case
-  0 -> pure 0
-  size -> do
-    let λ = 1 / fromIntegral size
-    ξ <- choose (0, -0.999999 :: Double)
-    pure $ floor $ negate $ log (1 - ξ) / λ
+chooseIntegerHyperbolic :: Gen Integer
+chooseIntegerHyperbolic = sized \size -> do
+  ξ <- choose (0, 0.999999 :: Double)
+  pure $ floor $ negate $ fromIntegral size * atanh ξ
 
 instance Arbitrary Identity where
   arbitrary = Identity <$> arbitrary <*> arbitrary
@@ -172,41 +173,47 @@ instance Arbitrary ByteString where
   shrink = fmap BS.pack . shrink . BS.unpack
 
 instance Arbitrary TxOutRef where
-  arbitrary = TxOutRef <$> arbitrary <*> chooseIntegerExponential
+  arbitrary = TxOutRef <$> arbitrary <*> chooseIntegerHyperbolic
   shrink = genericShrink
 
 instance Arbitrary TxOut where
   arbitrary = TxOut <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
+genTxOut :: Gen Value -> Gen TxOut
+genTxOut value = TxOut <$> arbitrary <*> value <*> arbitrary <*> arbitrary
+
 instance Arbitrary Value where
   arbitrary = do
-    ada <- abs <$> arbitrary
+    ada <- arbitrary
     tokens <-
-      listOf $
-        (,)
-          <$> arbitrary
-          <*> listOf ((,) <$> arbitrary <*> chooseIntegerExponential)
-    let valueMap =
-          Map.insert "" (Map.singleton "" ada) $
-            Map.fromList <$> Map.fromList tokens
-    pure $
-      Value $
-        AMap.fromList $
-          Map.toList $
-            AMap.fromList . Map.toList <$> valueMap
-  shrink =
-    fmap
-      ( Value
-          . AMap.fromList
-          . Map.toList
-          . fmap (AMap.fromList . Map.toList)
-      )
-      . shrink
-      . fmap (Map.fromList . AMap.toList)
-      . Map.fromList
-      . AMap.toList
-      . getValue
+      mapOf arbitrary $
+        mapOf arbitrary $
+          succ <$> chooseIntegerHyperbolic
+    pure $ mkValue ada tokens
+  shrink v = do
+    let (ada, tokens) = splitValue v
+    fold
+      [ mkValue <$> shrink ada <*> pure tokens
+      , mkValue ada <$> shrink tokens
+      ]
+
+mkValue
+  :: Lovelace -> Map.Map CurrencySymbol (Map.Map TokenName Integer) -> Value
+mkValue (Lovelace ada) tokens =
+  Value $
+    fromMap $
+      fromMap <$> Map.insert adaSymbol (Map.singleton adaToken ada) tokens
+
+splitValue
+  :: Value -> (Lovelace, Map.Map CurrencySymbol (Map.Map TokenName Integer))
+splitValue (Value (fmap toMap . toMap -> m)) =
+  ( Lovelace $ getSum $ (foldMap . foldMap) Sum $ Map.lookup adaSymbol m
+  , Map.delete adaSymbol m
+  )
+
+mapOf :: (Ord k) => Gen k -> Gen v -> Gen (Map.Map k v)
+mapOf k v = Map.fromList <$> listOf ((,) <$> k <*> v)
 
 instance Arbitrary Address where
   arbitrary = Address <$> arbitrary <*> arbitrary
@@ -219,9 +226,9 @@ instance Arbitrary StakingCredential where
       ,
         ( 1
         , StakingPtr
-            <$> chooseIntegerExponential
-            <*> chooseIntegerExponential
-            <*> chooseIntegerExponential
+            <$> chooseIntegerHyperbolic
+            <*> chooseIntegerHyperbolic
+            <*> chooseIntegerHyperbolic
         )
       ]
   shrink = genericShrink
@@ -321,8 +328,62 @@ instance Arbitrary HC.TxInInfo where
   shrink = genericShrink
 
 instance Arbitrary CN.ScriptContext where
-  arbitrary = CN.ScriptContext <$> arbitrary <*> arbitrary
-  shrink = genericShrink
+  arbitrary = do
+    purpose <- arbitrary
+    CN.ScriptContext <$> genColdNFTTxInfo purpose <*> pure purpose
+  shrink ctx@CN.ScriptContext{..} = case scriptContextPurpose of
+    CN.Spending ref ->
+      fold
+        [ shrinkColdSpendingRefPreservingInput ref scriptContextTxInfo
+        , shrinkColdInfoPreservingRef ref scriptContextTxInfo
+        ]
+    _ -> genericShrink ctx
+
+shrinkColdSpendingRefPreservingInput
+  :: TxOutRef -> CN.TxInfo -> [CN.ScriptContext]
+shrinkColdSpendingRefPreservingInput ref CN.TxInfo{..} = do
+  ref' <- shrink ref
+  pure
+    CN.ScriptContext
+      { scriptContextTxInfo =
+          CN.TxInfo
+            { txInfoInputs = do
+                inInfo@TxInInfo{..} <- txInfoInputs
+                pure
+                  if txInInfoOutRef == ref
+                    then TxInInfo ref' txInInfoResolved
+                    else inInfo
+            , ..
+            }
+      , scriptContextPurpose = CN.Spending ref'
+      }
+
+shrinkColdInfoPreservingRef :: TxOutRef -> CN.TxInfo -> [CN.ScriptContext]
+shrinkColdInfoPreservingRef ref info = do
+  info' <-
+    filter (any ((== ref) . txInInfoOutRef) . CN.txInfoInputs) $ shrink info
+  pure $ CN.ScriptContext info' $ CN.Spending ref
+
+genColdNFTTxInfo :: CN.ScriptPurpose -> Gen CN.TxInfo
+genColdNFTTxInfo = \case
+  CN.Spending ref -> do
+    info@CN.TxInfo{..} <- arbitrary
+    if any ((== ref) . txInInfoOutRef) txInfoInputs
+      then pure info
+      else do
+        input <- TxInInfo ref <$> arbitrary
+        index <- choose (0, length txInfoInputs)
+        pure
+          CN.TxInfo
+            { txInfoInputs = insertAt index input txInfoInputs
+            , ..
+            }
+  _ -> arbitrary
+
+insertAt :: Int -> a -> [a] -> [a]
+insertAt _ a [] = [a]
+insertAt 0 a as = a : as
+insertAt n a (a' : as) = a' : insertAt (pred n) a as
 
 instance Arbitrary CN.ScriptPurpose where
   arbitrary =
@@ -337,7 +398,7 @@ instance Arbitrary CN.ScriptPurpose where
   shrink = genericShrink
 
 instance Arbitrary CN.TxInfo where
-  arbitrary =
+  arbitrary = do
     CN.TxInfo
       <$> arbitrary
       <*> arbitrary
@@ -357,13 +418,54 @@ instance Arbitrary CN.TxInfo where
       <*> arbitrary
   shrink = genericShrink
 
+fromMap :: Map.Map k v -> AMap.Map k v
+fromMap = AMap.fromList . Map.toList
+
+toMap :: (Ord k) => AMap.Map k v -> Map.Map k v
+toMap = Map.fromList . AMap.toList
+
+chooseTokens
+  :: CurrencySymbol
+  -> Map.Map TokenName Integer
+  -> Gen (Maybe (Map.Map TokenName Integer))
+chooseTokens _ supply = do
+  chosen <-
+    Map.traverseMaybeWithKey (const $ fmap positive . choose . (0,)) supply
+  pure do
+    guard $ not $ Map.null chosen
+    pure chosen
+
+positive :: Integer -> Maybe Integer
+positive n
+  | n < 1 = Nothing
+  | otherwise = Just n
+
+nonzero :: Integer -> Maybe Integer
+nonzero n
+  | n == 0 = Nothing
+  | otherwise = Just n
+
+subtractTokens
+  :: Map.Map TokenName Integer
+  -> Map.Map TokenName Integer
+  -> Maybe (Map.Map TokenName Integer)
+subtractTokens = fmap nonempty . Map.differenceWith (fmap nonzero . (-))
+
+nonempty :: Map.Map k a -> Maybe (Map.Map k a)
+nonempty m
+  | Map.null m = Nothing
+  | otherwise = Just m
+
 instance Arbitrary Lovelace where
-  arbitrary = Lovelace . abs <$> arbitrary
-  shrink = genericShrink
+  arbitrary = Lovelace . max 1 . abs <$> arbitrary
+  shrink = mapMaybe (fmap Lovelace . positive . getLovelace) . genericShrink
 
 instance Arbitrary TxInInfo where
   arbitrary = TxInInfo <$> arbitrary <*> arbitrary
   shrink = genericShrink
+
+genTxInInfo :: Gen Value -> Gen TxInInfo
+genTxInInfo value = TxInInfo <$> arbitrary <*> genTxOut value
 
 instance Arbitrary DRep where
   arbitrary =
@@ -401,8 +503,26 @@ instance Arbitrary TxCert where
   shrink = genericShrink
 
 instance Arbitrary HN.ScriptContext where
-  arbitrary = HN.ScriptContext <$> arbitrary <*> arbitrary
+  arbitrary = do
+    purpose <- arbitrary
+    HN.ScriptContext <$> genHotNFTTxInfo purpose <*> pure purpose
   shrink = genericShrink
+
+genHotNFTTxInfo :: HN.ScriptPurpose -> Gen HN.TxInfo
+genHotNFTTxInfo = \case
+  HN.Spending ref -> do
+    info@HN.TxInfo{..} <- arbitrary
+    if any ((== ref) . txInInfoOutRef) txInfoInputs
+      then pure info
+      else do
+        input <- TxInInfo ref <$> arbitrary
+        index <- choose (0, length txInfoInputs)
+        pure
+          HN.TxInfo
+            { txInfoInputs = insertAt index input txInfoInputs
+            , ..
+            }
+  _ -> arbitrary
 
 instance Arbitrary HN.ScriptPurpose where
   arbitrary =
@@ -438,5 +558,28 @@ instance Arbitrary HN.TxInfo where
   shrink = genericShrink
 
 instance (Ord k, Arbitrary k, Arbitrary v) => Arbitrary (AMap.Map k v) where
-  arbitrary = AMap.fromList . Map.toList <$> arbitrary
-  shrink = fmap (AMap.fromList . Map.toList) . shrink . Map.fromList . AMap.toList
+  arbitrary = fromMap <$> arbitrary
+  shrink = fmap fromMap . shrink . Map.fromList . AMap.toList
+
+genMinoritySignatures :: [Identity] -> Gen [PubKeyHash]
+genMinoritySignatures required = go 0 =<< listOf (pure ())
+  where
+    requiredSigs = pubKeyHash <$> required
+    maxHits = (length requiredSigs `div` 2) - 1
+    go _ [] = pure []
+    go hits (_ : xs) = do
+      sig <-
+        if hits > maxHits
+          then arbitrary `suchThat` (not . (`elem` requiredSigs))
+          else arbitrary
+      let hits'
+            | sig `elem` requiredSigs = succ hits
+            | otherwise = hits
+      (sig :) <$> go hits' xs
+
+newtype Fraction = Fraction Float
+  deriving (Show, Eq, Generic)
+
+instance Arbitrary Fraction where
+  arbitrary = Fraction <$> choose (0, 1)
+  shrink = genericShrink
