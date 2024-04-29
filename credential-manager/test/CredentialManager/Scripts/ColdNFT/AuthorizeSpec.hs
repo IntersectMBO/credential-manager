@@ -55,8 +55,8 @@ spec = do
     "Invariant A9: Authorize fails with multiple outputs to self"
     invariantA9AuthorizeMultipleSelfOutputs
   prop
-    "Invariant 1A0: Authorize fails if value not preserved"
-    invariant1A0AuthorizeValueNotPreserved
+    "Invariant A10: Authorize fails if value not preserved"
+    invariantA10AuthorizeValueNotPreserved
   prop
     "Invariant A11: Authorize fails if datum not preserved"
     invariantA11AuthorizeDatumNotPreserved
@@ -205,8 +205,8 @@ invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariant1A0AuthorizeValueNotPreserved :: ValidArgs -> Property
-invariant1A0AuthorizeValueNotPreserved args@ValidArgs{..} =
+invariantA10AuthorizeValueNotPreserved :: ValidArgs -> Property
+invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     newValue <- arbitrary `suchThat` (/= authorizeValue)
     let modifyValue TxOut{..}
