@@ -374,9 +374,7 @@ forAllValidScriptContexts ValidArgs{..} f =
             , (output' :) <$> shrink ins
             , pure ins
             ]
-    allSigners =
-      nubBy (on (==) pubKeyHash) $
-        rotateMembershipPre <> (rotateExtraMembership : rotateMembershipPost)
+    allSigners = nubBy (on (==) pubKeyHash) $ membershipUsers inDatum
     inDatum =
       ColdLockDatum
         { certificateAuthority = rotateCA

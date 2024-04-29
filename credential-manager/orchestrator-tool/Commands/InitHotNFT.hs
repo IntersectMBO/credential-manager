@@ -62,7 +62,6 @@ import PlutusLedgerApi.V3 (
 data InitHotNFTCommand = InitHotNFTCommand
   { networkId :: NetworkId
   , coldNFTPolicyId :: PolicyId
-  , hotNFTPolicyId :: PolicyId
   , hotCredentialScriptFile :: FilePath
   , votingCerts :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
@@ -81,7 +80,6 @@ initHotNFTCommandParser = info parser description
       InitHotNFTCommand
         <$> networkIdParser
         <*> policyIdParser coldNFTPolicyIdInfo
-        <*> policyIdParser hotNFTPolicyIdInfo
         <*> hotCredentialScriptFileParser
         <*> some votingCertParser
         <*> optional stakeCredentialFileParser
@@ -92,13 +90,6 @@ coldNFTPolicyIdInfo =
   fold
     [ long "cold-nft-policy-id"
     , help "The minting policy ID of the cold NFT."
-    ]
-
-hotNFTPolicyIdInfo :: Mod OptionFields PolicyId
-hotNFTPolicyIdInfo =
-  fold
-    [ long "hot-nft-policy-id"
-    , help "The minting policy ID of the hot NFT."
     ]
 
 runInitHotNFTCommand :: InitHotNFTCommand -> IO ()
@@ -130,9 +121,7 @@ runInitHotNFTCommand InitHotNFTCommand{..} = do
         HotCommitteeCredential $ ScriptCredential hotCredentialScriptHash
   let coldCurrency =
         CurrencySymbol $ toBuiltin $ serialiseToRawBytes coldNFTPolicyId
-  let hotCurrency =
-        CurrencySymbol $ toBuiltin $ serialiseToRawBytes hotNFTPolicyId
-  let compiledScript = Scripts.hotNFT coldCurrency hotCurrency hotCredential
+  let compiledScript = Scripts.hotNFT coldCurrency hotCredential
   script <- writeScriptToFile outDir "script.plutus" compiledScript
 
   let scriptHash = hashScript script

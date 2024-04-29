@@ -33,4 +33,4 @@ unlockColdCommandParser = info parser description
     parser = UnlockColdCommand <$> outDirParser
 
 runUnlockColdCommand :: UnlockColdCommand -> IO ()
-runUnlockColdCommand UnlockColdCommand{..} = writePlutusDataToFile outDir "redeemer.json" Unlock
+runUnlockColdCommand UnlockColdCommand{..} = writePlutusDataToFile outDir "redeemer.json" UnlockCold

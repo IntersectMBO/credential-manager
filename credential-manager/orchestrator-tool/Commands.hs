@@ -9,11 +9,6 @@ import Commands.Authorize (
   authorizeCommandParser,
   runAuthorizeCommand,
  )
-import Commands.BurnHot (
-  BurnHotCommand,
-  burnHotCommandParser,
-  runBurnHotCommand,
- )
 import Commands.InitColdCredential (
   InitColdCredentialCommand,
   initColdCredentialCommandParser,
@@ -60,6 +55,11 @@ import Commands.UnlockCold (
   runUnlockColdCommand,
   unlockColdCommandParser,
  )
+import Commands.UnlockHot (
+  UnlockHotCommand,
+  burnHotCommandParser,
+  runUnlockHotCommand,
+ )
 import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
@@ -95,7 +95,7 @@ data HotNFTCommand
   | Vote VoteCommand
   | ResignVoting ResignVotingCommand
   | RotateHot RotateHotCommand
-  | BurnHot BurnHotCommand
+  | UnlockHot UnlockHotCommand
 
 -- Parsers
 
@@ -167,7 +167,7 @@ hotNFTCommandParser = info parser description
           , command "vote" $ Vote <$> voteCommandParser
           , command "resignVoting" $ ResignVoting <$> resignVotingCommandParser
           , command "rotate" $ RotateHot <$> rotateHotCommandParser
-          , command "burn" $ BurnHot <$> burnHotCommandParser
+          , command "burn" $ UnlockHot <$> burnHotCommandParser
           ]
 
 -- Implementations
@@ -202,4 +202,4 @@ runHotNFTCommand = \case
   Vote cmd -> runVoteCommand cmd
   ResignVoting cmd -> runResignVotingCommand cmd
   RotateHot cmd -> runRotateHotCommand cmd
-  BurnHot cmd -> runBurnHotCommand cmd
+  UnlockHot cmd -> runUnlockHotCommand cmd
