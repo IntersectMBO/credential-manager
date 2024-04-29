@@ -19,6 +19,7 @@ import CredentialManager.Api (
   ColdLockRedeemer (..),
   Identity (..),
  )
+import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
   Datum (..),
@@ -109,8 +110,8 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
       Nothing -> False
       Just ownInput -> case red of
         AuthorizeHot hotCred ->
-          checkTxOutPreservation ownInput
-            && checkMultiSig delegationUsers
+          checkTxOutPreservation ownInput outputs
+            && checkMultiSig delegationUsers signatures
             && checkAuthHotCert
           where
             checkAuthHotCert =
@@ -127,7 +128,7 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
             newDelegation = filter (/= user) delegationUsers
             newDatum = ColdLockDatum ca membershipUsers newDelegation
             notLastDelegation = not $ null newDelegation
-            resigneeRemoved = case ownOutputs ownInput of
+            resigneeRemoved = case ownOutputs ownInput outputs of
               [ownOutput] ->
                 ownOutput
                   == ownInput
@@ -137,18 +138,18 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
               _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
         ResignCold ->
-          checkTxOutPreservation ownInput
-            && checkMultiSig membershipUsers
+          checkTxOutPreservation ownInput outputs
+            && checkMultiSig membershipUsers signatures
             && checkResignationCert
           where
             checkResignationCert =
               txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
         RotateCold ->
           checkOutput
-            && checkMultiSig membershipUsers
+            && checkMultiSig membershipUsers signatures
             && checkNoCerts
           where
-            checkOutput = case ownOutputs ownInput of
+            checkOutput = case ownOutputs ownInput outputs of
               [TxOut _ value' (OutputDatum (Datum datum')) Nothing] ->
                 let ColdLockDatum ca' membership' delegation' =
                       unsafeFromBuiltinData datum'
@@ -159,23 +160,12 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
                       == txOutValue ownInput
               _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
-        UnlockCold -> checkMultiSig membershipUsers
+        UnlockCold -> checkMultiSig membershipUsers signatures
     _ -> False
   where
-    ownOutputs ownInput = filter toSelf $ txInfoOutputs txInfo
-      where
-        toSelf (TxOut address _ _ _) = txOutAddress ownInput == address
-    checkTxOutPreservation ownInput = case ownOutputs ownInput of
-      [output] -> output == ownInput
-      _ -> False
     txInfo = scriptContextTxInfo ctx
-    checkMultiSig [] = False
-    checkMultiSig list = majority <= numberOfSignatures
-      where
-        uniqueList = nubBy (\a b -> pubKeyHash a == pubKeyHash b) list
-        majority = (\x -> divide x 2 + modulo x 2) $ length uniqueList
-        numberOfSignatures =
-          length $ filter (txSignedBy txInfo . pubKeyHash) uniqueList
+    signatures = txInfoSignatories txInfo
+    outputs = txInfoOutputs txInfo
 
 PlutusTx.makeLift ''ScriptPurpose
 PlutusTx.makeIsDataIndexed

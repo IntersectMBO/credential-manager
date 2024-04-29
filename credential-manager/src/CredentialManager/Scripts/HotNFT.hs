@@ -20,6 +20,7 @@ import CredentialManager.Api (
   HotLockRedeemer (..),
   Identity (..),
  )
+import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
   CurrencySymbol,
@@ -127,12 +128,10 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
       Nothing -> False
       Just (TxInInfo _ ownInput) -> case red of
         Vote govAction vote ->
-          checkTxOutPreservation
-            && checkMultiSig votingUsers
+          checkTxOutPreservation ownInput outputs
+            && checkMultiSig votingUsers signatures
             && checkVote
           where
-            checkTxOutPreservation =
-              ownInput `elem` txInfoOutputs txInfo
             checkVote =
               txInfoVotes txInfo
                 == Map.singleton
@@ -160,9 +159,7 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
             && signedByDelegators
             && checkNoVotes
           where
-            toSelf (TxOut address _ _ _) = txOutAddress ownInput == address
-            ownOutputs = filter toSelf $ txInfoOutputs txInfo
-            checkOutput = case ownOutputs of
+            checkOutput = case ownOutputs ownInput outputs of
               [TxOut _ value' (OutputDatum (Datum datum')) Nothing] ->
                 let HotLockDatum voting' =
                       unsafeFromBuiltinData datum'
@@ -174,7 +171,7 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
                 Nothing -> False
                 Just (TxInInfo _ refInput) -> case txOutDatum refInput of
                   OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers
+                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
                     _ -> False
                   _ -> False
         UnlockHot -> signedByDelegators
@@ -184,18 +181,14 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
                 Nothing -> False
                 Just (TxInInfo _ refInput) -> case txOutDatum refInput of
                   OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers
+                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
                     _ -> False
                   _ -> False
     _ -> False
   where
     txInfo = scriptContextTxInfo ctx
-    checkMultiSig list =
-      majority <= numberOfSignatures && numberOfSignatures > 0
-      where
-        majority = (\x -> divide x 2 + modulo x 2) $ length list
-        numberOfSignatures =
-          length $ filter (txSignedBy txInfo . pubKeyHash) list
+    signatures = txInfoSignatories txInfo
+    outputs = txInfoOutputs txInfo
 
 PlutusTx.makeLift ''ScriptPurpose
 PlutusTx.makeIsDataIndexed
