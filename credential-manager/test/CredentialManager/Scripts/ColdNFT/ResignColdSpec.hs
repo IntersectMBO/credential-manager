@@ -62,7 +62,7 @@ spec = do
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript authorizeColdCredential datum redeemer ctx === True
+        coldNFTScript resignColdColdCredential datum redeemer ctx === True
 
 invariantRC1ResignColdMembershipMinority :: ValidArgs -> Property
 invariantRC1ResignColdMembershipMinority args@ValidArgs{..} =
@@ -82,7 +82,7 @@ invariantRC1ResignColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+            coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC2DuplicateMembership :: ValidArgs -> Property
 invariantRC2DuplicateMembership args@ValidArgs{..} =
@@ -98,12 +98,12 @@ invariantRC2DuplicateMembership args@ValidArgs{..} =
     let datum' = datum{membershipUsers = membershipUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript authorizeColdCredential datum' redeemer ctx === True
+        coldNFTScript resignColdColdCredential datum' redeemer ctx === True
 
 invariantRC3ColdCredentialMismatch :: ValidArgs -> Property
 invariantRC3ColdCredentialMismatch args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
-    coldCred <- arbitrary `suchThat` (/= authorizeColdCredential)
+    coldCred <- arbitrary `suchThat` (/= resignColdColdCredential)
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -114,13 +114,13 @@ invariantRC3ColdCredentialMismatch args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC4EmptyMembership :: ValidArgs -> Property
 invariantRC4EmptyMembership args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript authorizeColdCredential datum' redeemer ctx === False
+    coldNFTScript resignColdColdCredential datum' redeemer ctx === False
 
 invariantRC5ResignColdExtraCertificates :: ValidArgs -> Property
 invariantRC5ResignColdExtraCertificates args@ValidArgs{..} =
@@ -136,7 +136,7 @@ invariantRC5ResignColdExtraCertificates args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC6ResignColdNoCertificates :: ValidArgs -> Property
 invariantRC6ResignColdNoCertificates args@ValidArgs{..} =
@@ -147,14 +147,14 @@ invariantRC6ResignColdNoCertificates args@ValidArgs{..} =
                 (scriptContextTxInfo ctx){txInfoTxCerts = []}
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+      coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC7ResignColdNoSelfOutput :: ValidArgs -> Property
 invariantRC7ResignColdNoSelfOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
-    newAddress <- arbitrary `suchThat` (/= authorizeScriptAddress)
+    newAddress <- arbitrary `suchThat` (/= resignColdScriptAddress)
     let modifyAddress TxOut{..}
-          | txOutAddress == authorizeScriptAddress = TxOut{txOutAddress = newAddress, ..}
+          | txOutAddress == resignColdScriptAddress = TxOut{txOutAddress = newAddress, ..}
           | otherwise = TxOut{..}
     let ctx' =
           ctx
@@ -168,12 +168,12 @@ invariantRC7ResignColdNoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC8ResignColdMultipleSelfOutputs :: ValidArgs -> Property
 invariantRC8ResignColdMultipleSelfOutputs args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
-    let setAddress txOut = txOut{txOutAddress = authorizeScriptAddress}
+    let setAddress txOut = txOut{txOutAddress = resignColdScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
     outputs' <- shuffle $ txInfoOutputs (scriptContextTxInfo ctx) <> newOutputs
     let ctx' =
@@ -183,14 +183,14 @@ invariantRC8ResignColdMultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC9ResignColdValueNotPreserved :: ValidArgs -> Property
 invariantRC9ResignColdValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
-    newValue <- arbitrary `suchThat` (/= authorizeValue)
+    newValue <- arbitrary `suchThat` (/= resignColdValue)
     let modifyValue TxOut{..}
-          | txOutAddress == authorizeScriptAddress = TxOut{txOutValue = newValue, ..}
+          | txOutAddress == resignColdScriptAddress = TxOut{txOutValue = newValue, ..}
           | otherwise = TxOut{..}
     let ctx' =
           ctx
@@ -204,7 +204,7 @@ invariantRC9ResignColdValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC10ResignColdDatumNotPreserved :: ValidArgs -> Property
 invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
@@ -215,7 +215,7 @@ invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
         , toBuiltinData <$> arbitrary `suchThat` (/= datum)
         ]
     let modifyDatum TxOut{..}
-          | txOutAddress == authorizeScriptAddress =
+          | txOutAddress == resignColdScriptAddress =
               TxOut
                 { txOutDatum = OutputDatum $ Datum newDatum
                 , ..
@@ -233,14 +233,14 @@ invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC11ResignColdReferenceScriptInOutput :: ValidArgs -> Property
 invariantRC11ResignColdReferenceScriptInOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     referenceScript <- Just <$> arbitrary
     let addReferenceScript TxOut{..}
-          | txOutAddress == authorizeScriptAddress =
+          | txOutAddress == resignColdScriptAddress =
               TxOut
                 { txOutReferenceScript = referenceScript
                 , ..
@@ -258,7 +258,7 @@ invariantRC11ResignColdReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -270,14 +270,14 @@ forAllValidScriptContexts ValidArgs{..} f =
   where
     gen = do
       additionalInputs <-
-        listOf $ arbitrary `suchThat` ((/= authorizeScriptRef) . txInInfoOutRef)
+        listOf $ arbitrary `suchThat` ((/= resignColdScriptRef) . txInInfoOutRef)
       additionalOutputs <-
-        listOf $ arbitrary `suchThat` ((/= authorizeScriptAddress) . txOutAddress)
+        listOf $ arbitrary `suchThat` ((/= resignColdScriptAddress) . txOutAddress)
       inputs <- shuffle $ input : additionalInputs
       outputs <- shuffle $ output : additionalOutputs
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
-      let Fraction excessFraction = authorizeExcessSignatureFraction
+      let Fraction excessFraction = resignColdExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
       signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
@@ -287,7 +287,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> pure outputs
           <*> arbitrary
           <*> arbitrary
-          <*> pure [TxCertResignColdCommittee authorizeColdCredential]
+          <*> pure [TxCertResignColdCommittee resignColdColdCredential]
           <*> arbitrary
           <*> arbitrary
           <*> pure signers
@@ -298,7 +298,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending authorizeScriptRef
+      pure $ ScriptContext info $ Spending resignColdScriptRef
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
@@ -343,24 +343,24 @@ forAllValidScriptContexts ValidArgs{..} f =
             ]
     allSigners =
       nubBy (on (==) pubKeyHash) $
-        authorizeExtraMembership : membershipUsers authorizeDatum
-    datum' = authorizeDatum{membershipUsers = allSigners}
+        resignColdExtraMembership : membershipUsers resignColdDatum
+    datum' = resignColdDatum{membershipUsers = allSigners}
     output =
       TxOut
-        authorizeScriptAddress
-        authorizeValue
+        resignColdScriptAddress
+        resignColdValue
         (OutputDatum $ Datum $ toBuiltinData datum')
         Nothing
-    input = TxInInfo authorizeScriptRef output
+    input = TxInInfo resignColdScriptRef output
 
 data ValidArgs = ValidArgs
-  { authorizeScriptRef :: TxOutRef
-  , authorizeScriptAddress :: Address
-  , authorizeValue :: Value
-  , authorizeExtraMembership :: Identity
-  , authorizeDatum :: ColdLockDatum
-  , authorizeColdCredential :: ColdCommitteeCredential
-  , authorizeExcessSignatureFraction :: Fraction
+  { resignColdScriptRef :: TxOutRef
+  , resignColdScriptAddress :: Address
+  , resignColdValue :: Value
+  , resignColdExtraMembership :: Identity
+  , resignColdDatum :: ColdLockDatum
+  , resignColdColdCredential :: ColdCommitteeCredential
+  , resignColdExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 
