@@ -100,8 +100,8 @@ deriving instance Ord GovernanceActionId
 
 chooseIntegerHyperbolic :: Gen Integer
 chooseIntegerHyperbolic = sized \size -> do
-  ξ <- choose (0, 0.999999 :: Double)
-  pure $ floor $ negate $ fromIntegral size * atanh ξ
+  ξ <- choose (0, 0.99 :: Double)
+  pure $ floor $ fromIntegral size * atanh ξ
 
 instance Arbitrary Identity where
   arbitrary = Identity <$> arbitrary <*> arbitrary
