@@ -116,13 +116,12 @@ findTxInByCurrencySymbolInRefUTxO symbol txInfo =
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
   :: CurrencySymbol
-  -> CurrencySymbol
   -> HotCommitteeCredential
   -> HotLockDatum
   -> HotLockRedeemer
   -> ScriptContext
   -> Bool
-hotNFTScript coldPolicyId hotPolicyId hotCred (HotLockDatum votingUsers) red ctx =
+hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
   case scriptContextPurpose ctx of
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
@@ -178,7 +177,7 @@ hotNFTScript coldPolicyId hotPolicyId hotCred (HotLockDatum votingUsers) red ctx
                     Just ColdLockDatum{..} -> checkMultiSig delegationUsers
                     _ -> False
                   _ -> False
-        BurnHot -> signedByDelegators && checkBurn
+        UnlockHot -> signedByDelegators
           where
             signedByDelegators =
               case findTxInByCurrencySymbolInRefUTxO coldPolicyId txInfo of
@@ -188,9 +187,6 @@ hotNFTScript coldPolicyId hotPolicyId hotCred (HotLockDatum votingUsers) red ctx
                     Just ColdLockDatum{..} -> checkMultiSig delegationUsers
                     _ -> False
                   _ -> False
-            checkBurn = not $ any outputContainsNFT $ txInfoOutputs txInfo
-            outputContainsNFT txOut =
-              hotPolicyId `member` getValue (txOutValue txOut)
     _ -> False
   where
     txInfo = scriptContextTxInfo ctx

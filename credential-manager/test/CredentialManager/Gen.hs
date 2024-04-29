@@ -118,7 +118,7 @@ instance Arbitrary ColdLockRedeemer where
       , pure ResignCold
       , ResignDelegation <$> arbitrary
       , pure RotateCold
-      , pure Unlock
+      , pure UnlockCold
       ]
   shrink = genericShrink
 
@@ -132,7 +132,7 @@ instance Arbitrary HotLockRedeemer where
       [ Vote <$> arbitrary <*> arbitrary
       , ResignVoting <$> arbitrary
       , pure RotateHot
-      , pure BurnHot
+      , pure UnlockHot
       ]
   shrink = genericShrink
 

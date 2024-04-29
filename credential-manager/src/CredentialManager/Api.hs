@@ -218,7 +218,7 @@ data ColdLockRedeemer
     -- from the committee, which would render the committee member unable to
     -- participate in governance until they were re-elected, a process
     -- over which they have no control.
-    Unlock
+    UnlockCold
   deriving stock (Show, Eq, Generic)
 
 instance PlutusTx.Eq ColdLockRedeemer where
@@ -231,8 +231,8 @@ instance PlutusTx.Eq ColdLockRedeemer where
   ResignDelegation _ == _ = PlutusTx.False
   RotateCold == RotateCold = PlutusTx.True
   RotateCold == _ = PlutusTx.False
-  Unlock == Unlock = PlutusTx.True
-  Unlock == _ = PlutusTx.False
+  UnlockCold == UnlockCold = PlutusTx.True
+  UnlockCold == _ = PlutusTx.False
 
 PlutusTx.makeLift ''CertificateHash
 
@@ -251,7 +251,7 @@ PlutusTx.makeIsDataIndexed
   , ('ResignCold, 1)
   , ('ResignDelegation, 2)
   , ('RotateCold, 3)
-  , ('Unlock, 4)
+  , ('UnlockCold, 4)
   ]
 
 -- | The datum of the CC hot credential NFT locking script.
@@ -303,9 +303,8 @@ data HotLockRedeemer
     -- Requires the address and value to be preserved between the input
     -- and output that contain the NFT.
     RotateHot
-  | -- | Requires the transaction to burn the hot credential NFT, rendering the
-    -- CC hot credential unusable for voting. Transaction must be signed by a
-    -- majority of identities from delegationUsers.
+  | -- | Allows the transaction to do anything with the NFT. Transaction must be
+    -- signed by a majority of the delegation group.
     --
     -- In order to obtain the list of delegation users, the transaction must
     -- reference the output containing the cold credential NFT as a reference
@@ -321,7 +320,7 @@ data HotLockRedeemer
     -- For the anticipated use case of upgrading the locking script, the
     -- delegation users should instead authorize a new hot credential with a
     -- new NFT in the cold locking script and burn the old hot credential NFT.
-    BurnHot
+    UnlockHot
   deriving stock (Show, Eq, Generic)
 
 instance PlutusTx.Eq HotLockRedeemer where
@@ -333,8 +332,8 @@ instance PlutusTx.Eq HotLockRedeemer where
   ResignVoting _ == _ = PlutusTx.False
   RotateHot == RotateHot = PlutusTx.True
   RotateHot == _ = PlutusTx.False
-  BurnHot == BurnHot = PlutusTx.True
-  BurnHot == _ = PlutusTx.False
+  UnlockHot == UnlockHot = PlutusTx.True
+  UnlockHot == _ = PlutusTx.False
 
 PlutusTx.makeLift ''HotLockDatum
 PlutusTx.makeLift ''HotLockRedeemer
@@ -344,5 +343,5 @@ PlutusTx.makeIsDataIndexed
   [ ('Vote, 0)
   , ('ResignVoting, 1)
   , ('RotateHot, 2)
-  , ('BurnHot, 3)
+  , ('UnlockHot, 3)
   ]

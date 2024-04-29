@@ -159,7 +159,7 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
                       == txOutValue ownInput
               _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
-        Unlock -> checkMultiSig membershipUsers
+        UnlockCold -> checkMultiSig membershipUsers
     _ -> False
   where
     ownOutputs ownInput = filter toSelf $ txInfoOutputs txInfo

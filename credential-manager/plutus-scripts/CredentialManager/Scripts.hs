@@ -61,31 +61,28 @@ wrapFourArgs f a b c ctx =
       (unsafeFromBuiltinData c)
       (unsafeFromBuiltinData ctx)
 
-{-# INLINEABLE wrapSixArgs #-}
-wrapSixArgs
+{-# INLINEABLE wrapFiveArgs #-}
+wrapFiveArgs
   :: ( UnsafeFromData a
      , UnsafeFromData b
      , UnsafeFromData c
      , UnsafeFromData d
      , UnsafeFromData e
-     , UnsafeFromData f
      )
-  => (a -> b -> c -> d -> e -> f -> Bool)
-  -> BuiltinData
+  => (a -> b -> c -> d -> e -> Bool)
   -> BuiltinData
   -> BuiltinData
   -> BuiltinData
   -> BuiltinData
   -> BuiltinData
   -> ()
-wrapSixArgs f a b c d e ctx =
+wrapFiveArgs f a b c d ctx =
   check
     $ f
       (unsafeFromBuiltinData a)
       (unsafeFromBuiltinData b)
       (unsafeFromBuiltinData c)
       (unsafeFromBuiltinData d)
-      (unsafeFromBuiltinData e)
       (unsafeFromBuiltinData ctx)
 
 coldCommittee
@@ -112,16 +109,12 @@ coldNFT =
 
 hotNFT
   :: CurrencySymbol
-  -> CurrencySymbol
   -> HotCommitteeCredential
   -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-hotNFT coldPolicyId hotPolicyId hotCred =
+hotNFT coldPolicyId hotCred =
   unsafeApplyCode
     ( unsafeApplyCode
-        ( unsafeApplyCode
-            $$(compile [||wrapSixArgs hotNFTScript||])
-            (liftCodeDef (toBuiltinData coldPolicyId))
-        )
-        (liftCodeDef (toBuiltinData hotPolicyId))
+        $$(compile [||wrapFiveArgs hotNFTScript||])
+        (liftCodeDef (toBuiltinData coldPolicyId))
     )
     (liftCodeDef (toBuiltinData hotCred))
