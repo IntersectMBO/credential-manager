@@ -140,19 +140,23 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
         ResignVoting user ->
           isVotingUser
             && signedByResignee
+            && notLastVoting
             && resigneeRemoved
             && checkNoVotes
           where
             isVotingUser = user `elem` votingUsers
             signedByResignee = txSignedBy txInfo $ pubKeyHash user
-            newDatum = HotLockDatum (filter (/= user) votingUsers)
-            resigneeRemoved =
-              let newTxOutput =
-                    ownInput
-                      { txOutDatum =
-                          OutputDatum $ Datum $ toBuiltinData newDatum
-                      }
-               in newTxOutput `elem` txInfoOutputs txInfo
+            newVoting = filter (/= user) votingUsers
+            newDatum = HotLockDatum newVoting
+            notLastVoting = not $ null newVoting
+            resigneeRemoved = case ownOutputs ownInput outputs of
+              [ownOutput] ->
+                ownOutput
+                  == ownInput
+                    { txOutDatum =
+                        OutputDatum $ Datum $ toBuiltinData newDatum
+                    }
+              _ -> False
             checkNoVotes = Map.null $ txInfoVotes txInfo
         RotateHot ->
           checkOutput
