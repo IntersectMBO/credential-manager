@@ -64,12 +64,12 @@ spec = do
     "Invariant A12: Authorize fails if self output contains reference script"
     invariantA12AuthorizeReferenceScriptInOutput
   describe "ValidArgs" do
-    prop "alwaysValid" \args@ValidAuthorizeArgs{..} ->
+    prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
         coldNFTScript authorizeColdCredential datum redeemer ctx === True
 
-invariantA1AuthorizeDelegatorMinority :: ValidAuthorizeArgs -> Property
-invariantA1AuthorizeDelegatorMinority args@ValidAuthorizeArgs{..} =
+invariantA1AuthorizeDelegatorMinority :: ValidArgs -> Property
+invariantA1AuthorizeDelegatorMinority args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers datum
     let minSigners = succ (length allSigners) `div` 2
@@ -88,8 +88,8 @@ invariantA1AuthorizeDelegatorMinority args@ValidAuthorizeArgs{..} =
           counterexample ("Signers: " <> show signers) $
             coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA2DuplicateDelegation :: ValidAuthorizeArgs -> Property
-invariantA2DuplicateDelegation args@ValidAuthorizeArgs{..} =
+invariantA2DuplicateDelegation :: ValidArgs -> Property
+invariantA2DuplicateDelegation args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let delegationGroup = delegationUsers datum
     let maybeChangeCertificateHash user =
@@ -104,8 +104,8 @@ invariantA2DuplicateDelegation args@ValidAuthorizeArgs{..} =
       counterexample ("Datum: " <> show datum') $
         coldNFTScript authorizeColdCredential datum' redeemer ctx === True
 
-invariantA3ColdCredentialMismatch :: ValidAuthorizeArgs -> Property
-invariantA3ColdCredentialMismatch args@ValidAuthorizeArgs{..} =
+invariantA3ColdCredentialMismatch :: ValidArgs -> Property
+invariantA3ColdCredentialMismatch args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     coldCred <- arbitrary `suchThat` (/= authorizeColdCredential)
     let ctx' =
@@ -120,8 +120,8 @@ invariantA3ColdCredentialMismatch args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA4HotCredentialMismatch :: ValidAuthorizeArgs -> Property
-invariantA4HotCredentialMismatch args@ValidAuthorizeArgs{..} =
+invariantA4HotCredentialMismatch :: ValidArgs -> Property
+invariantA4HotCredentialMismatch args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     hotCred <- arbitrary `suchThat` (/= authorizeHotCredential)
     let ctx' =
@@ -136,14 +136,14 @@ invariantA4HotCredentialMismatch args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA5EmptyDelegation :: ValidAuthorizeArgs -> Property
-invariantA5EmptyDelegation args@ValidAuthorizeArgs{..} =
+invariantA5EmptyDelegation :: ValidArgs -> Property
+invariantA5EmptyDelegation args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{delegationUsers = []}
     coldNFTScript authorizeColdCredential datum' redeemer ctx === False
 
-invariantA6AuthorizeExtraCertificates :: ValidAuthorizeArgs -> Property
-invariantA6AuthorizeExtraCertificates args@ValidAuthorizeArgs{..} =
+invariantA6AuthorizeExtraCertificates :: ValidArgs -> Property
+invariantA6AuthorizeExtraCertificates args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     extra <- listOf1 arbitrary
     certs <- shuffle $ extra <> txInfoTxCerts (scriptContextTxInfo ctx)
@@ -158,8 +158,8 @@ invariantA6AuthorizeExtraCertificates args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA7AuthorizeNoCertificates :: ValidAuthorizeArgs -> Property
-invariantA7AuthorizeNoCertificates args@ValidAuthorizeArgs{..} =
+invariantA7AuthorizeNoCertificates :: ValidArgs -> Property
+invariantA7AuthorizeNoCertificates args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let ctx' =
           ctx
@@ -169,8 +169,8 @@ invariantA7AuthorizeNoCertificates args@ValidAuthorizeArgs{..} =
     counterexample ("Context: " <> show ctx') $
       coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA8AuthorizeNoSelfOutput :: ValidAuthorizeArgs -> Property
-invariantA8AuthorizeNoSelfOutput args@ValidAuthorizeArgs{..} =
+invariantA8AuthorizeNoSelfOutput :: ValidArgs -> Property
+invariantA8AuthorizeNoSelfOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     newAddress <- arbitrary `suchThat` (/= authorizeScriptAddress)
     let modifyAddress TxOut{..}
@@ -190,8 +190,8 @@ invariantA8AuthorizeNoSelfOutput args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA9AuthorizeMultipleSelfOutputs :: ValidAuthorizeArgs -> Property
-invariantA9AuthorizeMultipleSelfOutputs args@ValidAuthorizeArgs{..} =
+invariantA9AuthorizeMultipleSelfOutputs :: ValidArgs -> Property
+invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let setAddress txOut = txOut{txOutAddress = authorizeScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
@@ -205,8 +205,8 @@ invariantA9AuthorizeMultipleSelfOutputs args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariant1A0AuthorizeValueNotPreserved :: ValidAuthorizeArgs -> Property
-invariant1A0AuthorizeValueNotPreserved args@ValidAuthorizeArgs{..} =
+invariant1A0AuthorizeValueNotPreserved :: ValidArgs -> Property
+invariant1A0AuthorizeValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     newValue <- arbitrary `suchThat` (/= authorizeValue)
     let modifyValue TxOut{..}
@@ -226,8 +226,8 @@ invariant1A0AuthorizeValueNotPreserved args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA11AuthorizeDatumNotPreserved :: ValidAuthorizeArgs -> Property
-invariantA11AuthorizeDatumNotPreserved args@ValidAuthorizeArgs{..} =
+invariantA11AuthorizeDatumNotPreserved :: ValidArgs -> Property
+invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     newDatum <-
       oneof
@@ -255,8 +255,8 @@ invariantA11AuthorizeDatumNotPreserved args@ValidAuthorizeArgs{..} =
       counterexample ("Context: " <> show ctx') $
         coldNFTScript authorizeColdCredential datum redeemer ctx' === False
 
-invariantA12AuthorizeReferenceScriptInOutput :: ValidAuthorizeArgs -> Property
-invariantA12AuthorizeReferenceScriptInOutput args@ValidAuthorizeArgs{..} =
+invariantA12AuthorizeReferenceScriptInOutput :: ValidArgs -> Property
+invariantA12AuthorizeReferenceScriptInOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     referenceScript <- Just <$> arbitrary
     let addReferenceScript TxOut{..}
@@ -282,10 +282,10 @@ invariantA12AuthorizeReferenceScriptInOutput args@ValidAuthorizeArgs{..} =
 
 forAllValidScriptContexts
   :: (Testable prop)
-  => ValidAuthorizeArgs
+  => ValidArgs
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
-forAllValidScriptContexts ValidAuthorizeArgs{..} f =
+forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $ f datum' $ AuthorizeHot authorizeHotCredential
   where
     gen = do
@@ -373,7 +373,7 @@ forAllValidScriptContexts ValidAuthorizeArgs{..} f =
         Nothing
     input = TxInInfo authorizeScriptRef output
 
-data ValidAuthorizeArgs = ValidAuthorizeArgs
+data ValidArgs = ValidArgs
   { authorizeScriptRef :: TxOutRef
   , authorizeScriptAddress :: Address
   , authorizeValue :: Value
@@ -385,9 +385,9 @@ data ValidAuthorizeArgs = ValidAuthorizeArgs
   }
   deriving (Show, Eq, Generic)
 
-instance Arbitrary ValidAuthorizeArgs where
+instance Arbitrary ValidArgs where
   arbitrary =
-    ValidAuthorizeArgs
+    ValidArgs
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary

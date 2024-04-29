@@ -118,16 +118,15 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
         ResignDelegation user ->
           isDelegationUser
             && signedByResignee
+            && notLastDelegation
             && resigneeRemoved
             && checkNoCerts
           where
             isDelegationUser = user `elem` delegationUsers
             signedByResignee = txSignedBy txInfo $ pubKeyHash user
-            newDatum =
-              ColdLockDatum
-                ca
-                membershipUsers
-                (filter (/= user) delegationUsers)
+            newDelegation = filter (/= user) delegationUsers
+            newDatum = ColdLockDatum ca membershipUsers newDelegation
+            notLastDelegation = not $ null newDelegation
             resigneeRemoved = case ownOutputs ownInput of
               [ownOutput] ->
                 ownOutput
