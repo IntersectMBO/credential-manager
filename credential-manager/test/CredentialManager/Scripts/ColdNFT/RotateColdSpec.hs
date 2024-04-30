@@ -53,6 +53,9 @@ spec = do
     "Invariant RTC9: RotateCold fails if membership empty in output"
     invariantRTC9EmptyMembershipOutput
   prop
+    "Invariant RTC10: RotateCold fails if delegation empty in output"
+    invariantRTC10EmptyDelegationOutput
+  prop
     "Invariant RTC11: RotateCold fails if self output contains reference script"
     invariantRTC11ReferenceScriptInOutput
   describe "ValidArgs" do
@@ -238,14 +241,14 @@ invariantRTC9EmptyMembershipOutput args@ValidArgs{..} =
     counterexample ("Context: " <> show ctx') $
       coldNFTScript rotateColdCredential datum redeemer ctx' === False
 
-invariantRTC10EmptyMembershipOutput :: ValidArgs -> Property
-invariantRTC10EmptyMembershipOutput args@ValidArgs{..} =
+invariantRTC10EmptyDelegationOutput :: ValidArgs -> Property
+invariantRTC10EmptyDelegationOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let newDatum =
           ColdLockDatum
             rotateCA
-            ( rotateNewMembershipPre
-                <> (rotateNewExtraMembership : rotateNewMembershipPost)
+            ( rotateNewDelegationPre
+                <> (rotateNewExtraDelegation : rotateNewDelegationPost)
             )
             []
     let modifyDatum TxOut{..}

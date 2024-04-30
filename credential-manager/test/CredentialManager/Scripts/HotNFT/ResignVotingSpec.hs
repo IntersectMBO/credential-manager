@@ -41,7 +41,7 @@ spec = do
     "Invariant RV5: ResignVoting fails if last delegator resigns"
     invariantRV5ResignLastDelegator
   prop
-    "Invariant RV6: ResignVoting fails if any certs are present"
+    "Invariant RV6: ResignVoting fails if any votes are present"
     invariantRV6ExtraneousCertificates
   prop
     "Invariant RV7: ResignVoting fails without output to self"
