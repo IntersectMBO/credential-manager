@@ -185,25 +185,15 @@ importanceSampleData onlyValid redeemer = do
 importanceSampleMembership :: Bool -> Gen [Identity]
 importanceSampleMembership onlyValid =
   importanceSampleArbitrary onlyValid $
-    nubBy (on (==) certificateHash)
-      . nubBy (on (==) pubKeyHash)
-      <$> listOf1 arbitrary
+    nubBy (on (==) pubKeyHash) <$> listOf1 arbitrary
 
 importanceSampleDelegation :: Bool -> ColdLockRedeemer -> Gen [Identity]
 importanceSampleDelegation onlyValid redeemer =
   importanceSampleArbitrary onlyValid $
-    shuffle
-      . nubBy (on (==) certificateHash)
-      . nubBy (on (==) pubKeyHash)
-      =<< case redeemer of
-        ResignDelegation required ->
-          (required :)
-            <$> listOf1
-              ( arbitrary `suchThat` \i ->
-                  on (/=) pubKeyHash required i
-                    && on (/=) certificateHash required i
-              )
-        _ -> listOf1 arbitrary
+    shuffle . nubBy (on (==) pubKeyHash) =<< case redeemer of
+      ResignDelegation required ->
+        (required :) <$> listOf1 (arbitrary `suchThat` on (/=) pubKeyHash required)
+      _ -> listOf1 arbitrary
 
 importanceSampleOutputDatum
   :: Bool -> ColdLockRedeemer -> ColdLockDatum -> Gen (Maybe ColdLockDatum)
@@ -228,10 +218,7 @@ importanceSampleOutputMembership onlyValid redeemer ColdLockDatum{..} =
     AuthorizeHot _ -> pure membershipUsers
     ResignCold -> pure membershipUsers
     ResignDelegation _ -> pure membershipUsers
-    RotateCold ->
-      nubBy (on (==) certificateHash)
-        . nubBy (on (==) pubKeyHash)
-        <$> listOf1 arbitrary
+    RotateCold -> nubBy (on (==) pubKeyHash) <$> listOf1 arbitrary
     UnlockCold -> arbitrary
 
 importanceSampleOutputDelegation
