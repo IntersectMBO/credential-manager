@@ -5,18 +5,9 @@ module Commands.InitHotNFT (
 ) where
 
 import Cardano.Api (
-  AsType (..),
-  File (..),
   NetworkId,
-  PaymentCredential (..),
-  PlutusScriptVersion (..),
   PolicyId,
-  Script (..),
-  SerialiseAsRawBytes (..),
   StakeAddressReference (..),
-  hashScript,
-  makeShelleyAddress,
-  readFileTextEnvelope,
  )
 import Commands.Common (
   StakeCredentialFile,
@@ -24,8 +15,10 @@ import Commands.Common (
   networkIdParser,
   outDirParser,
   policyIdParser,
+  readFilePlutusV3Script,
   readIdentityFromPEMFile',
   readStakeAddressFile,
+  runCommand,
   stakeCredentialFileParser,
   votingCertParser,
   writeBech32ToFile,
@@ -33,10 +26,7 @@ import Commands.Common (
   writePlutusDataToFile,
   writeScriptToFile,
  )
-import CredentialManager.Api (
-  HotLockDatum (..),
- )
-import qualified CredentialManager.Scripts as Scripts
+import CredentialManager.Orchestrator.InitHotNFT
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   Alternative (some),
@@ -50,13 +40,6 @@ import Options.Applicative (
   long,
   optional,
   progDesc,
- )
-import PlutusLedgerApi.V3 (
-  Credential (..),
-  CurrencySymbol (..),
-  HotCommitteeCredential (..),
-  ScriptHash (..),
-  toBuiltin,
  )
 
 data InitHotNFTCommand = InitHotNFTCommand
@@ -94,41 +77,21 @@ coldNFTPolicyIdInfo =
 
 runInitHotNFTCommand :: InitHotNFTCommand -> IO ()
 runInitHotNFTCommand InitHotNFTCommand{..} = do
-  hotCredentialScriptResult <-
-    readFileTextEnvelope
-      (AsPlutusScript AsPlutusScriptV3)
-      (File hotCredentialScriptFile)
-
+  hotCredentialScript <- readFilePlutusV3Script hotCredentialScriptFile
   stakeAddress <-
     maybe
       (pure NoStakeAddress)
       readStakeAddressFile
       stakeCredentialFile
-
-  hotCredentialScript <- case hotCredentialScriptResult of
-    Left err -> do
-      error $ "Failed to read hot credential script file: " <> show err
-    Right script -> pure $ PlutusScript PlutusScriptV3 script
-
   votingUsers <- traverse readIdentityFromPEMFile' votingCerts
-
-  let hotCredentialScriptHash =
-        ScriptHash $
-          toBuiltin $
-            serialiseToRawBytes $
-              hashScript hotCredentialScript
-  let hotCredential =
-        HotCommitteeCredential $ ScriptCredential hotCredentialScriptHash
-  let coldCurrency =
-        CurrencySymbol $ toBuiltin $ serialiseToRawBytes coldNFTPolicyId
-  let compiledScript = Scripts.hotNFT coldCurrency hotCredential
-  script <- writeScriptToFile outDir "script.plutus" compiledScript
-
-  let scriptHash = hashScript script
+  let inputs = InitHotNFTInputs{..}
+  InitHotNFTOutputs{..} <- runCommand initHotNFT inputs \case
+    EmptyVoting -> "No voting users specified"
+    DuplicateVotingCertificates cert ->
+      "Multiple voting users have the same certificate hash " <> show cert
+    DuplicateVotingPubKeyHash key ->
+      "Multiple voting users have the same public key hash " <> show key
+  writeScriptToFile outDir "script.plutus" script
   writeHexBytesToFile outDir "script.hash" scriptHash
-
-  let paymentCredential = PaymentCredentialByScript scriptHash
-  writeBech32ToFile outDir "script.addr" $
-    makeShelleyAddress networkId paymentCredential stakeAddress
-
-  writePlutusDataToFile outDir "datum.json" HotLockDatum{..}
+  writeBech32ToFile outDir "script.addr" scriptAddress
+  writePlutusDataToFile outDir "datum.json" initialDatum

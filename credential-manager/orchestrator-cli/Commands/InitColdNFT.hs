@@ -4,19 +4,7 @@ module Commands.InitColdNFT (
   runInitColdNFTCommand,
 ) where
 
-import Cardano.Api (
-  AsType (..),
-  File (..),
-  NetworkId,
-  PaymentCredential (..),
-  PlutusScriptVersion (..),
-  Script (..),
-  SerialiseAsRawBytes (..),
-  StakeAddressReference (..),
-  hashScript,
-  makeShelleyAddress,
-  readFileTextEnvelope,
- )
+import Cardano.Api (NetworkId, StakeAddressReference (..))
 import Commands.Common (
   StakeCredentialFile,
   coldCredentialScriptFileParser,
@@ -24,18 +12,17 @@ import Commands.Common (
   membershipCertParser,
   networkIdParser,
   outDirParser,
+  readFilePlutusV3Script,
   readIdentityFromPEMFile',
   readStakeAddressFile,
+  runCommand,
   stakeCredentialFileParser,
   writeBech32ToFile,
   writeHexBytesToFile,
   writePlutusDataToFile,
   writeScriptToFile,
  )
-import CredentialManager.Api (
-  ColdLockDatum (..),
- )
-import qualified CredentialManager.Scripts as Scripts
+import CredentialManager.Orchestrator.InitColdNFT
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   Alternative (some),
@@ -50,12 +37,6 @@ import Options.Applicative (
   optional,
   progDesc,
   strOption,
- )
-import PlutusLedgerApi.V3 (
-  ColdCommitteeCredential (..),
-  Credential (..),
-  ScriptHash (..),
-  toBuiltin,
  )
 
 data InitColdNFTCommand = InitColdNFTCommand
@@ -98,41 +79,28 @@ caCertFileParser =
 
 runInitColdNFTCommand :: InitColdNFTCommand -> IO ()
 runInitColdNFTCommand InitColdNFTCommand{..} = do
-  coldCredentialScriptResult <-
-    readFileTextEnvelope
-      (AsPlutusScript AsPlutusScriptV3)
-      (File coldCredentialScriptFile)
-
+  coldCredentialScript <- readFilePlutusV3Script coldCredentialScriptFile
   stakeAddress <-
     maybe
       (pure NoStakeAddress)
       readStakeAddressFile
       stakeCredentialFile
-
-  coldCredentialScript <- case coldCredentialScriptResult of
-    Left err -> do
-      error $ "Failed to read cold credential script file: " <> show err
-    Right script -> pure $ PlutusScript PlutusScriptV3 script
-
   certificateAuthority <- readIdentityFromPEMFile' caCertFile
   membershipUsers <- traverse readIdentityFromPEMFile' membershipCertFiles
   delegationUsers <- traverse readIdentityFromPEMFile' delegationCertFiles
-
-  let coldCredentialScriptHash =
-        ScriptHash $
-          toBuiltin $
-            serialiseToRawBytes $
-              hashScript coldCredentialScript
-  let coldCredential =
-        ColdCommitteeCredential $ ScriptCredential coldCredentialScriptHash
-  let compiledScript = Scripts.coldNFT coldCredential
-  script <- writeScriptToFile outDir "script.plutus" compiledScript
-
-  let scriptHash = hashScript script
+  let inputs = InitColdNFTInputs{..}
+  InitColdNFTOutputs{..} <- runCommand initColdNFT inputs \case
+    EmptyMembership -> "No membership users specified"
+    DuplicateMembershipCertificates cert ->
+      "Multiple membership users have the same certificate hash " <> show cert
+    DuplicateMembershipPubKeyHash key ->
+      "Multiple membership users have the same public key hash " <> show key
+    EmptyDelegation -> "No delegation users specified"
+    DuplicateDelegationCertificates cert ->
+      "Multiple delegation users have the same certificate hash " <> show cert
+    DuplicateDelegationPubKeyHash key ->
+      "Multiple delegation users have the same public key hash " <> show key
+  writeScriptToFile outDir "script.plutus" script
   writeHexBytesToFile outDir "script.hash" scriptHash
-
-  let paymentCredential = PaymentCredentialByScript scriptHash
-  writeBech32ToFile outDir "script.addr" $
-    makeShelleyAddress networkId paymentCredential stakeAddress
-
-  writePlutusDataToFile outDir "datum.json" ColdLockDatum{..}
+  writeBech32ToFile outDir "script.addr" scriptAddress
+  writePlutusDataToFile outDir "datum.json" initialDatum

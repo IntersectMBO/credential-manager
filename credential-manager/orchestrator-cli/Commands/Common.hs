@@ -7,6 +7,7 @@ import Cardano.Api (
   AssetName (..),
   Certificate,
   ConwayEra,
+  CtxUTxO,
   File (..),
   FromSomeType (..),
   Key (..),
@@ -22,6 +23,7 @@ import Cardano.Api (
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
   ShelleyAddr,
   StakeAddressReference (..),
+  TxOut,
   Value,
   hashScript,
   readFileTextEnvelope,
@@ -34,33 +36,27 @@ import Cardano.Api (
  )
 import Cardano.Api.Ledger (
   AnchorData,
-  GovActionId,
   SafeHash,
   StandardCrypto,
   Url,
-  Voter,
-  VotingProcedure,
-  VotingProcedures (..),
   hashFromBytes,
   textToUrl,
   unsafeMakeSafeHash,
  )
 import Cardano.Api.Shelley (
-  PlutusScript (PlutusScriptSerialised),
-  ShelleyLedgerEra,
   StakeCredential (..),
   fromPlutusData,
   scriptDataToJsonDetailedSchema,
  )
 import qualified Cardano.Api.Shelley as Shelley
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
+import Data.Aeson (eitherDecodeFileStrict)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Bifunctor (Bifunctor (..))
 import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as T
@@ -82,9 +78,9 @@ import Options.Applicative (
   str,
   strOption,
  )
-import qualified PlutusLedgerApi.V3 as PlutusV1
-import PlutusTx (CompiledCode, ToData, toData)
+import PlutusTx (ToData, toData)
 import System.Directory (createDirectoryIfMissing)
+import System.Exit (die)
 import System.FilePath ((</>))
 
 data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
@@ -281,6 +277,23 @@ readStakeAddressFile =
           error $ "Failed to read stake script file: " <> show err
         Right hash -> pure $ StakeCredentialByScript hash
 
+readFilePlutusV3Script :: FilePath -> IO (Script PlutusScriptV3)
+readFilePlutusV3Script path = do
+  result <-
+    readFileTextEnvelope
+      (AsPlutusScript AsPlutusScriptV3)
+      (File path)
+  case result of
+    Left err -> error $ "Failed to read script file " <> path <> ": " <> show err
+    Right script -> pure $ PlutusScript PlutusScriptV3 script
+
+readFileTxOut :: FilePath -> IO (TxOut CtxUTxO ConwayEra)
+readFileTxOut path = do
+  result <- eitherDecodeFileStrict @(TxOut CtxUTxO ConwayEra) path
+  case result of
+    Left err -> do error $ "Failed to read utxo file: " <> show err
+    Right u -> pure u
+
 writeCertificateToFile
   :: FilePath -> FilePath -> Certificate ConwayEra -> IO ()
 writeCertificateToFile dir file certificate = do
@@ -289,34 +302,30 @@ writeCertificateToFile dir file certificate = do
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing certificate
 
+runCommand
+  :: (inputs -> Either err outputs)
+  -> inputs
+  -> (err -> String)
+  -> IO outputs
+runCommand cmd inputs renderError = either (die . renderError) pure $ cmd inputs
+
 writeVoteToFile
   :: FilePath
   -> FilePath
-  -> Voter StandardCrypto
-  -> GovActionId StandardCrypto
-  -> VotingProcedure (ShelleyLedgerEra ConwayEra)
+  -> Shelley.VotingProcedures ConwayEra
   -> IO ()
-writeVoteToFile dir file voter govAction vote = do
+writeVoteToFile dir file votingProcedures = do
   createDirectoryIfMissing True dir
   let path = dir </> file
-  let votingProcedures =
-        Shelley.VotingProcedures $
-          VotingProcedures @(ShelleyLedgerEra ConwayEra) $
-            Map.singleton voter $
-              Map.singleton govAction vote
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing votingProcedures
 
-writeScriptToFile
-  :: FilePath -> FilePath -> CompiledCode a -> IO (Script PlutusScriptV3)
-writeScriptToFile dir file code = do
+writeScriptToFile :: FilePath -> FilePath -> Script PlutusScriptV3 -> IO ()
+writeScriptToFile dir file (PlutusScript _ script) = do
   createDirectoryIfMissing True dir
   let path = dir </> file
   either (error . show) pure
-    =<< writeFileTextEnvelope (File path) Nothing plutusScript
-  pure $ PlutusScript PlutusScriptV3 plutusScript
-  where
-    plutusScript = PlutusScriptSerialised $ PlutusV1.serialiseCompiledCode code
+    =<< writeFileTextEnvelope (File path) Nothing script
 
 writeHexBytesToFile
   :: (SerialiseAsRawBytes a) => FilePath -> FilePath -> a -> IO ()

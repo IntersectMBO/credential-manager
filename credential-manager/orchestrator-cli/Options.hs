@@ -38,14 +38,14 @@ optionsParser = Options <$> commandParser
 versionOption :: Parser (a -> a)
 versionOption =
   infoOption
-    ("orchestrator-tool " <> showVersion version)
+    ("orchestrator-cli " <> showVersion version)
     (long "version" <> short 'v' <> help "Show version.")
 
 description :: InfoMod Options
 description =
   fold
     [ fullDesc
-    , progDesc "Tool for building components of credential management transactions."
+    , progDesc "CLI for building components of credential management transactions."
     , header
-        "orchestrator-tool: a tool for building credential management transaction."
+        "orchestrator-cli: a CLI for building credential management transaction."
     ]

@@ -4,14 +4,15 @@ module Commands.InitHotCredential (
   runInitHotCredentialCommand,
 ) where
 
-import Cardano.Api (PolicyId, hashScript, serialiseToRawBytes)
+import Cardano.Api (PolicyId)
 import Commands.Common (
   outDirParser,
   policyIdParser,
+  runCommand,
   writeHexBytesToFile,
   writeScriptToFile,
  )
-import qualified CredentialManager.Scripts as Scripts
+import CredentialManager.Orchestrator.InitHotCommittee
 import Data.Foldable (Foldable (..))
 import Options.Applicative (
   InfoMod,
@@ -25,7 +26,6 @@ import Options.Applicative (
   progDesc,
   short,
  )
-import PlutusLedgerApi.V3 (CurrencySymbol (CurrencySymbol), toBuiltin)
 
 data InitHotCredentialCommand = InitHotCredentialCommand
   { policyId :: PolicyId
@@ -56,10 +56,7 @@ policyIdInfo =
 
 runInitHotCredentialCommand :: InitHotCredentialCommand -> IO ()
 runInitHotCredentialCommand InitHotCredentialCommand{..} = do
-  let compiledScript =
-        Scripts.hotCommittee $
-          CurrencySymbol $
-            toBuiltin $
-              serialiseToRawBytes policyId
-  script <- writeScriptToFile outDir "script.plutus" compiledScript
-  writeHexBytesToFile outDir "script.hash" $ hashScript script
+  let inputs = InitHotCommitteeInputs policyId
+  InitHotCommitteeOutputs{..} <- runCommand initHotCommittee inputs \case {}
+  writeScriptToFile outDir "script.plutus" script
+  writeHexBytesToFile outDir "script.hash" scriptHash
