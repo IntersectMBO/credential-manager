@@ -47,21 +47,12 @@ let
 
     shellArgs = repoRoot.nix.shell;
 
-    # includeMingwW64HydraJobs = false; 
+    includeMingwW64HydraJobs = false;
 
-    # includeProfiledHydraJobs = false; 
-
-    # readTheDocs = {
-    #   enable = false;
-    #   siteFolder = "doc/read-the-docs-site";
-    #   sphinxToolchain = null;
-    # };
-
-    # combinedHaddock = {
-    #   enable = false;
-    #   prologue = "";
-    #   packages = [];
-    # };
+    readTheDocs = {
+      enable = true;
+      siteFolder = "doc/read-the-docs-site";
+    };
   };
 
 in
