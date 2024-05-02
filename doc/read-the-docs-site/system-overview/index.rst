@@ -71,4 +71,4 @@ credential that holds this NFT implements the real logic of the system.
    hot-committee
    cold-nft
    hot-nft
-   verification
+   auditing
