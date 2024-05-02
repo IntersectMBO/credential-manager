@@ -125,16 +125,15 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
           where
             isDelegationUser = user `elem` delegationUsers
             signedByResignee = txSignedBy txInfo $ pubKeyHash user
+            notLastDelegation = not $ null newDelegation
             newDelegation = filter (/= user) delegationUsers
             newDatum = ColdLockDatum ca membershipUsers newDelegation
-            notLastDelegation = not $ null newDelegation
+            newOutput =
+              ownInput
+                { txOutDatum = OutputDatum $ Datum $ toBuiltinData newDatum
+                }
             resigneeRemoved = case ownOutputs ownInput outputs of
-              [ownOutput] ->
-                ownOutput
-                  == ownInput
-                    { txOutDatum =
-                        OutputDatum $ Datum $ toBuiltinData newDatum
-                    }
+              [ownOutput] -> ownOutput == newOutput
               _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
         ResignCold ->
@@ -149,15 +148,16 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
             && checkMultiSig membershipUsers signatures
             && checkNoCerts
           where
+            ownAddress = txOutAddress ownInput
             checkOutput = case ownOutputs ownInput outputs of
-              [TxOut _ value' (OutputDatum (Datum datum')) Nothing] ->
+              [TxOut address value' (OutputDatum (Datum datum')) Nothing] ->
                 let ColdLockDatum ca' membership' delegation' =
                       unsafeFromBuiltinData datum'
-                 in (ca' == ca)
+                 in (address == ownAddress)
+                      && (ca' == ca)
                       && not (null membership')
                       && not (null delegation')
-                      && value'
-                      == txOutValue ownInput
+                      && (value' == txOutValue ownInput)
               _ -> False
             checkNoCerts = null $ txInfoTxCerts txInfo
         UnlockCold -> checkMultiSig membershipUsers signatures

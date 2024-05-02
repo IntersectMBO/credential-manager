@@ -11,7 +11,7 @@
 module CredentialManager.Scripts.Common where
 
 import CredentialManager.Api (Identity (..))
-import PlutusLedgerApi.V3 (PubKeyHash, TxOut (..))
+import PlutusLedgerApi.V3 (Address (..), PubKeyHash, TxOut (..))
 import PlutusTx.Prelude
 
 {-# INLINEABLE checkMultiSig #-}
@@ -27,7 +27,8 @@ checkMultiSig list signatures = majority <= numberOfSignatures
 ownOutputs :: TxOut -> [TxOut] -> [TxOut]
 ownOutputs ownInput = filter toSelf
   where
-    toSelf (TxOut address _ _ _) = txOutAddress ownInput == address
+    toSelf (TxOut address _ _ _) =
+      addressCredential (txOutAddress ownInput) == addressCredential address
 
 {-# INLINEABLE checkTxOutPreservation #-}
 checkTxOutPreservation :: TxOut -> [TxOut] -> Bool

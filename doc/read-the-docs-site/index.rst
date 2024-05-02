@@ -21,6 +21,5 @@ for every tool.
    :maxdepth: 1
 
    background/index.rst
-   system-overview
-   scripts/index
+   system-overview/index.rst
    orchestrator-cli/index

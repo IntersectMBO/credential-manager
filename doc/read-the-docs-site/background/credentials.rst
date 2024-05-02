@@ -5,7 +5,7 @@ Cardano Credentials
 
 On Cardano, a credential is a piece of information that anyone can use to
 verify the legitimacy of changes to the blockchain described by a transaction.
-Credentials are used for many purposes in the Coway era, including:
+Credentials are used for many purposes in the Conway era, including:
 
 * Consuming UTxOs (Payment credentials)
 * Withdrawing staking rewards (staking credentials)
@@ -41,7 +41,7 @@ However, they also have drawbacks:
 
 * They are single points of failure. If the private key is lost or stolen, the
   legitimate owner of the credential will be unable to authorize transactions,
-  nor will they be able to stop theives from impersonating them.
+  nor will they be able to stop thieves from impersonating them.
 * They are not sufficient for setups requiring authorization from multiple
   individuals.
 * They are opaque on their own - they do not contain identifiable information.
@@ -52,7 +52,7 @@ However, they also have drawbacks:
   costing the owner ADA in fees. Other types of credentials, particularly
   constitutional committee cold credentials, are far more difficult to change.
 
-All of these drawbacks make public key credentials generaly inappropriate for
+All of these drawbacks make public key credentials generally inappropriate for
 organizations which distribute and delegate authority to staff or other
 types of trustees.
 
@@ -92,8 +92,8 @@ Script credentials offer many benefits over public key credentials:
   withdrawn, enforcing time limits, and much more.
 * Via the datum, they can be associated with supplemental information, which
   can be used for identity verification.
-* They can have failsaves built into them to allow recovery of the credential
-  if auxilliary data such as private keys are compromised.
+* They can have failsafe options built into them to allow recovery of the credential
+  if auxillary data such as private keys are compromised.
 
 However, they also have several disadvantages:
 

@@ -6,3 +6,4 @@ Background Information
    :titlesonly:
 
    credentials
+   cc-credentials
