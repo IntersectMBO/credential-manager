@@ -18,13 +18,9 @@ each of the end-user roles, and a reference manual that documents every option
 for every tool.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`search`
+   background/index.rst
+   system-overview
+   scripts/index
+   orchestrator-cli/index
