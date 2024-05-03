@@ -6,7 +6,9 @@ workbench
 result*
 *.cert
 *.txbody
+*.body
 *.txsigned
+*.tx
 *.proposal
 *.vote
 *.action
