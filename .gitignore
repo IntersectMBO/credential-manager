@@ -24,3 +24,5 @@ state-*
 .pre-commit-config.yaml
 dist-newstyle/
 /doc/read-the-docs-site/_build/
+/testnet/example
+/testnet/logs

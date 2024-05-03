@@ -72,6 +72,8 @@ hierarchy. They are implicit roles that describe tasks which must be managed by
 the organization somehow, but the system does not explicitly keep track of them
 the way it does with the user roles.
 
+.. _head_of_security:
+
 Head of Security
 ----------------
 

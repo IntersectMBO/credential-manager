@@ -14,6 +14,8 @@ cabalProject:
   packages = [
     pkgs.scriv
     pkgs.jq
+    inputs.cardano-node.packages.cardano-node
+    inputs.cardano-node.packages.cardano-cli
   ];
 
   preCommit = {
@@ -48,21 +50,29 @@ cabalProject:
 
   # welcomeMessage = null;
 
-  # scripts = {
-  #   foo = {
-  #      description = "";
-  #      group = "general";
-  #      enabled = true;
-  #      exec = ''
-  #        echo "Hello, World!"
-  #      '';
-  #    };
-  # };
+  scripts = {
+    deploy-local-testnet = {
+      description = "Start and run an ephemeral local testnet";
+      group = "general";
+      exec = ''
+        cd $(git rev-parse --show-toplevel)/testnet
+        rm -rf example
+        rm -rf logs
+        scripts/babbage/mkfiles.sh
+        cp example/utxo-keys/utxo1.vkey ../orchestrator.vkey
+        cp example/utxo-keys/utxo1.skey ../orchestrator.skey
+        cardano-cli address build --payment-verification-key-file ../orchestrator.vkey > ../orchestrator.addr
+        example/run/all.sh
+      '';
+    };
+  };
 
-  # env = {
-  #   KEY = "VALUE";
-  # };
+  env = {
+    CARDANO_NODE_NETWORK_ID = "42";
+  };
 
-  # shellHook = "";
+  shellHook = ''
+    export CARDANO_NODE_SOCKET_PATH="$(git rev-parse --show-toplevel)/testnet/example/node-spo1/node.sock"
+  '';
 }
  
