@@ -26,3 +26,4 @@ tools in an approximate sequence.
    resign-delegation
    resign-voting
    rotate-cold
+   rotate-hot
