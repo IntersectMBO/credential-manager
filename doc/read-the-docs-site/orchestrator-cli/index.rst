@@ -20,3 +20,4 @@ tools in an approximate sequence.
 
    init-cold-committee
    init-cold-nft
+   init-hot-committee
