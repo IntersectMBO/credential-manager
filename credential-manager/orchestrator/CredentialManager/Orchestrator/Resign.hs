@@ -43,7 +43,7 @@ data ResignInputs = ResignInputs
 
 data ResignOutputs = ResignOutputs
   { redeemer :: ColdLockRedeemer
-  , outputDatum :: HotLockDatum
+  , outputDatum :: ColdLockDatum
   , outputAddress :: Address ShelleyAddr
   , outputValue :: Value
   , certificate :: Certificate ConwayEra
