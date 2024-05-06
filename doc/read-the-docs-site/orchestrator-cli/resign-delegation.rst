@@ -73,11 +73,6 @@ this user.
        ]
    }
 
-.. code-block:: bash
-
-   cat resign-child-6/value
-   addr_test1wzq7m97vwjyu43w8snutpnuukhef8nlh7lpx4x53rquzanqmwuk6y+5000000 lovelace + 1 14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be
-
 Step 2: Create the Transaction
 ------------------------------
 

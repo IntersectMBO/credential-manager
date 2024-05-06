@@ -165,7 +165,7 @@ hotNFTCommandParser = info parser description
         fold
           [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
           , command "vote" $ Vote <$> voteCommandParser
-          , command "resignVoting" $ ResignVoting <$> resignVotingCommandParser
+          , command "resign-voting" $ ResignVoting <$> resignVotingCommandParser
           , command "rotate" $ RotateHot <$> rotateHotCommandParser
           , command "unlock" $ UnlockHot <$> unlockHotCommandParser
           ]

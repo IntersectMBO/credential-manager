@@ -24,3 +24,4 @@ tools in an approximate sequence.
    init-hot-nft
    vote
    resign-delegation
+   resign-voting
