@@ -11,7 +11,7 @@ import Cardano.Api (
  )
 import Cardano.Api.Shelley (hashScript)
 import CredentialManager.Orchestrator.Common (serialiseScript)
-import CredentialManager.Scripts (coldCommittee)
+import CredentialManager.Scripts (hotCommittee)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
   CurrencySymbol (CurrencySymbol),
@@ -37,7 +37,7 @@ initHotCommittee
 initHotCommittee InitHotCommitteeInputs{..} = do
   let script =
         serialiseScript
-          . coldCommittee
+          . hotCommittee
           . CurrencySymbol
           . toBuiltin
           $ serialiseToRawBytes nftPolicyId

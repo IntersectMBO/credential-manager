@@ -94,7 +94,7 @@ govActionIxParser :: Parser GovActionIx
 govActionIxParser =
   option readGovActionIx $
     fold
-      [ long "governance-action-tx-id"
+      [ long "governance-action-index"
       , metavar "WORD32"
       , help "Index of the governance action withing the transaction."
       ]

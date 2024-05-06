@@ -57,8 +57,8 @@ import Commands.UnlockCold (
  )
 import Commands.UnlockHot (
   UnlockHotCommand,
-  burnHotCommandParser,
   runUnlockHotCommand,
+  unlockHotCommandParser,
  )
 import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Data.Foldable (Foldable (..))
@@ -167,7 +167,7 @@ hotNFTCommandParser = info parser description
           , command "vote" $ Vote <$> voteCommandParser
           , command "resignVoting" $ ResignVoting <$> resignVotingCommandParser
           , command "rotate" $ RotateHot <$> rotateHotCommandParser
-          , command "burn" $ UnlockHot <$> burnHotCommandParser
+          , command "unlock" $ UnlockHot <$> unlockHotCommandParser
           ]
 
 -- Implementations

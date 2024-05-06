@@ -1,6 +1,6 @@
 module Commands.UnlockHot (
   UnlockHotCommand (..),
-  burnHotCommandParser,
+  unlockHotCommandParser,
   runUnlockHotCommand,
 ) where
 
@@ -23,8 +23,8 @@ newtype UnlockHotCommand = UnlockHotCommand
   { outDir :: FilePath
   }
 
-burnHotCommandParser :: ParserInfo UnlockHotCommand
-burnHotCommandParser = info parser description
+unlockHotCommandParser :: ParserInfo UnlockHotCommand
+unlockHotCommandParser = info parser description
   where
     description :: InfoMod UnlockHotCommand
     description = progDesc "Unlock the hot NFT."
