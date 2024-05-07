@@ -112,11 +112,11 @@ Relevant guides that will help you with this process include:
 
 * `Register a DRep <https://sancho.network/tutorials/drep-registration>`_
 * `Delegate votes to a DRep <https://sancho.network/tutorials/delegate-to-drep>`_
-* `Creating update-committee governance actions <https://sancho.network/tutorials/actions>#update-committee-actions`_
+* `Creating update-committee governance actions <https://sancho.network/tutorials/actions#update-committee-actions>`_
 * `Voting on actions <https://sancho.network/tutorials/vote-action>`_
    * To ratify an ``update-committee`` action, you will have to vote as both
-    DReps and SPOs. SPO cold keys are in the directory structure created by 
-    ``cardano-testnet``
+     DReps and SPOs. SPO cold keys are in the directory structure created by 
+     ``cardano-testnet``
    * You will have to wait for an epoch boundary before the action is ratified,
      and it takes another epoch before an ``update-committee`` action is
      enacted. Configuring your private testnet to have short epoch lengths is

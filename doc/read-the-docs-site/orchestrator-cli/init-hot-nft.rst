@@ -1,4 +1,4 @@
-.. _init_cold_nft:
+.. _init_hot_nft:
 
 Initializing the Hot NFT Payment Credential Script
 ===================================================

@@ -12,7 +12,7 @@ left to do: recovering the NFTs.
    and double check everything when preparing a transaction that unlocks one of
    the NFTs.
 
-.. info::
+.. note::
    Recovering the NFTs after the credentials are inactive is not the only use
    case for unlocking. For example, you can upgrade the locking script by
    unlocking an NFT and sending it to a new script address.

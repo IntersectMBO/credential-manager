@@ -57,4 +57,4 @@ html_context = {
   "source_suffix": source_suffix,
 }
 
-html_static_path = ['_static']
+html_static_path = []

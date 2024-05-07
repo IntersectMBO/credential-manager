@@ -28,22 +28,17 @@ If the redeemer is an ``AuthorizeHot`` action:
 * The transaction has been signed by a majority of users from the
   **delegation group** defined in the datum.
 * The transaction contains a hot committee credential authorization certificate
-  * The cold credential contained in the certificate is the same credential
-    provided to the script as a parameter.
-  * the hot credential contained in the certificate is the same credential
-    provided in the redeemer.
+  * The cold credential contained in the certificate is the same credential provided to the script as a parameter.
+  * the hot credential contained in the certificate is the same credential provided in the redeemer.
 * The transaction does not contain any other certificates.
 
 If the redeemer is a ``ResignDelegation`` action:
 
 * The transaction sends an output that meets the following criteria:
   * The address matches the address of the input being authorized
-  * The value of the output is the same as the value of the input being
-    authorized.
-  * The datum is unchanged with the exception that the resignee specified in
-    the redeemer is removed from the **delegation group**.
-  * The reference script in the output is the same if present, otherwise not
-    set.
+  * The value of the output is the same as the value of the input being authorized.
+  * The datum is unchanged with the exception that the resignee specified in the redeemer is removed from the **delegation group**.
+  * The reference script in the output is the same if present, otherwise not set.
 * The transaction does not send any other outputs to an address with the the
   script's own payment credential.
 * The transaction has been signed by the resignee.
@@ -61,18 +56,15 @@ If the redeemer is a ``ResignCold`` action:
 * The transaction has been signed by a majority of users from the
   **membership group** defined in the datum.
 * The transaction contains a cold committee resignation certificate.
-  * The cold credential contained in the certificate is the same credential
-    provided to the script as a parameter.
+  * The cold credential contained in the certificate is the same credential provided to the script as a parameter.
 * The transaction does not contain any other certificates.
 
 If the redeemer is a ``RotateCold`` action:
 
 * The transaction sends an output that meets the following criteria:
   * The address matches the address of the input being authorized
-  * The value of the output is the same as the value of the input being
-    authorized.
-  * The **certificate authority** is the same in the output datum as it is in
-    the input datum.
+  * The value of the output is the same as the value of the input being authorized.
+  * The **certificate authority** is the same in the output datum as it is in the input datum.
   * the **membership group** in the output datum is not empty.
   * the **delegation group** in the output datum is not empty.
   * The output does not contain a reference script.

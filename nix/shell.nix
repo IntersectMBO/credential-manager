@@ -55,14 +55,117 @@ cabalProject:
       description = "Start and run an ephemeral local testnet";
       group = "general";
       exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
         cd $(git rev-parse --show-toplevel)/testnet
-        rm -rf example
-        rm -rf logs
-        scripts/babbage/mkfiles.sh
-        cp example/utxo-keys/utxo1.vkey ../orchestrator.vkey
-        cp example/utxo-keys/utxo1.skey ../orchestrator.skey
-        cardano-cli address build --payment-verification-key-file ../orchestrator.vkey > ../orchestrator.addr
+        [ -d example ] || scripts/babbage/mkfiles.sh
         example/run/all.sh
+      '';
+    };
+
+    purge-local-testnet = {
+      description = "Cleanup the local testnet directory";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cd $(git rev-parse --show-toplevel)/testnet
+        rm -rf example logs
+      '';
+    };
+
+    setup-orchestrator = {
+      description = "Configure the orchestrator's wallet";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cd $(git rev-parse --show-toplevel)
+        cp testnet/example/utxo-keys/utxo1.vkey orchestrator.vkey
+        cp testnet/example/utxo-keys/utxo1.skey orchestrator.skey
+        cardano-cli address build \
+          --payment-verification-key-file orchestrator.vkey \
+          --out-file orchestrator.addr
+      '';
+    };
+
+    mint-tokens = {
+      description = "Mint two NFTs to use with the cold and hot credentials.";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cd $(git rev-parse --show-toplevel)
+        UTXO_1_ADDR=$(
+          cardano-cli address build \
+            --payment-verification-key-file testnet/example/utxo-keys/utxo1.vkey
+        )
+        COLD_INPUT=$(
+          cardano-cli query utxo --address $UTXO_1_ADDR --output-json \
+            | jq -r 'keys[0]'
+        )
+        UTXO_2_ADDR=$(
+          cardano-cli address build \
+            --payment-verification-key-file testnet/example/utxo-keys/utxo2.vkey
+        )
+        HOT_INPUT=$(
+          cardano-cli query utxo --address $UTXO_2_ADDR --output-json \
+            | jq -r 'keys[0]'
+        )
+        COLD_INPUT_CBOR=$(echo $COLD_INPUT | sed 's/#/0/')
+        HOT_INPUT_CBOR=$(echo $HOT_INPUT | sed 's/#/0/')
+        cat mint.plutus.template | sed s/{0}/$COLD_INPUT_CBOR/ > coldMint.plutus
+        cat mint.plutus.template | sed s/{0}/$HOT_INPUT_CBOR/ > hotMint.plutus
+        cardano-cli transaction policyid --script-file coldMint.plutus > cold.pol
+        cardano-cli transaction policyid --script-file hotMint.plutus > hot.pol
+        cardano-cli conway transaction build \
+          --tx-in $COLD_INPUT \
+          --tx-in-collateral $COLD_INPUT \
+          --tx-out "$(cat orchestrator.addr)+5000000 + 1 $(cat cold.pol)" \
+          --mint "1 $(cat cold.pol)" \
+          --mint-script-file coldMint.plutus \
+          --mint-redeemer-value {} \
+          --change-address $UTXO_1_ADDR \
+          --out-file coldMint.body
+        cardano-cli conway transaction build \
+          --tx-in $HOT_INPUT \
+          --tx-in-collateral $HOT_INPUT \
+          --tx-out "$(cat orchestrator.addr)+5000000 + 1 $(cat hot.pol)" \
+          --mint "1 $(cat hot.pol)" \
+          --mint-script-file hotMint.plutus \
+          --mint-redeemer-value {} \
+          --change-address $UTXO_2_ADDR \
+          --out-file hotMint.body
+        cardano-cli conway transaction sign \
+          --signing-key-file testnet/example/utxo-keys/utxo1.skey \
+          --tx-body-file coldMint.body \
+          --tx-file coldMint.tx
+        cardano-cli conway transaction sign \
+          --signing-key-file testnet/example/utxo-keys/utxo2.skey \
+          --tx-body-file hotMint.body \
+          --tx-file hotMint.tx
+        cardano-cli conway transaction submit --tx-file coldMint.tx
+        cardano-cli conway transaction submit --tx-file hotMint.tx
+      '';
+    };
+
+    orchestrator-cli = {
+      description = "Wrapper for orchestrator CLI executable";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cabal run orchestrator-cli -- "$@"
       '';
     };
   };

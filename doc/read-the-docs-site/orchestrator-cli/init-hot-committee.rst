@@ -1,4 +1,4 @@
-.. _init_cold_committee:
+.. _init_hot_committee:
 
 Initializing the Hot Committee Credential Script
 ================================================

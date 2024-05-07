@@ -29,10 +29,8 @@ If the redeemer is a ``Vote`` action:
 * The transaction has been signed by a majority of users from the
   **voting group** defined in the datum.
 * The transaction contains a committee voting procedure:
-  * The hot credential performing the vote is the same credential provided to
-    the script as a parameter.
-  * The ID of the Governance action being voted on matches the ID in the
-    redeemer.
+  * The hot credential performing the vote is the same credential provided to the script as a parameter.
+  * The ID of the Governance action being voted on matches the ID in the redeemer.
   * The vote matches the vote in the redeemer redeemer.
 * The transaction does not contain any other votes.
 
@@ -40,12 +38,9 @@ If the redeemer is a ``ResignVoting`` action:
 
 * The transaction sends an output that meets the following criteria:
   * The address matches the address of the input being authorized
-  * The value of the output is the same as the value of the input being
-    authorized.
-  * The datum is unchanged with the exception that the resignee specified in
-    the redeemer is removed from the **voting group**.
-  * The reference script in the output is the same if present, otherwise not
-    set.
+  * The value of the output is the same as the value of the input being authorized.
+  * The datum is unchanged with the exception that the resignee specified in the redeemer is removed from the **voting group**.
+  * The reference script in the output is the same if present, otherwise not set.
 * The transaction does not send any other outputs to an address with the the
   script's own payment credential.
 * The transaction has been signed by the resignee.
@@ -58,8 +53,7 @@ If the redeemer is a ``RotateHot`` action:
 
 * The transaction sends an output that meets the following criteria:
   * The address matches the address of the input being authorized
-  * The value of the output is the same as the value of the input being
-    authorized.
+  * The value of the output is the same as the value of the input being authorized.
   * the **voting group** in the output datum is not empty.
   * The output does not contain a reference script.
 * The transaction does not send any other outputs to an address with the the
