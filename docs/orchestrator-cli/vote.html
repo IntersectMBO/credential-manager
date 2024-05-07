@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voting on Governance Actions &mdash; Credential Manager  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Resigning from the Delegation Group" href="resign-delegation.html" />
+    <link rel="prev" title="Initializing the Hot NFT Payment Credential Script" href="init-hot-nft.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Credential Manager
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../background/index.html">Background Information</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../background/credentials.html">Cardano Credentials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../background/credentials.html#public-key-credentials">Public Key Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/credentials.html#script-credentials">Script Credentials</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../background/cc-credentials.html">Constitutional Committee Credentials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#cold-credentials">Cold Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#hot-credentials">Hot Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#note-on-terminology">Note on Terminology</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../system-overview/index.html">System Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/roles.html">Roles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/roles.html#user-roles">User Roles</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#membership-role">Membership Role</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#delegation-role">Delegation Role</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#voting-role">Voting Role</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/roles.html#operational-roles">Operational Roles</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#head-of-security">Head of Security</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#orchestrator">Orchestrator</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/cold-committee.html">Cold Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/hot-committee.html">Hot Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/cold-nft.html">Cold NFT Locking Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#redeemer">Redeemer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#note-on-unlockcold">Note on <code class="docutils literal notranslate"><span class="pre">UnlockCold</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/hot-nft.html">Hot NFT Locking Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/auditing.html">Auditing Transactions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#obtaining-the-certificate-hierarchy">Obtaining the Certificate Hierarchy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#verifying-the-transaction-signatories">Verifying the Transaction Signatories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#verifying-the-ca-hash">Verifying the CA Hash</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Orchestrator CLI</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="init-cold-committee.html">Initializing the Cold Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-committee.html#step-1-choosing-an-nft">Step 1: Choosing an NFT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-committee.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-committee.html#step-3-add-the-credential-to-the-committee">Step 3: Add the Credential to The Committee</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-cold-nft.html">Initializing the Cold NFT Payment Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-1-obtaining-the-x-509-certificate-files">Step 1: Obtaining the X.509 certificate files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-3-assemble-and-submit-the-transaction">Step 3: Assemble and submit the transaction</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-hot-committee.html">Initializing the Hot Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-1-choosing-an-nft">Step 1: Choosing an NFT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-3-create-the-assets-for-authorizing-the-hot-credential">Step 3: Create the Assets For Authorizing the Hot Credential</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-4-create-the-authorization-transaction">Step 4: Create the Authorization Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-5-distribute-the-transaction-to-the-delegation-group">Step 5. Distribute the Transaction to The Delegation Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-6-assemble-and-submit-the-transaction">Step 6. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-7-verify-the-hot-credential-authorization-status-on-chain">Step 7. Verify the Hot Credential Authorization Status On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-hot-nft.html">Initializing the Hot NFT Payment Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-1-obtaining-the-x-509-certificate-files">Step 1: Obtaining the X.509 certificate files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-3-assemble-and-submit-the-transaction">Step 3: Assemble and submit the transaction</a></li>
+</ul>
+</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Voting on Governance Actions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-obtaining-relevant-voting-information">Step 1: Obtaining relevant voting information</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-create-the-vote-transaction">Step 3: Create the Vote Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-4-distribute-the-transaction-to-the-voting-group">Step 4. Distribute the Transaction to The Voting Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-5-assemble-and-submit-the-transaction">Step 5. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-6-verify-the-vote-on-chain">Step 6. Verify the Vote On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign-delegation.html">Resigning from the Delegation Group</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-3-send-the-transaction-to-the-resignee">Step 3. Send the Transaction to The Resignee</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-5-verify-the-delegation-member-is-removed">Step 5. Verify the delegation member is removed</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign-voting.html">Resigning from the Voting Group</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-3-send-the-transaction-to-the-resignee">Step 3. Send the Transaction to The Resignee</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-5-verify-the-voting-member-is-removed">Step 5. Verify the voting member is removed</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rotate-cold.html">Rotating Delegation and Membership Keys</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-3-distribute-the-transaction-to-the-membership-group">Step 3. Distribute the Transaction to The Membership Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-5-verify-the-change-on-chain">Step 5. Verify the change on chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rotate-hot.html">Rotating Voting Keys</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-3-distribute-the-transaction-to-the-delegation-group">Step 3. Distribute the Transaction to The Delegation Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-5-verify-the-change-on-chain">Step 5. Verify the change on chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign.html">Resigning from the Committee</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-2-create-the-resign-transaction">Step 2: Create the Resign Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-3-distribute-the-transaction-to-the-membership-group">Step 3. Distribute the Transaction to The Membership Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-5-verify-the-resignation-on-chain">Step 5. Verify the Resignation On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="unlock.html">Unlocking the NFTs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-2-create-the-cold-unlock-transaction">Step 2: Create the Cold Unlock Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-3-verify-the-change-on-chain">Step 3. Verify the change on chain</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Credential Manager</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Orchestrator CLI</a></li>
+      <li class="breadcrumb-item active">Voting on Governance Actions</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/IntersectMBO/credential-manager/blob/main/doc/read-the-docs-site/orchestrator-cli/vote.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="voting-on-governance-actions">
+<span id="vote"></span><h1>Voting on Governance Actions<a class="headerlink" href="#voting-on-governance-actions" title="Permalink to this heading"></a></h1>
+<p>Now that we have authorized our hot credential, we are able to vote on
+governance actions.</p>
+<section id="step-1-obtaining-relevant-voting-information">
+<h2>Step 1: Obtaining relevant voting information<a class="headerlink" href="#step-1-obtaining-relevant-voting-information" title="Permalink to this heading"></a></h2>
+<p>The voting group is responsible for deliberating, documenting, and casting
+votes on governance action. When they request a vote transaction from you, they
+are responsible for providing:</p>
+<ol class="arabic simple">
+<li><p>The ID of the governance action for which to vote, consisting of a tx ID and
+governance action index.</p></li>
+<li><p>A URL that resolves to a rationale document in CIP-100-compliant JSONLD
+format.</p></li>
+<li><p>The decision for their vote (yes, no, or abstain).</p></li>
+</ol>
+<p>For example, let’s assume the following:</p>
+<ol class="arabic simple">
+<li><p>The governance action ID is</p>
+<ul class="simple">
+<li><p>Tx ID: <code class="docutils literal notranslate"><span class="pre">868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e</span></code></p></li>
+<li><p>Governance action index: <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+</ul>
+</li>
+<li><p>The rationale document URL is <code class="docutils literal notranslate"><span class="pre">https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json</span></code></p></li>
+<li><p>They have decided to vote <code class="docutils literal notranslate"><span class="pre">yes</span></code> on the governance action.</p></li>
+</ol>
+<p>The only missing piece of information we need to prepare is a hash of the
+rationale document, for downstream verification of the contents. In accordance
+with CIP-100, the way to obtain this hash is by converting the JSONLD document
+to <a class="reference external" href="https://www.w3.org/TR/rdf12-n-quads/#canonical-quads">RDF 1.2 canonical N-Quads form</a>
+and hashing it. We can use the <cite>jsonld</cite> CLI to help with this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">ANCHOR</span><span class="o">=</span>https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json
+cardano-cli<span class="w"> </span>conway<span class="w"> </span>governance<span class="w"> </span><span class="nb">hash</span><span class="w"> </span>anchor-data<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--text<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>curl<span class="w"> </span>-s<span class="w"> </span><span class="nv">$ANCHOR</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jsonld<span class="w"> </span>canonize<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>anchor.hash
+</pre></div>
+</div>
+<p>As before, we also need the current output of the hot NFT script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>query<span class="w"> </span>utxo<span class="w"> </span>--address<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>hot-nft/script.addr<span class="k">)</span><span class="w"> </span>--output-json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;to_entries | .[0].value&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>hot-nft.utxo
+</pre></div>
+</div>
+</section>
+<section id="step-2-creating-the-assets">
+<h2>Step 2: Creating the assets<a class="headerlink" href="#step-2-creating-the-assets" title="Permalink to this heading"></a></h2>
+<p>Now we can use <code class="docutils literal notranslate"><span class="pre">orchestrator-cli</span></code> to build our transaction assets:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>orchestrator-cli<span class="w"> </span>hot-nft<span class="w"> </span>vote<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--utxo-file<span class="w"> </span>hot-nft.utxo<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--hot-credential-script-file<span class="w"> </span>hot-credential/script.plutus<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--governance-action-tx-id<span class="w"> </span>868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--governance-action-index<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--yes<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--metadata-url<span class="w"> </span><span class="nv">$ANCHOR</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--metadata-hash<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>anchor.hash<span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--out-dir<span class="w"> </span>vote
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">-p</span></code> option (or <code class="docutils literal notranslate"><span class="pre">--policy-id</span></code> in long form) specifies the minting
+policy ID to use, and the <code class="docutils literal notranslate"><span class="pre">-o</span></code> option (or <code class="docutils literal notranslate"><span class="pre">--out-dir</span></code> in long form)
+specifies a directory to write the output assets to. This directory will be
+created if it doesn’t already exist. Every other command has an <code class="docutils literal notranslate"><span class="pre">-o</span></code> option
+and it will not be explained elsewhere.</p>
+<p>Let’s see what assets were created.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>vote<span class="w"> </span>-1
+datum.json
+redeemer.json
+value
+vote
+</pre></div>
+</div>
+<p>As before, the output datum is the same as the input datum:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>diff<span class="w"> </span>&lt;<span class="o">(</span>jq<span class="w"> </span><span class="s1">&#39;.inlineDatum&#39;</span><span class="w"> </span>&lt;<span class="w"> </span>hot-nft.utxo<span class="o">)</span><span class="w"> </span>&lt;<span class="o">(</span>jq<span class="w"> </span><span class="s1">&#39;.&#39;</span><span class="w"> </span>&lt;<span class="w"> </span>vote/datum.json<span class="o">)</span>
+</pre></div>
+</div>
+<p>And the redeemer instructs the script to perform the <code class="docutils literal notranslate"><span class="pre">Vote</span></code> action with the
+provided details:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>vote/redeemer.json
+<span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;constructor&quot;</span>:<span class="w"> </span><span class="m">0</span>,
+<span class="w">    </span><span class="s2">&quot;fields&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">        </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;constructor&quot;</span>:<span class="w"> </span><span class="m">0</span>,
+<span class="w">            </span><span class="s2">&quot;fields&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">                </span><span class="o">{</span>
+<span class="w">                    </span><span class="s2">&quot;bytes&quot;</span>:<span class="w"> </span><span class="s2">&quot;868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e&quot;</span>
+<span class="w">                </span><span class="o">}</span>,
+<span class="w">                </span><span class="o">{</span>
+<span class="w">                    </span><span class="s2">&quot;int&quot;</span>:<span class="w"> </span><span class="m">0</span>
+<span class="w">                </span><span class="o">}</span>
+<span class="w">            </span><span class="o">]</span>
+<span class="w">        </span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;constructor&quot;</span>:<span class="w"> </span><span class="m">1</span>,
+<span class="w">            </span><span class="s2">&quot;fields&quot;</span>:<span class="w"> </span><span class="o">[]</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>The outer constructor is the <code class="docutils literal notranslate"><span class="pre">Vote</span></code> constructor (index <code class="docutils literal notranslate"><span class="pre">0</span></code>), the first
+field is the governance action ID, and the second field is the <code class="docutils literal notranslate"><span class="pre">Yes</span></code> vote
+(index <code class="docutils literal notranslate"><span class="pre">1</span></code>).</p>
+<p>Ignoring the <code class="docutils literal notranslate"><span class="pre">value</span></code> file, which as before is just a convenience for building
+the transaction with <code class="docutils literal notranslate"><span class="pre">cardano-cli</span></code>, the last file of note is <code class="docutils literal notranslate"><span class="pre">vote</span></code>. This
+is a vote file that we will add to the transaction to cast the vote:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>governance<span class="w"> </span>vote<span class="w"> </span>view<span class="w"> </span>--vote-file<span class="w"> </span>vote/vote
+<span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;committee-scriptHash-75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="s2">&quot;868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e#0&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;anchor&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="s2">&quot;dataHash&quot;</span>:<span class="w"> </span><span class="s2">&quot;0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d&quot;</span>,
+<span class="w">                </span><span class="s2">&quot;url&quot;</span>:<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json&quot;</span>
+<span class="w">            </span><span class="o">}</span>,
+<span class="w">            </span><span class="s2">&quot;decision&quot;</span>:<span class="w"> </span><span class="s2">&quot;VoteYes&quot;</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+<section id="step-3-create-the-vote-transaction">
+<h2>Step 3: Create the Vote Transaction<a class="headerlink" href="#step-3-create-the-vote-transaction" title="Permalink to this heading"></a></h2>
+<p>Now we have everything we need to build the transaction. Note that at the time
+of writing this documentation, there is a bug in <code class="docutils literal notranslate"><span class="pre">cardano-cli</span> <span class="pre">conway</span>
+<span class="pre">transaction</span> <span class="pre">build</span></code> which causes underestimation of vote script execution
+units. This unfortunately means that we will have to use <code class="docutils literal notranslate"><span class="pre">build-raw</span></code> instead
+of <code class="docutils literal notranslate"><span class="pre">build</span></code> for the time being. The main differences between the two are:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">build-raw</span></code> does not balance the transaction for you - you must compute
+your own change output.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">build-raw</span></code> does not validate the transaction for you</p></li>
+<li><p>You need to compute fees and execution budgets for yourself. We make the job
+easier here by massively overestimating both, but you could use more
+conservative values if you wanted to.</p></li>
+<li><p>you need to download and pass the protocol parameters into the command
+explicitly.</p></li>
+</ol>
+<p>With that out of the way, here is the command to build the transaction:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>query<span class="w"> </span>protocol-parameters<span class="w"> </span>--out-file<span class="w"> </span>pparams.json
+$<span class="w"> </span><span class="nv">ORCHESTRATOR_STARTING_BALANCE</span><span class="o">=</span><span class="k">$(</span>cardano-cli<span class="w"> </span>query<span class="w"> </span>utxo<span class="w"> </span>--address<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>orchestrator.addr<span class="k">)</span><span class="w"> </span>--output-json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;to_entries | .[0].value.value.lovelace&#39;</span><span class="k">)</span>
+$<span class="w"> </span><span class="nv">FEE</span><span class="o">=</span><span class="m">5000000</span>
+$<span class="w"> </span><span class="nv">ORCHESTRATOR_ENDING_BALANCE</span><span class="o">=</span><span class="k">$((</span><span class="nv">$ORCHESTRATOR_STARTING_BALANCE</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nv">$FEE</span><span class="k">))</span>
+$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>build-raw<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in<span class="w"> </span><span class="k">$(</span>cardano-cli<span class="w"> </span>query<span class="w"> </span>utxo<span class="w"> </span>--address<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>orchestrator.addr<span class="k">)</span><span class="w"> </span>--output-json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;keys[0]&#39;</span><span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in-collateral<span class="w"> </span><span class="k">$(</span>cardano-cli<span class="w"> </span>query<span class="w"> </span>utxo<span class="w"> </span>--address<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>orchestrator.addr<span class="k">)</span><span class="w"> </span>--output-json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;keys[0]&#39;</span><span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in<span class="w"> </span><span class="k">$(</span>cardano-cli<span class="w"> </span>query<span class="w"> </span>utxo<span class="w"> </span>--address<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>hot-nft/script.addr<span class="k">)</span><span class="w"> </span>--output-json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;keys[0]&#39;</span><span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in-script-file<span class="w"> </span>hot-nft/script.plutus<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in-inline-datum-present<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in-redeemer-file<span class="w"> </span>vote/redeemer.json<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-in-execution-units<span class="w"> </span><span class="s2">&quot;(3000000000, 4000000)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-out<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>cat<span class="w"> </span>vote/value<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-out-inline-datum-file<span class="w"> </span>vote/datum.json<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-out<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>cat<span class="w"> </span>orchestrator.addr<span class="k">)</span><span class="s2">+</span><span class="nv">$ORCHESTRATOR_ENDING_BALANCE</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--fee<span class="w"> </span><span class="nv">$FEE</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--protocol-params-file<span class="w"> </span>pparams.json<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--required-signer-hash<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>example-certificates/children/child-8/child-8.keyhash<span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--required-signer-hash<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>example-certificates/children/child-9/child-9.keyhash<span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--vote-file<span class="w"> </span>vote/vote<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--vote-script-file<span class="w"> </span>hot-credential/script.plutus<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--vote-redeemer-value<span class="w"> </span><span class="o">{}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--vote-execution-units<span class="w"> </span><span class="s2">&quot;(6000000000,4000000)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>vote.body
+Estimated<span class="w"> </span>transaction<span class="w"> </span>fee:<span class="w"> </span>Coin<span class="w"> </span><span class="m">522091</span>
+</pre></div>
+</div>
+<p>Most of what we covered when building the hot credential authorization script
+also applies here, so we won’t cover it again.</p>
+</section>
+<section id="step-4-distribute-the-transaction-to-the-voting-group">
+<h2>Step 4. Distribute the Transaction to The Voting Group<a class="headerlink" href="#step-4-distribute-the-transaction-to-the-voting-group" title="Permalink to this heading"></a></h2>
+<p>We now have an unsigned transaction body which we need our voters to sign.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-body-file<span class="w"> </span>vote.body<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--signing-key-file<span class="w"> </span>example-certificates/children/child-8/child-8.skey<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>vote.child-8.witness
+$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-body-file<span class="w"> </span>vote.body<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--signing-key-file<span class="w"> </span>example-certificates/children/child-9/child-9.skey<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>vote.child-9.witness
+$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-body-file<span class="w"> </span>vote.body<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--signing-key-file<span class="w"> </span>orchestrator.skey<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>vote.orchestrator.witness
+</pre></div>
+</div>
+</section>
+<section id="step-5-assemble-and-submit-the-transaction">
+<h2>Step 5. Assemble and Submit the Transaction<a class="headerlink" href="#step-5-assemble-and-submit-the-transaction" title="Permalink to this heading"></a></h2>
+<p>Finally, we can put everything together to submit the transaction:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>assemble<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--tx-body-file<span class="w"> </span>vote.body<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--witness-file<span class="w"> </span>vote.child-8.witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--witness-file<span class="w"> </span>vote.child-9.witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--witness-file<span class="w"> </span>vote.orchestrator.witness<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--out-file<span class="w"> </span>vote.tx
+$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>transaction<span class="w"> </span>submit<span class="w"> </span>--tx-file<span class="w"> </span>vote.tx
+Transaction<span class="w"> </span>successfully<span class="w"> </span>submitted.
+</pre></div>
+</div>
+</section>
+<section id="step-6-verify-the-vote-on-chain">
+<h2>Step 6. Verify the Vote On Chain<a class="headerlink" href="#step-6-verify-the-vote-on-chain" title="Permalink to this heading"></a></h2>
+<p>We can see the results of our vote by querying the gov state from the node:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>query<span class="w"> </span>gov-state<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>.proposals.<span class="o">[]</span>
+<span class="o">{</span>
+<span class="w">  </span><span class="s2">&quot;actionId&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;govActionIx&quot;</span>:<span class="w"> </span><span class="m">0</span>,
+<span class="w">    </span><span class="s2">&quot;txId&quot;</span>:<span class="w"> </span><span class="s2">&quot;868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e&quot;</span>
+<span class="w">  </span><span class="o">}</span>,
+<span class="w">  </span><span class="s2">&quot;committeeVotes&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;scriptHash-75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20&quot;</span>:<span class="w"> </span><span class="s2">&quot;VoteYes&quot;</span>
+<span class="w">  </span><span class="o">}</span>,
+<span class="w">  </span><span class="s2">&quot;dRepVotes&quot;</span>:<span class="w"> </span><span class="o">{}</span>,
+<span class="w">  </span><span class="s2">&quot;expiresAfter&quot;</span>:<span class="w"> </span><span class="m">5146</span>,
+<span class="w">  </span><span class="s2">&quot;proposalProcedure&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;anchor&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;dataHash&quot;</span>:<span class="w"> </span><span class="s2">&quot;10c6d67e1968551c44d140d2f1af37d0d9b9385c8ac0c200426e3b6edb4d7c26&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;url&quot;</span>:<span class="w"> </span><span class="s2">&quot;metadata.json&quot;</span>
+<span class="w">    </span><span class="o">}</span>,
+<span class="w">    </span><span class="s2">&quot;deposit&quot;</span>:<span class="w"> </span><span class="m">1000000000</span>,
+<span class="w">    </span><span class="s2">&quot;govAction&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;tag&quot;</span>:<span class="w"> </span><span class="s2">&quot;InfoAction&quot;</span>
+<span class="w">    </span><span class="o">}</span>,
+<span class="w">    </span><span class="s2">&quot;returnAddr&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;credential&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="s2">&quot;keyHash&quot;</span>:<span class="w"> </span><span class="s2">&quot;ed7a78f87bcf8640f6785ba8616101114ba4ea6d3c1b5cebfe180d69&quot;</span>
+<span class="w">      </span><span class="o">}</span>,
+<span class="w">      </span><span class="s2">&quot;network&quot;</span>:<span class="w"> </span><span class="s2">&quot;Testnet&quot;</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">}</span>,
+<span class="w">  </span><span class="s2">&quot;proposedIn&quot;</span>:<span class="w"> </span><span class="m">5046</span>,
+<span class="w">  </span><span class="s2">&quot;stakePoolVotes&quot;</span>:<span class="w"> </span><span class="o">{}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="init-hot-nft.html" class="btn btn-neutral float-left" title="Initializing the Hot NFT Payment Credential Script" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="resign-delegation.html" class="btn btn-neutral float-right" title="Resigning from the Delegation Group" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Input Output Global Ltd..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

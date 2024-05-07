@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Credential Manager'
-copyright = '2024, Input Output Global Ltd.'
+copyright = 'Input Output Global Ltd.'
 author = 'Jamie Bertram, Thomas Vellekoop, Tomasz Rybarczyk'
 
 # -- General configuration ---------------------------------------------------

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Initializing the Cold Committee Credential Script &mdash; Credential Manager  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Initializing the Cold NFT Payment Credential Script" href="init-cold-nft.html" />
+    <link rel="prev" title="Orchestrator CLI" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Credential Manager
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../background/index.html">Background Information</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../background/credentials.html">Cardano Credentials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../background/credentials.html#public-key-credentials">Public Key Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/credentials.html#script-credentials">Script Credentials</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../background/cc-credentials.html">Constitutional Committee Credentials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#cold-credentials">Cold Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#hot-credentials">Hot Credentials</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../background/cc-credentials.html#note-on-terminology">Note on Terminology</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../system-overview/index.html">System Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/roles.html">Roles</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/roles.html#user-roles">User Roles</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#membership-role">Membership Role</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#delegation-role">Delegation Role</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#voting-role">Voting Role</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/roles.html#operational-roles">Operational Roles</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#head-of-security">Head of Security</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../system-overview/roles.html#orchestrator">Orchestrator</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/cold-committee.html">Cold Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-committee.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/hot-committee.html">Hot Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-committee.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/cold-nft.html">Cold NFT Locking Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#redeemer">Redeemer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/cold-nft.html#note-on-unlockcold">Note on <code class="docutils literal notranslate"><span class="pre">UnlockCold</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/hot-nft.html">Hot NFT Locking Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#parameters">Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#rules">Rules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#datum">Datum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/hot-nft.html#redeemer">Redeemer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../system-overview/auditing.html">Auditing Transactions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#obtaining-the-certificate-hierarchy">Obtaining the Certificate Hierarchy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#verifying-the-transaction-signatories">Verifying the Transaction Signatories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../system-overview/auditing.html#verifying-the-ca-hash">Verifying the CA Hash</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Orchestrator CLI</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Initializing the Cold Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-choosing-an-nft">Step 1: Choosing an NFT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-add-the-credential-to-the-committee">Step 3: Add the Credential to The Committee</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-cold-nft.html">Initializing the Cold NFT Payment Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-1-obtaining-the-x-509-certificate-files">Step 1: Obtaining the X.509 certificate files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-cold-nft.html#step-3-assemble-and-submit-the-transaction">Step 3: Assemble and submit the transaction</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-hot-committee.html">Initializing the Hot Committee Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-1-choosing-an-nft">Step 1: Choosing an NFT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-3-create-the-assets-for-authorizing-the-hot-credential">Step 3: Create the Assets For Authorizing the Hot Credential</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-4-create-the-authorization-transaction">Step 4: Create the Authorization Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-5-distribute-the-transaction-to-the-delegation-group">Step 5. Distribute the Transaction to The Delegation Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-6-assemble-and-submit-the-transaction">Step 6. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-committee.html#step-7-verify-the-hot-credential-authorization-status-on-chain">Step 7. Verify the Hot Credential Authorization Status On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="init-hot-nft.html">Initializing the Hot NFT Payment Credential Script</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-1-obtaining-the-x-509-certificate-files">Step 1: Obtaining the X.509 certificate files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="init-hot-nft.html#step-3-assemble-and-submit-the-transaction">Step 3: Assemble and submit the transaction</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="vote.html">Voting on Governance Actions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-1-obtaining-relevant-voting-information">Step 1: Obtaining relevant voting information</a></li>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-2-creating-the-assets">Step 2: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-3-create-the-vote-transaction">Step 3: Create the Vote Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-4-distribute-the-transaction-to-the-voting-group">Step 4. Distribute the Transaction to The Voting Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-5-assemble-and-submit-the-transaction">Step 5. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="vote.html#step-6-verify-the-vote-on-chain">Step 6. Verify the Vote On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign-delegation.html">Resigning from the Delegation Group</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-3-send-the-transaction-to-the-resignee">Step 3. Send the Transaction to The Resignee</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-delegation.html#step-5-verify-the-delegation-member-is-removed">Step 5. Verify the delegation member is removed</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign-voting.html">Resigning from the Voting Group</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-3-send-the-transaction-to-the-resignee">Step 3. Send the Transaction to The Resignee</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign-voting.html#step-5-verify-the-voting-member-is-removed">Step 5. Verify the voting member is removed</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rotate-cold.html">Rotating Delegation and Membership Keys</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-3-distribute-the-transaction-to-the-membership-group">Step 3. Distribute the Transaction to The Membership Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-cold.html#step-5-verify-the-change-on-chain">Step 5. Verify the change on chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="rotate-hot.html">Rotating Voting Keys</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-2-create-the-transaction">Step 2: Create the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-3-distribute-the-transaction-to-the-delegation-group">Step 3. Distribute the Transaction to The Delegation Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="rotate-hot.html#step-5-verify-the-change-on-chain">Step 5. Verify the change on chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="resign.html">Resigning from the Committee</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-2-create-the-resign-transaction">Step 2: Create the Resign Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-3-distribute-the-transaction-to-the-membership-group">Step 3. Distribute the Transaction to The Membership Group</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-4-assemble-and-submit-the-transaction">Step 4. Assemble and Submit the Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resign.html#step-5-verify-the-resignation-on-chain">Step 5. Verify the Resignation On Chain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="unlock.html">Unlocking the NFTs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-1-creating-the-assets">Step 1: Creating the assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-2-create-the-cold-unlock-transaction">Step 2: Create the Cold Unlock Transaction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="unlock.html#step-3-verify-the-change-on-chain">Step 3. Verify the change on chain</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Credential Manager</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Orchestrator CLI</a></li>
+      <li class="breadcrumb-item active">Initializing the Cold Committee Credential Script</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/IntersectMBO/credential-manager/blob/main/doc/read-the-docs-site/orchestrator-cli/init-cold-committee.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="initializing-the-cold-committee-credential-script">
+<span id="init-cold-committee"></span><h1>Initializing the Cold Committee Credential Script<a class="headerlink" href="#initializing-the-cold-committee-credential-script" title="Permalink to this heading"></a></h1>
+<p>Before anything else can be done, the cold committee credential script needs to
+be initialized.</p>
+<section id="step-1-choosing-an-nft">
+<h2>Step 1: Choosing an NFT<a class="headerlink" href="#step-1-choosing-an-nft" title="Permalink to this heading"></a></h2>
+<p>The committee cold credential script needs to be given a minting policy ID to
+look for when validating a transaction. If the transaction spends the given
+policy ID, it will validate the transaction. As such, a minting policy ID must
+be chosen. <code class="docutils literal notranslate"><span class="pre">orchestrator-cli</span></code> does not enforce any requirements on the choice
+of minting policy ID, though it does not allow the empty ADA pseudo-minting
+policy ID. However, there are some important requirements to ensure safe
+operation of the system:</p>
+<ol class="arabic simple">
+<li><p>The minting policy should be <strong>non-fungible</strong>, for example by requiring a
+specific transaction output to be spent in the minting transaction.</p></li>
+<li><p>There should be one and only one token minted with the chosen minting policy.
+It is important to note that the script does not require a specific token
+name, so NFT minting policies that were used to mint multiple tokens are not
+safe to use, even if each one has a unique token name.</p></li>
+<li><p>Finally, the orchestrator must be able to actually spend the chosen NFT.</p></li>
+</ol>
+<p>Let’s say we choose the NFT policy
+<code class="docutils literal notranslate"><span class="pre">14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">COLD_POLICY_ID</span><span class="o">=</span>14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be
+</pre></div>
+</div>
+</section>
+<section id="step-2-creating-the-assets">
+<h2>Step 2: Creating the assets<a class="headerlink" href="#step-2-creating-the-assets" title="Permalink to this heading"></a></h2>
+<p>Once the minting policy is chosen, we can use <code class="docutils literal notranslate"><span class="pre">orchestrator-cli</span></code> to
+initialize the script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>orchestrator-cli<span class="w"> </span>cold-credential<span class="w"> </span>init<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$COLD_POLICY_ID</span><span class="s2">&quot;</span><span class="w"> </span>-o<span class="w"> </span>cold-credential
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">-p</span></code> option (or <code class="docutils literal notranslate"><span class="pre">--policy-id</span></code> in long form) specifies the minting
+policy ID to use, and the <code class="docutils literal notranslate"><span class="pre">-o</span></code> option (or <code class="docutils literal notranslate"><span class="pre">--out-dir</span></code> in long form)
+specifies a directory to write the output assets to. This directory will be
+created if it doesn’t already exist. Every other command has an <code class="docutils literal notranslate"><span class="pre">-o</span></code> option
+and it will not be explained elsewhere.</p>
+<p>Let’s see what assets were created.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>cold-credential<span class="w"> </span>-1
+script.hash
+script.plutus
+</pre></div>
+</div>
+<p>The output only contains two files. <code class="docutils literal notranslate"><span class="pre">script.plutus</span></code> contains the compiled
+script bytes wrapped in a text envelope:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>cold-credential/script.plutus
+<span class="o">{</span>
+<span class="w">   </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;PlutusScriptV3&quot;</span>,
+<span class="w">   </span><span class="s2">&quot;description&quot;</span>:<span class="w"> </span><span class="s2">&quot;&quot;</span>,
+<span class="w">   </span><span class="s2">&quot;cborHex&quot;</span>:<span class="w"> </span><span class="s2">&quot;59040c5904090101003323232323222259323293232325333573466e1d200000218009919192999ab9a3370e9000001099191919191919191919191919194004c068dd61aba100f9aba100e9aba100d9aba100c9aba100b9aba100a9aba10099aba10089aba10079aba10069aba10059aba10049aba10039aba10029aba10019aba135744002357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae880044c03d2401035054310035573c0046aae74004dd51aba10019919192999ab9a3370e90000010c00cd5d0800854ccd5cd19b874800800860126ae840042a666ae68cdc3a400800430073574200215333573466e1d200600218009aba10019aba13574400215333573466e1d200800218059aba10010a999ab9a3370e90050010c014d5d0800cd5d09aba200109807a481035054310035573c0046aae74004dd51aba1357440021300c491035054310035573c0046aae74004dd5001c8a400644600b200922222222222222220104a005228014a00528014a0041804912c800c6005223219003914800c8888c01c00c300d225900189803001c886400a44a666ae68cdc78010058c0004c01800c1bae0038c0022600e920103505435001802111999aab9f00128001400cc8c8c94ccd5cd19b874800000860026ae84006646464a666ae68cdc3a400000426464650013232325333573466e1d2000002180098081aba10019980891919192999ab9a3370e90000010c004c050d5d0800854ccd5cd19b87480080084ca0066eb4d5d08014dd69aba10019bad357426ae880046ae880044c0592401035054310035573c0046aae74004dd50009aba135744002130124901035054310035573c0046aae74004dd51aba1004998009800bad357420073232325333573466e1d200000218000a999ab9a3370e90010010c014dd71aba10010a999ab9a3370e90020010c00cd5d080084c049241035054310035573c0046aae74004dd51aba1002998073ae357426ae88008464460046eac004c04088cccd55cf800940008ca007001375c6aae74006600a6aae7800530043574400635742005000357440026ae880044c0312401035054310035573c0046aae74004dd51aba13574400213009491035054310035573c0046aae74004dd51aba100298019aba200240008c8c8c94ccd5cd19b874800000860026eb8d5d0800854ccd5cd19b874800800860066eb8d5d080084c0192401035054310035573c0046aae74004dd5000911919192999ab9a3370e90010010c00854ccd5cd19b87480000086002600a6ae840042600c921035054310035573c0046aae74004dd5000919319ab9c001800119180080091198019801001000a611e581c14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be0001&quot;</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>In which we can see our policy embedded near the end (try searching for
+occurrences of it on this page with Ctrl-f).</p>
+<p><code class="docutils literal notranslate"><span class="pre">script.hash</span></code> contains a hash of the script bytes as hexadecimal text:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>cold-credential/script.hash
+7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed
+</pre></div>
+</div>
+<p>This hash will be our cold committee credential.</p>
+</section>
+<section id="step-3-add-the-credential-to-the-committee">
+<h2>Step 3: Add the Credential to The Committee<a class="headerlink" href="#step-3-add-the-credential-to-the-committee" title="Permalink to this heading"></a></h2>
+<p>This is the only step that cannot be achieved without some kind of special
+power over the Cardano network. There are two ways to add a cold credential to
+the committee:</p>
+<ol class="arabic simple">
+<li><p>Create an <cite>update-committee</cite> governance action that proposes to add the
+credential to the committee and have it ratified and enacted at epoch
+boundaries.</p></li>
+<li><p>Hard-code it in the Conway genesis file. The only members who will be added
+this way will be members of the interim constitutional committee for the
+Chang hard fork event. If this applies to your organization, instructions
+will be communicated about submitting this credential.</p></li>
+</ol>
+<p>So either you will need to have authorial control over the conway genesis file
+on your network, or you will need to control a sufficient coalition of DReps
+and SPOs to vote yourself in. Instructions on how to do this are out of scope
+for this guide.</p>
+<p>If you want to get added to the committee on a public testnet like SanchoNet,
+you should first introduce yourself on the appropriate online channels and make
+your case for being elected to the testnet committee.</p>
+<p>Alternatively, you can run a private testnet locally using something like
+<a class="reference external" href="https://github.com/IntersectMBO/cardano-node/tree/master/cardano-testnet">Cardano Testnet</a>
+which will give you complete control over the operation of the network.
+Relevant guides that will help you with this process include:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://sancho.network/tutorials/drep-registration">Register a DRep</a></p></li>
+<li><p><a class="reference external" href="https://sancho.network/tutorials/delegate-to-drep">Delegate votes to a DRep</a></p></li>
+<li><p><a class="reference external" href="https://sancho.network/tutorials/actions#update-committee-actions">Creating update-committee governance actions</a></p></li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://sancho.network/tutorials/vote-action">Voting on actions</a></dt><dd><ul>
+<li><p>To ratify an <code class="docutils literal notranslate"><span class="pre">update-committee</span></code> action, you will have to vote as both
+DReps and SPOs. SPO cold keys are in the directory structure created by
+<code class="docutils literal notranslate"><span class="pre">cardano-testnet</span></code></p></li>
+<li><p>You will have to wait for an epoch boundary before the action is ratified,
+and it takes another epoch before an <code class="docutils literal notranslate"><span class="pre">update-committee</span></code> action is
+enacted. Configuring your private testnet to have short epoch lengths is
+recommended for testing purposes.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>However you proceed, once you have been added to the committee, you should be
+able to check on your status:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cardano-cli<span class="w"> </span>conway<span class="w"> </span>query<span class="w"> </span>committee-state<span class="w"> </span>--cold-script-hash<span class="w"> </span><span class="k">$(</span>cat<span class="w"> </span>cold-credential/script.hash<span class="k">)</span>
+<span class="o">{</span>
+<span class="w">   </span><span class="s2">&quot;committee&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;scriptHash-7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;expiration&quot;</span>:<span class="w"> </span><span class="m">50000</span>,
+<span class="w">            </span><span class="s2">&quot;hotCredsAuthStatus&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">               </span><span class="s2">&quot;tag&quot;</span>:<span class="w"> </span><span class="s2">&quot;MemberNotAuthorized&quot;</span>
+<span class="w">            </span><span class="o">}</span>,
+<span class="w">            </span><span class="s2">&quot;nextEpochChange&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">               </span><span class="s2">&quot;tag&quot;</span>:<span class="w"> </span><span class="s2">&quot;NoChangeExpected&quot;</span>
+<span class="w">            </span><span class="o">}</span>,
+<span class="w">            </span><span class="s2">&quot;status&quot;</span>:<span class="w"> </span><span class="s2">&quot;Active&quot;</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">   </span><span class="o">}</span>,
+<span class="w">   </span><span class="s2">&quot;epoch&quot;</span>:<span class="w"> </span><span class="m">61</span>,
+<span class="w">   </span><span class="s2">&quot;threshold&quot;</span>:<span class="w"> </span><span class="m">0</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Orchestrator CLI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="init-cold-nft.html" class="btn btn-neutral float-right" title="Initializing the Cold NFT Payment Credential Script" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Input Output Global Ltd..</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
