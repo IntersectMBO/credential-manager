@@ -28,3 +28,4 @@ tools in an approximate sequence.
    rotate-cold
    rotate-hot
    resign
+   unlock
