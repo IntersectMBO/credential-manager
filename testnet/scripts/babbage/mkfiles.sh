@@ -16,8 +16,7 @@ sprocket() {
   if [ "$UNAME" == "Windows_NT" ]; then
     # Named pipes names on Windows must have the structure: "\\.\pipe\PipeName"
     # See https://docs.microsoft.com/en-us/windows/win32/ipc/pipe-names
-    echo -n '\\.\pipe\'
-    echo "$1" | sed 's|/|\\|g'
+    printf "\\\\\.\\pipe\\%b\n" "${1//\//\\\\}"
   else
     echo "$1"
   fi
@@ -94,14 +93,16 @@ $SED -i "${ROOT}/configuration.yaml" \
      -e 's/LastKnownBlockVersion-Major: 0/LastKnownBlockVersion-Major: 8/' \
      -e 's/LastKnownBlockVersion-Minor: 2/LastKnownBlockVersion-Minor: 0/'
 
-  echo "TestShelleyHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "TestAllegraHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "TestMaryHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "TestAlonzoHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "TestBabbageHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "TestConwayHardForkAtEpoch: 0" >> "${ROOT}/configuration.yaml"
-  echo "ExperimentalProtocolsEnabled: True" >> "${ROOT}/configuration.yaml"
-  echo "ExperimentalHardForksEnabled: True" >> "${ROOT}/configuration.yaml"
+{
+  echo "TestShelleyHardForkAtEpoch: 0";
+  echo "TestAllegraHardForkAtEpoch: 0";
+  echo "TestMaryHardForkAtEpoch: 0";
+  echo "TestAlonzoHardForkAtEpoch: 0";
+  echo "TestBabbageHardForkAtEpoch: 0";
+  echo "TestConwayHardForkAtEpoch: 0";
+  echo "ExperimentalProtocolsEnabled: True";
+  echo "ExperimentalHardForksEnabled: True";
+} >> "${ROOT}/configuration.yaml"
 
 # Because in Babbage the overlay schedule and decentralization parameter
 # are deprecated, we must use the "create-staked" cli command to create
