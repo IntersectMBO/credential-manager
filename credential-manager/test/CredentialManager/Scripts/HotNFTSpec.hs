@@ -5,6 +5,7 @@ import CredentialManager.Api
 import CredentialManager.Gen (mkValue)
 import CredentialManager.Scripts.ColdNFTSpec (
   importanceSampleArbitrary,
+  importanceSampleExtraOutputs,
   importanceSampleMembership,
   sampleSignersGroup,
  )
@@ -355,16 +356,6 @@ importanceSampleSigners onlyValid delegationUsers HotLockDatum{..} =
     ResignVoting Identity{..} -> pure [pubKeyHash]
     RotateHot -> sampleSignersGroup delegationUsers
     UnlockHot -> sampleSignersGroup delegationUsers
-
-importanceSampleExtraOutputs :: Bool -> TxOut -> Gen [TxOut]
-importanceSampleExtraOutputs onlyValid TxOut{..} =
-  importanceSampleArbitrary onlyValid $
-    listOf $
-      TxOut
-        <$> arbitrary `suchThat` (/= txOutAddress)
-        <*> arbitrary
-        <*> arbitrary
-        <*> importanceSampleArbitrary onlyValid (pure Nothing)
 
 importanceSampleScriptInput :: Bool -> HotLockDatum -> Gen TxOut
 importanceSampleScriptInput onlyValid inDatum =

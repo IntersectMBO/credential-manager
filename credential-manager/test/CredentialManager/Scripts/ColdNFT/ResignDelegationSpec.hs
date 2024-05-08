@@ -4,10 +4,11 @@ import CredentialManager.Api
 import CredentialManager.Gen ()
 import CredentialManager.Scripts.ColdNFT
 import Data.Foldable (Foldable (..))
+import Data.Function (on)
 import Data.List (nub)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
-  Address,
+  Address (..),
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
@@ -339,7 +340,8 @@ forAllValidScriptContexts ValidArgs{..} f =
         listOf $ arbitrary `suchThat` ((/= resignDelegationScriptRef) . txInInfoOutRef)
       additionalOutputs <-
         listOf $
-          arbitrary `suchThat` ((/= resignDelegationScriptAddress) . txOutAddress)
+          arbitrary
+            `suchThat` (on (/=) addressCredential resignDelegationScriptAddress . txOutAddress)
       inputs <- shuffle $ input : additionalInputs
       outputs <- shuffle $ output : additionalOutputs
       extraSigners <- arbitrary `suchThat` notElem resignDelegationResignee

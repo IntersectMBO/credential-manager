@@ -9,7 +9,7 @@ import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
-  Address,
+  Address (..),
   CurrencySymbol,
   Datum (..),
   GovernanceActionId,
@@ -326,7 +326,9 @@ forAllValidScriptContexts ValidArgs{..} f =
       additionalInputs <-
         listOf $ arbitrary `suchThat` ((/= voteScriptRef) . txInInfoOutRef)
       additionalOutputs <-
-        listOf $ arbitrary `suchThat` ((/= voteScriptAddress) . txOutAddress)
+        listOf $
+          arbitrary
+            `suchThat` (on (/=) addressCredential voteScriptAddress . txOutAddress)
       inputs <- shuffle $ input : additionalInputs
       outputs <- shuffle $ output : additionalOutputs
       let maxSigners = length allSigners

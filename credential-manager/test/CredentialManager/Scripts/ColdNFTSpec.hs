@@ -10,6 +10,7 @@ import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import GHC.IO (catchAny, unsafePerformIO)
 import PlutusLedgerApi.V3 (
+  Address (..),
   ColdCommitteeCredential,
   Datum (..),
   FromData (..),
@@ -338,7 +339,7 @@ importanceSampleExtraOutputs onlyValid TxOut{..} =
   importanceSampleArbitrary onlyValid $
     listOf $
       TxOut
-        <$> arbitrary `suchThat` (/= txOutAddress)
+        <$> arbitrary `suchThat` on (/=) addressCredential txOutAddress
         <*> arbitrary
         <*> arbitrary
         <*> importanceSampleArbitrary onlyValid (pure Nothing)

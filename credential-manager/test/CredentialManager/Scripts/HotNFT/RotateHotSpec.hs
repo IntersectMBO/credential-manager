@@ -9,7 +9,7 @@ import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V3 (
-  Address,
+  Address (..),
   CurrencySymbol,
   Datum (..),
   HotCommitteeCredential,
@@ -315,7 +315,9 @@ forAllValidScriptContexts ValidArgs{..} f =
                           . txInInfoResolved
                        )
       additionalOutputs <-
-        listOf $ arbitrary `suchThat` ((/= rotateScriptAddress) . txOutAddress)
+        listOf $
+          arbitrary
+            `suchThat` (on (/=) addressCredential rotateScriptAddress . txOutAddress)
       inputs <- shuffle $ input : additionalInputs
       refInputs <- shuffle $ refInput : additionalRefInputs
       outputs <- shuffle $ output : additionalOutputs

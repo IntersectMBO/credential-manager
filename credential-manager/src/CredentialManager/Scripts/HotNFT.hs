@@ -164,10 +164,12 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
             && checkNoVotes
           where
             checkOutput = case ownOutputs ownInput outputs of
-              [TxOut _ value' (OutputDatum (Datum datum')) Nothing] ->
+              [TxOut address value' (OutputDatum (Datum datum')) Nothing] ->
                 let HotLockDatum voting' =
                       unsafeFromBuiltinData datum'
-                 in not (null voting') && value' == txOutValue ownInput
+                 in (address == txOutAddress ownInput)
+                      && not (null voting')
+                      && (value' == txOutValue ownInput)
               _ -> False
             checkNoVotes = Map.null $ txInfoVotes txInfo
             signedByDelegators =
