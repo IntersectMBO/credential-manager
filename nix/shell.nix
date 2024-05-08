@@ -14,7 +14,6 @@ cabalProject:
   packages = [
     pkgs.scriv
     pkgs.jq
-    pkgs.python312Packages.pip-tools
     inputs.cardano-node.packages.cardano-node
     inputs.cardano-node.packages.cardano-cli
   ];

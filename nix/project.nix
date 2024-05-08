@@ -53,6 +53,9 @@ let
       enable = true;
       siteFolder = "doc/read-the-docs-site";
     };
+    combinedHaddock = {
+      enable = true;
+    };
   };
 
 in

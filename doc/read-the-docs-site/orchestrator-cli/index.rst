@@ -12,7 +12,7 @@ As such, it is extremely flexible, designed to adapt to the workflow of the
 user instead of imposing one.
 
 This user guide will walk through building each transaction type with CLI
-tools in an approximate sequence.
+tools in a test environment provided by this repository's nix shell.
 
 .. toctree::
    :maxdepth: 1
