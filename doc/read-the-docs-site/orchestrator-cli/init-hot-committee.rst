@@ -13,12 +13,14 @@ Just as with the cold credential script, the hot committee script requires an
 NFT for initialization. The same guidelines which applied there also apply
 here.
 
-Let's say we choose the NFT policy
-``63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f``.
+If you have been following along with this guide, you will have already setup
+the NFTs. The minting policy ID for our hot NFT can be found in ``hot.pol``.
 
 .. code-block:: bash
 
-   $ HOT_POLICY_ID=63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f
+   $ HOT_POLICY_ID=$(cat hot.pol)
+   $ echo $HOT_POLICY_ID # yours will differ
+   abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841
 
 Step 2: Creating the assets
 ---------------------------
@@ -34,7 +36,7 @@ Here are the assets:
 
 .. code-block:: bash
 
-   $ ls cold-credential -1
+   $ ls hot-credential -1
    script.hash
    script.plutus
 
@@ -44,12 +46,12 @@ This is the same as we had when initializing the cold credential script.
 
    $ cat hot-credential/script.plutus
    {
-      "type": "PlutusScriptV3",
-      "description": "",
-      "cborHex": "59040c5904090101003323232323222259323293232325333573466e1d200000218009919192999ab9a3370e9000001099191919191919191919191919194004c068dd61aba100f9aba100e9aba100d9aba100c9aba100b9aba100a9aba10099aba10089aba10079aba10069aba10059aba10049aba10039aba10029aba10019aba135744002357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae880044c03d2401035054310035573c0046aae74004dd51aba10019919192999ab9a3370e90000010c00cd5d0800854ccd5cd19b874800800860126ae840042a666ae68cdc3a400800430073574200215333573466e1d200600218009aba10019aba13574400215333573466e1d200800218059aba10010a999ab9a3370e90050010c014d5d0800cd5d09aba200109807a481035054310035573c0046aae74004dd51aba1357440021300c491035054310035573c0046aae74004dd5001c8a4006450029400a450029400a5002918024801c88888888888888880401804912c800c6005223219003914800c8888c01c00c300d225900189803001c886400a44a666ae68cdc78010058c0004c01800c1bae0038c0022600e920103505435001802111999aab9f00128001400cc8c8c94ccd5cd19b874800000860026ae84006646464a666ae68cdc3a400000426464650013232325333573466e1d2000002180098081aba10019980891919192999ab9a3370e90000010c004c050d5d0800854ccd5cd19b87480080084ca0066eb4d5d08014dd69aba10019bad357426ae880046ae880044c0592401035054310035573c0046aae74004dd50009aba135744002130124901035054310035573c0046aae74004dd51aba1004998009800bad357420073232325333573466e1d200000218000a999ab9a3370e90010010c014dd71aba10010a999ab9a3370e90020010c00cd5d080084c049241035054310035573c0046aae74004dd51aba1002998073ae357426ae88008464460046eac004c04088cccd55cf800940008ca007001375c6aae74006600a6aae7800530043574400635742005000357440026ae880044c0312401035054310035573c0046aae74004dd51aba13574400213009491035054310035573c0046aae74004dd51aba100298019aba200240008c8c8c94ccd5cd19b874800000860026eb8d5d0800854ccd5cd19b874800800860066eb8d5d080084c0192401035054310035573c0046aae74004dd5000911919192999ab9a3370e90010010c00854ccd5cd19b87480000086002600a6ae840042600c921035054310035573c0046aae74004dd5000919319ab9c001800119180080091198019801001000a611e581c63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f0001"
+       "type": "PlutusScriptV3",
+       "description": "",
+       "cborHex": "59040c5904090101003323232323222259323293232325333573466e1d200000218009919192999ab9a3370e9000001099191919191919191919191919194004c068dd61aba100f9aba100e9aba100d9aba100c9aba100b9aba100a9aba10099aba10089aba10079aba10069aba10059aba10049aba10039aba10029aba10019aba135744002357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae88004d5d10009aba2001357440026ae880044c03d2401035054310035573c0046aae74004dd51aba10019919192999ab9a3370e90000010c00cd5d0800854ccd5cd19b874800800860126ae840042a666ae68cdc3a400800430073574200215333573466e1d200600218009aba10019aba13574400215333573466e1d200800218059aba10010a999ab9a3370e90050010c014d5d0800cd5d09aba200109807a481035054310035573c0046aae74004dd51aba1357440021300c491035054310035573c0046aae74004dd5001c8a4006450029400a450029400a5002918024801c88888888888888880401804912c800c6005223219003914800c8888c01c00c300d225900189803001c886400a44a666ae68cdc78010058c0004c01800c1bae0038c0022600e920103505435001802111999aab9f00128001400cc8c8c94ccd5cd19b874800000860026ae84006646464a666ae68cdc3a400000426464650013232325333573466e1d2000002180098081aba10019980891919192999ab9a3370e90000010c004c050d5d0800854ccd5cd19b87480080084ca0066eb4d5d08014dd69aba10019bad357426ae880046ae880044c0592401035054310035573c0046aae74004dd50009aba135744002130124901035054310035573c0046aae74004dd51aba1004998009800bad357420073232325333573466e1d200000218000a999ab9a3370e90010010c014dd71aba10010a999ab9a3370e90020010c00cd5d080084c049241035054310035573c0046aae74004dd51aba1002998073ae357426ae88008464460046eac004c04088cccd55cf800940008ca007001375c6aae74006600a6aae7800530043574400635742005000357440026ae880044c0312401035054310035573c0046aae74004dd51aba13574400213009491035054310035573c0046aae74004dd51aba100298019aba200240008c8c8c94ccd5cd19b874800000860026eb8d5d0800854ccd5cd19b874800800860066eb8d5d080084c0192401035054310035573c0046aae74004dd5000911919192999ab9a3370e90010010c00854ccd5cd19b87480000086002600a6ae840042600c921035054310035573c0046aae74004dd5000919319ab9c001800119180080091198019801001000a611e581cabd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed847978410001"
    }
    $ cat hot-credential/script.hash
-   75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20
+   44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136
 
 This hash will be our hot committee credential.
 
@@ -77,6 +79,12 @@ we can query and save with a little bit of ``jq`` manipulation:
      | jq 'to_entries | .[0].value' \
      > cold-nft.utxo
 
+Alternatively, the nix shell provides a command to make this easier:
+
+.. code-block:: bash
+
+   $ fetch-cold-nft-utxo
+
 Now we can prepare the assets for the transaction with ``orchestrator-cli``:
 
 .. code-block:: bash
@@ -103,9 +111,9 @@ As before, let's see what assets were prepared:
 
    cat authorize/authorizeHot.cert
    {
-      "type": "CertificateConway",
-      "description": "Constitution committee member hot key registration",
-      "cborHex": "830e8201581c7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed8201581c75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20"
+       "type": "CertificateConway",
+       "description": "Constitution committee member hot key registration",
+       "cborHex": "830e8201581c9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a8201581c44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136"
    }
 
 We also have a datum for the new output (it should be identical to the input datum)
@@ -126,7 +134,7 @@ And a redeemer:
                "constructor": 1,
                "fields": [
                    {
-                       "bytes": "75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20"
+                       "bytes": "44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136"
                    }
                ]
            }
@@ -143,7 +151,7 @@ for building the transaction with ``cardano-cli``.
 .. code-block:: bash
 
    cat authorize/value
-   addr_test1wzq7m97vwjyu43w8snutpnuukhef8nlh7lpx4x53rquzanqmwuk6y+5000000 lovelace + 1 14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be
+   addr_test1wz9pdjhxtamtu60sld9qqudlldxt06s95dcselvaeuqxzpcq786h2+5000000 lovelace + 1 40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc
 
 Step 4: Create the Authorization Transaction
 --------------------------------------------
@@ -153,30 +161,30 @@ Now we have everything we need to build the transaction:
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-script-file cold-nft/script.plutus \
-      --tx-in-inline-datum-present \
-      --tx-in-redeemer-file authorize/redeemer.json \
-      --tx-out "$(cat authorize/value)" \
-      --tx-out-inline-datum-file authorize/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
-      --certificate-file authorize/authorizeHot.cert \
-      --certificate-script-file cold-credential/script.plutus \
-      --certificate-redeemer-value {} \
-      --change-address $(cat orchestrator.addr) \
-      --out-file authorize.body
-   Estimated transaction fee: Coin 522091
+     --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+     --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
+     --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
+     --tx-in-script-file cold-nft/script.plutus \
+     --tx-in-inline-datum-present \
+     --tx-in-redeemer-file authorize/redeemer.json \
+     --tx-out "$(cat authorize/value)" \
+     --tx-out-inline-datum-file authorize/datum.json \
+     --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
+     --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+     --certificate-file authorize/authorizeHot.cert \
+     --certificate-script-file cold-credential/script.plutus \
+     --certificate-redeemer-value {} \
+     --change-address $(cat orchestrator.addr) \
+     --out-file authorize/body.json
+   Estimated transaction fee: Coin 521021
 
 There is quite a lot going on here, and it warrants an explanation. First we
 have our transaction inputs:
 
 .. code-block:: bash
 
-   --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-   --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+   --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+   --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
    --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
 
 The first input is from the orchestrator's wallet, and is used to cover the fee.
@@ -261,13 +269,13 @@ ourselves:
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file authorize.body \
+      --tx-body-file authorize/body.json \
       --signing-key-file example-certificates/children/child-4/child-4.skey \
-      --out-file authorize.child-4.witness
+      --out-file authorize/child-4.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file authorize.body \
+      --tx-body-file authorize/body.json \
       --signing-key-file example-certificates/children/child-5/child-5.skey \
-      --out-file authorize.child-5.witness
+      --out-file authorize/child-5.witness
 
 Since we are spending an input from our own wallet to pay for fees, we also
 need to sign the transaction with our own signing key:
@@ -275,9 +283,9 @@ need to sign the transaction with our own signing key:
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file authorize.body \
+      --tx-body-file authorize/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file authorize.orchestrator.witness
+      --out-file authorize/orchestrator.witness
 
 Step 6. Assemble and Submit the Transaction
 -------------------------------------------
@@ -288,12 +296,12 @@ Finally, we can put everything together to submit the transaction:
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file authorize.body \
-      --witness-file authorize.child-4.witness \
-      --witness-file authorize.child-5.witness \
-      --witness-file authorize.orchestrator.witness \
-      --out-file authorize.tx
-   $ cardano-cli conway transaction submit --tx-file authorize.tx
+      --tx-body-file authorize/body.json \
+      --witness-file authorize/child-4.witness \
+      --witness-file authorize/child-5.witness \
+      --witness-file authorize/orchestrator.witness \
+      --out-file authorize/tx.json
+   $ cardano-cli conway transaction submit --tx-file authorize/tx.json
    Transaction successfully submitted.
 
 Step 7. Verify the Hot Credential Authorization Status On Chain
@@ -305,23 +313,21 @@ We can see the results of our certificate by querying the node:
 
    $ cardano-cli conway query committee-state --cold-script-hash $(cat cold-credential/script.hash)
    {
-      "committee": {
-         "scriptHash-7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed": {
-            "expiration": 50000,
-            "hotCredsAuthStatus": {
-               "contents": {
-                  "scriptHash": "75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20"
+       "committee": {
+           "scriptHash-9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a": {
+               "expiration": 50000,
+               "hotCredsAuthStatus": {
+                   "contents": {
+                       "scriptHash": "44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136"
+                   },
+                   "tag": "MemberAuthorized"
                },
-               "tag": "MemberAuthorized"
-            },
-            "nextEpochChange": {
-               "tag": "NoChangeExpected"
-            },
-            "status": "Active"
-         }
-      },
-      "epoch": 5063,
-      "threshold": 0
+               "nextEpochChange": {
+                   "tag": "NoChangeExpected"
+               },
+               "status": "Active"
+           }
+       },
+       "epoch": 160,
+       "threshold": 0
    }
-   $ cat hot-credential/script.hash
-   75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20

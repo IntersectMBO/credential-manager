@@ -15,9 +15,7 @@ transaction assets:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > hot-nft.utxo
+   $ fetch-hot-nft-utxo
    $ orchestrator-cli hot-nft rotate \
      --utxo-file hot-nft.utxo \
      --voting-cert example-certificates/children/child-7/child-7-cert.pem \
@@ -46,6 +44,7 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
    <           "bytes": "9923f31c1ce14e2acbd505fa8eebd4ce677d1bcd96c6d71610f810f2008ecc3a"
    ---
    >           "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+
 
 
 In the datum, ``child-7`` has been added back, and ``child-8`` has been
@@ -79,8 +78,8 @@ transaction. Otherwise, it is the same as it was for
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file hot-nft/script.plutus \
@@ -91,8 +90,8 @@ transaction. Otherwise, it is the same as it was for
       --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file rotate-hot.body
-   Estimated transaction fee: Coin 443923
+      --out-file rotate-hot/body.json
+   Estimated transaction fee: Coin 445633
 
 Recall that in the previous section, we swapped the membership and delegation
 roles, so ``child-1`` and ``child-2`` are now in the delegation group.
@@ -103,17 +102,17 @@ Step 3. Distribute the Transaction to The Delegation Group
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-hot.body \
+      --tx-body-file rotate-hot/body.json \
       --signing-key-file example-certificates/children/child-1/child-1.skey \
-      --out-file rotate-hot.child-1.witness
+      --out-file rotate-hot/child-1.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-hot.body \
+      --tx-body-file rotate-hot/body.json \
       --signing-key-file example-certificates/children/child-2/child-2.skey \
-      --out-file rotate-hot.child-2.witness
+      --out-file rotate-hot/child-2.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-hot.body \
+      --tx-body-file rotate-hot/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file rotate-hot.orchestrator.witness
+      --out-file rotate-hot/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -121,12 +120,12 @@ Step 4. Assemble and Submit the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file rotate-hot.body \
-      --witness-file rotate-hot.child-1.witness \
-      --witness-file rotate-hot.child-2.witness \
-      --witness-file rotate-hot.orchestrator.witness \
-      --out-file rotate-hot.tx
-   $ cardano-cli conway transaction submit --tx-file rotate-hot.tx
+      --tx-body-file rotate-hot/body.json \
+      --witness-file rotate-hot/child-1.witness \
+      --witness-file rotate-hot/child-2.witness \
+      --witness-file rotate-hot/orchestrator.witness \
+      --out-file rotate-hot/tx.json
+   $ cardano-cli conway transaction submit --tx-file rotate-hot/tx.json
    Transaction successfully submitted.
 
 Step 5. Verify the change on chain
@@ -136,8 +135,8 @@ Step 5. Verify the change on chain
 
    $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json
    {
-       "4c464e4d98972b29479e7d88f3034e99c819a5d0a6cd32251a95e0ab6bc43c8f#0": {
-           "address": "addr_test1wrwhrnx58j942jj3mauh5graef2c6y0e4phjxaqsakyt23qpxcdz7",
+       "748849a5e0b7d5ab5386691561c5e863a0f32eb780e3f14f026eb41f10e3dd3a#0": {
+           "address": "addr_test1wzfdqhugac3hxczp9ntgczgaaf8g8535rvp7uzqese6ncugnx8cay",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -168,7 +167,7 @@ Step 5. Verify the change on chain
            "inlineDatumhash": "c76a8897910eae665c54b888ad9ac64aa555478349af5f2322c5cb06a6b373c0",
            "referenceScript": null,
            "value": {
-               "63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f": {
+               "abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841": {
                    "": 1
                },
                "lovelace": 5000000

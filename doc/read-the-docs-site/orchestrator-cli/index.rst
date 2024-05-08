@@ -18,6 +18,7 @@ tools in a test environment provided by this repository's nix shell.
    :maxdepth: 1
    :titlesonly:
 
+   setup
    init-cold-committee
    init-cold-nft
    init-hot-committee

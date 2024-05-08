@@ -14,9 +14,7 @@ transaction assets to remove them, you can use the following commands:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > cold-nft.utxo
+   $ fetch-cold-nft-utxo
    $ orchestrator-cli cold-nft resign-delegation \
      --utxo-file cold-nft.utxo \
      --delegation-cert example-certificates/children/child-6/child-6-cert.pem \
@@ -82,8 +80,8 @@ vote, the transaction is somewhat easier to build:
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file cold-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -92,8 +90,8 @@ vote, the transaction is somewhat easier to build:
       --tx-out-inline-datum-file resign-child-6/datum.json \
       --required-signer-hash $(cat example-certificates/children/child-6/child-6.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign-child-6.body
-   Estimated transaction fee: Coin 442451
+      --out-file resign-child-6/body.json
+   Estimated transaction fee: Coin 442822
 
 The only notable thing about this command compared with previous ones is that
 there is only one ``required-signer-hash``. The transaction must be signed by
@@ -107,13 +105,13 @@ To build the transaction, we need to get a signature from the resignee.
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-6.body \
+      --tx-body-file resign-child-6/body.json \
       --signing-key-file example-certificates/children/child-6/child-6.skey \
-      --out-file resign-child-6.child-6.witness
+      --out-file resign-child-6/child-6.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-6.body \
+      --tx-body-file resign-child-6/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file resign-child-6.orchestrator.witness
+      --out-file resign-child-6/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -121,11 +119,11 @@ Step 4. Assemble and Submit the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file resign-child-6.body \
-      --witness-file resign-child-6.child-6.witness \
-      --witness-file resign-child-6.orchestrator.witness \
-      --out-file resign-child-6.tx
-   $ cardano-cli conway transaction submit --tx-file resign-child-6.tx
+      --tx-body-file resign-child-6/body.json \
+      --witness-file resign-child-6/child-6.witness \
+      --witness-file resign-child-6/orchestrator.witness \
+      --out-file resign-child-6/tx.json
+   $ cardano-cli conway transaction submit --tx-file resign-child-6/tx.json
    Transaction successfully submitted.
 
 Step 5. Verify the delegation member is removed
@@ -135,8 +133,8 @@ Step 5. Verify the delegation member is removed
 
    $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json
    {
-       "f496a2dec01ee0ea788c91c80f8a936583e4b96057497169a007cc5dca987ab9#0": {
-           "address": "addr_test1wzq7m97vwjyu43w8snutpnuukhef8nlh7lpx4x53rquzanqmwuk6y",
+       "cd7e24964883d3974ab8bf7cfc15075241ba29bd5b23a33fee41ae98c01e574b#0": {
+           "address": "addr_test1wz9pdjhxtamtu60sld9qqudlldxt06s95dcselvaeuqxzpcq786h2",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -220,7 +218,7 @@ Step 5. Verify the delegation member is removed
            "inlineDatumhash": "de77049711cf2b1401a6a5a75b8e92898dff36ad5d9089c79bb4b1f88328acac",
            "referenceScript": null,
            "value": {
-               "14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be": {
+               "40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc": {
                    "": 1
                },
                "lovelace": 5000000

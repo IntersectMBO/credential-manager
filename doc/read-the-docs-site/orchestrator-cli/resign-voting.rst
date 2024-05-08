@@ -14,9 +14,7 @@ transaction assets to remove them, you can use the following commands:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > hot-nft.utxo
+   $ fetch-hot-nft-utxo
    $ orchestrator-cli hot-nft resign-voting \
      --utxo-file hot-nft.utxo \
      --voting-cert example-certificates/children/child-7/child-7-cert.pem \
@@ -49,13 +47,14 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
    <       "fields": [
    <         {
 
+
 In the datum, ``child-7`` has been removed, while the redeemer says to remove
 this user.
 
 
 .. code-block:: bash
 
-   cat resign-child-7/redeemer.json
+   $ cat resign-child-7/redeemer.json
    {
        "constructor": 1,
        "fields": [
@@ -79,8 +78,8 @@ Step 2: Create the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file hot-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -89,8 +88,8 @@ Step 2: Create the Transaction
       --tx-out-inline-datum-file resign-child-7/datum.json \
       --required-signer-hash $(cat example-certificates/children/child-7/child-7.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign-child-7.body
-   Estimated transaction fee: Coin 408789
+      --out-file resign-child-7/body.json
+   Estimated transaction fee: Coin 409736
 
 Step 3. Send the Transaction to The Resignee
 --------------------------------------------
@@ -100,13 +99,13 @@ To build the transaction, we need to get a signature from the resignee.
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-7.body \
+      --tx-body-file resign-child-7/body.json \
       --signing-key-file example-certificates/children/child-7/child-7.skey \
-      --out-file resign-child-7.child-7.witness
+      --out-file resign-child-7/child-7.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-7.body \
+      --tx-body-file resign-child-7/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file resign-child-7.orchestrator.witness
+      --out-file resign-child-7/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -114,11 +113,11 @@ Step 4. Assemble and Submit the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file resign-child-7.body \
-      --witness-file resign-child-7.child-7.witness \
-      --witness-file resign-child-7.orchestrator.witness \
-      --out-file resign-child-7.tx
-   $ cardano-cli conway transaction submit --tx-file resign-child-7.tx
+      --tx-body-file resign-child-7/body.json \
+      --witness-file resign-child-7/child-7.witness \
+      --witness-file resign-child-7/orchestrator.witness \
+      --out-file resign-child-7/tx.json
+   $ cardano-cli conway transaction submit --tx-file resign-child-7/tx.json
    Transaction successfully submitted.
 
 Step 5. Verify the voting member is removed
@@ -128,8 +127,8 @@ Step 5. Verify the voting member is removed
 
    $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json
    {
-       "0d1236cabd0256d8aec32ac3085858a1d23ce0d0de87bfafa3711564beeb04c3#0": {
-           "address": "addr_test1wrwhrnx58j942jj3mauh5graef2c6y0e4phjxaqsakyt23qpxcdz7",
+       "bc98e3969950cca09614e27a6f597c181680fe9c749f353d03037ed2bf703fd5#0": {
+           "address": "addr_test1wzfdqhugac3hxczp9ntgczgaaf8g8535rvp7uzqese6ncugnx8cay",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -160,7 +159,7 @@ Step 5. Verify the voting member is removed
            "inlineDatumhash": "20003d8b8a9526ab5daf6f9e31ef5f0ac8cfb97832d85492e49c8e1456424ade",
            "referenceScript": null,
            "value": {
-               "63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f": {
+               "abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841": {
                    "": 1
                },
                "lovelace": 5000000

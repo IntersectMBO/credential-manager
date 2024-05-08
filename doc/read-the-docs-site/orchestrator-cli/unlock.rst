@@ -72,8 +72,8 @@ transactions:
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file hot-nft/script.plutus \
@@ -83,31 +83,31 @@ transactions:
       --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file unlock-hot.body
-   Estimated transaction fee: Coin 430081
+      --out-file unlock-hot/body.json
+   Estimated transaction fee: Coin 431101
    $ cardano-cli conway transaction witness \
-      --tx-body-file unlock-hot.body \
+      --tx-body-file unlock-hot/body.json \
       --signing-key-file example-certificates/children/child-1/child-1.skey \
-      --out-file unlock-hot.child-1.witness
+      --out-file unlock-hot/child-1.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file unlock-hot.body \
+      --tx-body-file unlock-hot/body.json \
       --signing-key-file example-certificates/children/child-2/child-2.skey \
-      --out-file unlock-hot.child-2.witness
+      --out-file unlock-hot/child-2.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file unlock-hot.body \
+      --tx-body-file unlock-hot/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file unlock-hot.orchestrator.witness
+      --out-file unlock-hot/orchestrator.witness
    $ cardano-cli conway transaction assemble \
-      --tx-body-file unlock-hot.body \
-      --witness-file unlock-hot.child-1.witness \
-      --witness-file unlock-hot.child-2.witness \
-      --witness-file unlock-hot.orchestrator.witness \
-      --out-file unlock-hot.tx
-   $ cardano-cli conway transaction submit --tx-file unlock-hot.tx
+      --tx-body-file unlock-hot/body.json \
+      --witness-file unlock-hot/child-1.witness \
+      --witness-file unlock-hot/child-2.witness \
+      --witness-file unlock-hot/orchestrator.witness \
+      --out-file unlock-hot/tx.json
+   $ cardano-cli conway transaction submit --tx-file unlock-hot/tx.json
    Transaction successfully submitted.
    $ cardano-cli conway transaction build \
-      --tx-in "$(cardano-cli conway transaction txid --tx-body-file unlock-hot.body)#1" \
-      --tx-in-collateral "$(cardano-cli conway transaction txid --tx-body-file unlock-hot.body)#1" \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file cold-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -115,22 +115,22 @@ transactions:
       --tx-out "$(cat orchestrator.addr)+5000000 + 1 $COLD_POLICY_ID" \
       --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file unlock-cold.body
-   Estimated transaction fee: Coin 409311
+      --out-file unlock-cold/body.json
+   Estimated transaction fee: Coin 409682
    $ cardano-cli conway transaction witness \
-      --tx-body-file unlock-cold.body \
+      --tx-body-file unlock-cold/body.json \
       --signing-key-file example-certificates/children/child-4/child-4.skey \
-      --out-file unlock-cold.child-4.witness
+      --out-file unlock-cold/child-4.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file unlock-cold.body \
+      --tx-body-file unlock-cold/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file unlock-cold.orchestrator.witness
+      --out-file unlock-cold/orchestrator.witness
    $ cardano-cli conway transaction assemble \
-      --tx-body-file unlock-cold.body \
-      --witness-file unlock-cold.child-4.witness \
-      --witness-file unlock-cold.orchestrator.witness \
-      --out-file unlock-cold.tx
-   $ cardano-cli conway transaction submit --tx-file unlock-cold.tx
+      --tx-body-file unlock-cold/body.json \
+      --witness-file unlock-cold/child-4.witness \
+      --witness-file unlock-cold/orchestrator.witness \
+      --out-file unlock-cold/tx.json
+   $ cardano-cli conway transaction submit --tx-file unlock-cold/tx.json
    Transaction successfully submitted.
 
 .. warning::
@@ -152,6 +152,8 @@ Step 3. Verify the change on chain
    $ cardano-cli conway query utxo --address $(cat orchestrator.addr)
                               TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   a6735bb188d9c12d6c47badc5971ef1045f2310cc2005ba48bef642fdded101a     0        5000000 lovelace + 1 63ac965b8bab57dc91f302dad97d1d70e979e8cae8d3514c7ad6f86f + TxOutDatumNone
-   200f3890f041e19137755e617285a083a24f81a9475c43a42219f088a909ac03     0        5000000 lovelace + 1 14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be + TxOutDatumNone
-   200f3890f041e19137755e617285a083a24f81a9475c43a42219f088a909ac03     1        398983356769 lovelace + TxOutDatumNone
+   0828d1224eaaee88bf101fb7462e536bc5393428bebf15e0074e6f693fae774f     0        5000000 lovelace + 1 abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841 + TxOutDatumNone
+   ad8461b9c13a02b546e31751db5ee685e3205eaf668c8a3c5aecb60209e09f57     0        5000000 lovelace + 1 40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc + TxOutDatumNone
+   ad8461b9c13a02b546e31751db5ee685e3205eaf668c8a3c5aecb60209e09f57     1        599990983091 lovelace + TxOutDatumNone
+
+This concludes the guide to using ``orchestrator-cli``.

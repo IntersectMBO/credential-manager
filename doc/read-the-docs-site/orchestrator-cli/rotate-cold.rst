@@ -23,9 +23,7 @@ transaction assets:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > cold-nft.utxo
+   $ fetch-cold-nft-utxo
    $ orchestrator-cli cold-nft rotate \
      --utxo-file cold-nft.utxo \
      --membership-cert example-certificates/children/child-4/child-4-cert.pem \
@@ -106,6 +104,7 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
    ---
    >               "bytes": "fdf913abfdb8f00997cca5c14ca0b82f3d08781015a061e91444425d6f777ffa"
 
+
 In the datum, the existing delegation and membership roles have been swapped.
 The redeemer is less interesting, as it takes no arguments:
 
@@ -123,8 +122,8 @@ Step 2: Create the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file cold-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -134,7 +133,7 @@ Step 2: Create the Transaction
       --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file rotate-cold.body
+      --out-file rotate-cold/body.json
    Estimated transaction fee: Coin 453559
 
 Once again, we need signatures from multiple users. To authorize the ``rotate``
@@ -147,17 +146,17 @@ Step 3. Distribute the Transaction to The Membership Group
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-cold.body \
+      --tx-body-file rotate-cold/body.json \
       --signing-key-file example-certificates/children/child-1/child-1.skey \
-      --out-file rotate-cold.child-1.witness
+      --out-file rotate-cold/child-1.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-cold.body \
+      --tx-body-file rotate-cold/body.json \
       --signing-key-file example-certificates/children/child-2/child-2.skey \
-      --out-file rotate-cold.child-2.witness
+      --out-file rotate-cold/child-2.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-cold.body \
+      --tx-body-file rotate-cold/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file rotate-cold.orchestrator.witness
+      --out-file rotate-cold/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -165,12 +164,12 @@ Step 4. Assemble and Submit the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file rotate-cold.body \
-      --witness-file rotate-cold.child-1.witness \
-      --witness-file rotate-cold.child-2.witness \
-      --witness-file rotate-cold.orchestrator.witness \
-      --out-file rotate-cold.tx
-   $ cardano-cli conway transaction submit --tx-file rotate-cold.tx
+      --tx-body-file rotate-cold/body.json \
+      --witness-file rotate-cold/child-1.witness \
+      --witness-file rotate-cold/child-2.witness \
+      --witness-file rotate-cold/orchestrator.witness \
+      --out-file rotate-cold/tx.json
+   $ cardano-cli conway transaction submit --tx-file rotate-cold/tx.json
    Transaction successfully submitted.
 
 Step 5. Verify the change on chain
@@ -180,8 +179,8 @@ Step 5. Verify the change on chain
 
    $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json
    {
-       "2f6ec87ee831ede10745f3721f8758ec0c6fc83a507199df36fd49b6b856c8dd#0": {
-           "address": "addr_test1wzq7m97vwjyu43w8snutpnuukhef8nlh7lpx4x53rquzanqmwuk6y",
+       "0813129da942da018a4b9398d5ea2fa7dbdaec5f26092c9422a6b078e9a7d8a0#0": {
+           "address": "addr_test1wz9pdjhxtamtu60sld9qqudlldxt06s95dcselvaeuqxzpcq786h2",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -265,7 +264,7 @@ Step 5. Verify the change on chain
            "inlineDatumhash": "50841fe8863d612edd1c29eaceb68fdc5c8016580c509b5e1ff2636b23dc3aec",
            "referenceScript": null,
            "value": {
-               "14987a29cf4065e7b38a4cde6bc84b067492ad3ecc8223598a8fe4be": {
+               "40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc": {
                    "": 1
                },
                "lovelace": 5000000

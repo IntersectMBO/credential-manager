@@ -24,9 +24,7 @@ one from :ref:`voting <vote>`.
    $ cardano-cli conway governance hash anchor-data \
      --text "$(curl -s $ANCHOR | jsonld canonize)" \
      --out-file anchor.hash
-   $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > cold-nft.utxo
+   $ fetch-cold-nft-utxo
    $ orchestrator-cli cold-nft resign \
      --utxo-file cold-nft.utxo \
      --cold-credential-script-file cold-credential/script.plutus \
@@ -68,7 +66,7 @@ We also have a new certificate, `resign.cert`:
    {
        "type": "CertificateConway",
        "description": "Constitution committee member hot key resignation",
-       "cborHex": "830f8201581c7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed82785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+       "cborHex": "830f8201581c9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a82785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
    }
 
 .. note::
@@ -93,8 +91,8 @@ The transaction must be signed by the membership group.
 .. code-block:: bash
 
    $ cardano-cli conway transaction build \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file cold-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -107,7 +105,7 @@ The transaction must be signed by the membership group.
       --certificate-script-file cold-credential/script.plutus \
       --certificate-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign.body
+      --out-file resign/body.json
    Estimated transaction fee: Coin 516517
 
 Again, recall that we previously swapped the membership and delegation roles,
@@ -122,17 +120,17 @@ sign.
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign.body \
+      --tx-body-file resign/body.json \
       --signing-key-file example-certificates/children/child-4/child-4.skey \
-      --out-file resign.child-4.witness
+      --out-file resign/child-4.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign.body \
+      --tx-body-file resign/body.json \
       --signing-key-file example-certificates/children/child-5/child-5.skey \
-      --out-file resign.child-5.witness
+      --out-file resign/child-5.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign.body \
+      --tx-body-file resign/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file resign.orchestrator.witness
+      --out-file resign/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -142,12 +140,12 @@ Finally, we can put everything together to submit the transaction:
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file resign.body \
-      --witness-file resign.child-4.witness \
-      --witness-file resign.child-5.witness \
-      --witness-file resign.orchestrator.witness \
-      --out-file resign.tx
-   $ cardano-cli conway transaction submit --tx-file resign.tx
+      --tx-body-file resign/body.json \
+      --witness-file resign/child-4.witness \
+      --witness-file resign/child-5.witness \
+      --witness-file resign/orchestrator.witness \
+      --out-file resign/tx.json
+   $ cardano-cli conway transaction submit --tx-file resign/tx.json
    Transaction successfully submitted.
 
 Step 5. Verify the Resignation On Chain
@@ -161,11 +159,11 @@ the node:
    $ cardano-cli conway query committee-state --cold-script-hash $(cat cold-credential/script.hash)
    {
        "committee": {
-           "scriptHash-7b34b13a4751b7f66f0b3375f48257d4e616103fccd1f8bd0a8aa4ed": {
+           "scriptHash-9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a": {
                "expiration": 50000,
                "hotCredsAuthStatus": {
                    "contents": {
-                       "dataHash": "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8",
+                       "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
                        "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
                    },
                    "tag": "MemberResigned"
@@ -176,6 +174,6 @@ the node:
                "status": "Active"
            }
        },
-       "epoch": 5384,
+       "epoch": 210,
        "threshold": 0
    }

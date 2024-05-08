@@ -19,15 +19,23 @@ are responsible for providing:
    format.
 3. The decision for their vote (yes, no, or abstain).
 
-For example, let's assume the following:
+If you have been following along with the guide, you can create a sample
+governance action with the command ``create-dummy-gov-action``
 
-1. The governance action ID is
+.. code-block:: bash
 
-   * Tx ID: ``868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e``
-   * Governance action index: ``0``
+   $ create-dummy-gov-action
+   Estimated transaction fee: Coin 174213
+   Transaction successfully submitted.
+   Governance Action Tx ID: 256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45
+   Governance Action Index: 0
 
-2. The rationale document URL is ``https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json``
-3. They have decided to vote ``yes`` on the governance action.
+This will print out the governance action's tx ID and index, both of which will
+be needed later.
+
+For the rationale document URL, we will use
+``https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json``,
+and we will be voting ``yes`` on the governance action.
 
 The only missing piece of information we need to prepare is a hash of the
 rationale document, for downstream verification of the contents. In accordance
@@ -37,8 +45,8 @@ and hashing it. We can use the `jsonld` CLI to help with this:
 
 .. code-block:: bash
 
-   ANCHOR=https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json 
-   cardano-cli conway governance hash anchor-data \
+   $ ANCHOR=https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json 
+   $ cardano-cli conway governance hash anchor-data \
       --text "$(curl -s $ANCHOR | jsonld canonize)" \
       --out-file anchor.hash
 
@@ -46,9 +54,7 @@ As before, we also need the current output of the hot NFT script:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json \
-     | jq 'to_entries | .[0].value' \
-     > hot-nft.utxo
+   $ fetch-hot-nft-utxo
 
 
 Step 2: Creating the assets
@@ -61,18 +67,12 @@ Now we can use ``orchestrator-cli`` to build our transaction assets:
    $ orchestrator-cli hot-nft vote \
      --utxo-file hot-nft.utxo \
      --hot-credential-script-file hot-credential/script.plutus \
-     --governance-action-tx-id 868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e \
+     --governance-action-tx-id 256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45 \
      --governance-action-index 0 \
      --yes \
      --metadata-url $ANCHOR \
      --metadata-hash $(cat anchor.hash) \
      --out-dir vote
-
-The ``-p`` option (or ``--policy-id`` in long form) specifies the minting
-policy ID to use, and the ``-o`` option (or ``--out-dir`` in long form)
-specifies a directory to write the output assets to. This directory will be
-created if it doesn't already exist. Every other command has an ``-o`` option
-and it will not be explained elsewhere.
 
 Let's see what assets were created.
 
@@ -103,7 +103,7 @@ provided details:
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e"
+                       "bytes": "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45"
                    },
                    {
                        "int": 0
@@ -129,8 +129,8 @@ is a vote file that we will add to the transaction to cast the vote:
 
    $ cardano-cli conway governance vote view --vote-file vote/vote
    {
-       "committee-scriptHash-75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20": {
-           "868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e#0": {
+       "committee-scriptHash-44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136": {
+           "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45#0": {
                "anchor": {
                    "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
                    "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
@@ -163,12 +163,12 @@ With that out of the way, here is the command to build the transaction:
 .. code-block:: bash
 
    $ cardano-cli conway query protocol-parameters --out-file pparams.json
-   $ ORCHESTRATOR_STARTING_BALANCE=$(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'to_entries | .[0].value.value.lovelace')
+   $ ORCHESTRATOR_STARTING_BALANCE=$(get-orchestrator-ada-only | jq -r '.value.value.lovelace')
    $ FEE=5000000
    $ ORCHESTRATOR_ENDING_BALANCE=$(($ORCHESTRATOR_STARTING_BALANCE - $FEE))
    $ cardano-cli conway transaction build-raw \
-      --tx-in $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-collateral $(cardano-cli query utxo --address $(cat orchestrator.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file hot-nft/script.plutus \
       --tx-in-inline-datum-present \
@@ -185,8 +185,7 @@ With that out of the way, here is the command to build the transaction:
       --vote-script-file hot-credential/script.plutus \
       --vote-redeemer-value {} \
       --vote-execution-units "(6000000000,4000000)" \
-      --out-file vote.body
-   Estimated transaction fee: Coin 522091
+      --out-file vote/body.json
 
 Most of what we covered when building the hot credential authorization script
 also applies here, so we won't cover it again.
@@ -199,17 +198,17 @@ We now have an unsigned transaction body which we need our voters to sign.
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file vote.body \
+      --tx-body-file vote/body.json \
       --signing-key-file example-certificates/children/child-8/child-8.skey \
-      --out-file vote.child-8.witness
+      --out-file vote/child-8.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file vote.body \
+      --tx-body-file vote/body.json \
       --signing-key-file example-certificates/children/child-9/child-9.skey \
-      --out-file vote.child-9.witness
+      --out-file vote/child-9.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file vote.body \
+      --tx-body-file vote/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file vote.orchestrator.witness
+      --out-file vote/orchestrator.witness
 
 Step 5. Assemble and Submit the Transaction
 -------------------------------------------
@@ -219,12 +218,12 @@ Finally, we can put everything together to submit the transaction:
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file vote.body \
-      --witness-file vote.child-8.witness \
-      --witness-file vote.child-9.witness \
-      --witness-file vote.orchestrator.witness \
-      --out-file vote.tx
-   $ cardano-cli conway transaction submit --tx-file vote.tx
+      --tx-body-file vote/body.json \
+      --witness-file vote/child-8.witness \
+      --witness-file vote/child-9.witness \
+      --witness-file vote/orchestrator.witness \
+      --out-file vote/tx.json
+   $ cardano-cli conway transaction submit --tx-file vote/tx.json
    Transaction successfully submitted.
 
 Step 6. Verify the Vote On Chain
@@ -234,21 +233,21 @@ We can see the results of our vote by querying the gov state from the node:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query gov-state | jq .proposals.[]
+   $ cardano-cli conway query gov-state | jq '.proposals[]'
    {
      "actionId": {
        "govActionIx": 0,
-       "txId": "868993aa77d9666ff9b59512d75b0d5ea088922082568a32f14bd6d29e0c5c8e"
+       "txId": "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45"
      },
      "committeeVotes": {
-       "scriptHash-75a630a046d93e4e4415a31a1823860870aa7e84829c80645aac1e20": "VoteYes"
+       "scriptHash-44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136": "VoteYes"
      },
      "dRepVotes": {},
-     "expiresAfter": 5146,
+     "expiresAfter": 272,
      "proposalProcedure": {
        "anchor": {
-         "dataHash": "10c6d67e1968551c44d140d2f1af37d0d9b9385c8ac0c200426e3b6edb4d7c26",
-         "url": "metadata.json"
+         "dataHash": "0000000000000000000000000000000000000000000000000000000000000000",
+         "url": "https://example.com"
        },
        "deposit": 1000000000,
        "govAction": {
@@ -256,11 +255,11 @@ We can see the results of our vote by querying the gov state from the node:
        },
        "returnAddr": {
          "credential": {
-           "keyHash": "ed7a78f87bcf8640f6785ba8616101114ba4ea6d3c1b5cebfe180d69"
+           "keyHash": "20d773742a67ac0d02a51993d88b8dcc04906ed9f134dd6b3af079c2"
          },
          "network": "Testnet"
        }
      },
-     "proposedIn": 5046,
+     "proposedIn": 172,
      "stakePoolVotes": {}
    }
