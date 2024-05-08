@@ -1,5 +1,7 @@
 # Constitutional Committee Credential Management System
 
+[![Documentation Status](https://readthedocs.org/projects/credential-manager/badge/?version=latest)](https://credential-manager.readthedocs.io/en/latest/?badge=latest)
+
 The Constitutional Committee Credential Management System is a suite of Plutus
 scripts and tools for managing Cardano constitutional committee credentials
 with an X.509 certificate chain. It provides the following features:
