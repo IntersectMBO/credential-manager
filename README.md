@@ -16,5 +16,5 @@ with an X.509 certificate chain. It provides the following features:
 
 ## Documentation
 
-User manual: <a href="https://credential-manager.readthedocs.io/" target="_blank">https://credential-manager.readthedocs.io/</a>
+User manual: https://credential-manager.readthedocs.io
 
