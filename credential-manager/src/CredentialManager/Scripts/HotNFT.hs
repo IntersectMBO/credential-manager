@@ -126,16 +126,18 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
       Just (TxInInfo _ ownInput) -> case red of
-        Vote govAction vote ->
+        Vote ->
           checkTxOutPreservation ownInput outputs
             && checkMultiSig votingUsers signatures
             && checkVote
           where
+            votes = txInfoVotes txInfo
             checkVote =
-              txInfoVotes txInfo
-                == Map.singleton
+              length votes
+                == 1
+                && elem
                   (CommitteeVoter hotCred)
-                  (Map.singleton govAction vote)
+                  (Map.keys votes)
         ResignVoting user ->
           isVotingUser
             && signedByResignee
