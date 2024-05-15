@@ -271,15 +271,15 @@ newtype HotLockDatum = HotLockDatum
 
 -- | The redeemer for the CC hot credential NFT locking script.
 data HotLockRedeemer
-  = -- | Require the transaction to cast the specified vote for the specified governance action.
+  = -- | Require the transaction to cast votes only for this hot credential.
     -- Transaction must be signed by a majority of identities from votingUsers.
     --
-    -- Forbids casting any other votes.
+    -- Forbids casting any other votes that are not from this hot credential.
     -- Forbids burning the NFT.
     --
     -- Requires the address, value, and datum to be preserved between the input
     -- and output that contain the NFT.
-    Vote PV3.GovernanceActionId PV3.Vote
+    Vote
   | -- | Requires the transaction to remove the requested identity from
     -- votingUsers. Transaction must be signed by the resigning user.
     --
@@ -325,9 +325,8 @@ data HotLockRedeemer
 
 instance PlutusTx.Eq HotLockRedeemer where
   {-# INLINEABLE (==) #-}
-  Vote ga1 v1 == Vote ga2 v2 =
-    ga1 PlutusTx.== ga2 PlutusTx.&& v1 PlutusTx.== v2
-  Vote _ _ == _ = PlutusTx.False
+  Vote == Vote = PlutusTx.True
+  Vote == _ = PlutusTx.False
   ResignVoting v1 == ResignVoting v2 = v1 PlutusTx.== v2
   ResignVoting _ == _ = PlutusTx.False
   RotateHot == RotateHot = PlutusTx.True
