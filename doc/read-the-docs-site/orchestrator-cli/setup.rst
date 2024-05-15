@@ -13,6 +13,27 @@ This repository uses the Nix package manager to manage dependencies. You will
 need to install Nix on your machine to setup the environment. Instructions for
 doing so can be found |nix_install|.
 
+.. note::
+   You should also configure your nix installation to use the IOG and NixOS
+   binary caches so you don't end up building everything locally, which will
+   consume a lot of disk space and take a very long time. Edit your nix config
+   and make sure the following options are set:
+
+   .. code-block::
+
+      experimental-features = nix-command flakes fetch-closure
+      trusted-users = <your user name>
+      substituters = https://cache.iog.io https://cache.nixos.org/
+      trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+   Where ``<your user name>`` is your username (run the command ``whoami`` to
+   print this if you are unsure). This file is normally located at
+   ``/etc/nix/nix.conf``. If it doesn't exist, create it and paste the above
+   contents (replace ``<your user name>`` with your real user name).
+
+   You will need to restart your nix daemon (or alternatively, reboot your
+   machine) after editing this config file.
+
 Step 2: Clone this repository
 -----------------------------
 
