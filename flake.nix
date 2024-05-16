@@ -6,8 +6,8 @@
   inputs = {
     iogx = {
       url = "github:input-output-hk/iogx";
-      # inputs.CHaP.follows = "CHaP";
-      # inputs.hackage.follows = "hackage";
+      inputs.CHaP.follows = "cardano-node/CHaP";
+      # inputs.hackage.follows = "cardano-node/hackage";
       # inputs.haskell-nix.follows = "haskell-nix";
       # inputs.nixpkgs.follows = "nixpkgs";
     };
