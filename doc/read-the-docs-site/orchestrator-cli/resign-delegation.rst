@@ -91,7 +91,7 @@ vote, the transaction is somewhat easier to build:
       --required-signer-hash $(cat example-certificates/children/child-6/child-6.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-6/body.json
-   Estimated transaction fee: Coin 442822
+   Estimated transaction fee: Coin 442451
 
 The only notable thing about this command compared with previous ones is that
 there is only one ``required-signer-hash``. The transaction must be signed by
@@ -133,8 +133,8 @@ Step 5. Verify the delegation member is removed
 
    $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json
    {
-       "cd7e24964883d3974ab8bf7cfc15075241ba29bd5b23a33fee41ae98c01e574b#0": {
-           "address": "addr_test1wz9pdjhxtamtu60sld9qqudlldxt06s95dcselvaeuqxzpcq786h2",
+       "349e7343072587f3bbf7dc98194302b18e8259fe98e3a8055b7a774a5505b60a#0": {
+           "address": "addr_test1wzng9lxemp4skvd9zs3zp4eslldxsg87afcvtm22qm07saqew8uzk",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -218,7 +218,7 @@ Step 5. Verify the delegation member is removed
            "inlineDatumhash": "de77049711cf2b1401a6a5a75b8e92898dff36ad5d9089c79bb4b1f88328acac",
            "referenceScript": null,
            "value": {
-               "40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc": {
+               "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {
                    "": 1
                },
                "lovelace": 5000000

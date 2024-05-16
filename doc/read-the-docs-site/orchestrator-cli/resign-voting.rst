@@ -89,7 +89,7 @@ Step 2: Create the Transaction
       --required-signer-hash $(cat example-certificates/children/child-7/child-7.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-7/body.json
-   Estimated transaction fee: Coin 409736
+   Estimated transaction fee: Coin 410106
 
 Step 3. Send the Transaction to The Resignee
 --------------------------------------------
@@ -127,8 +127,8 @@ Step 5. Verify the voting member is removed
 
    $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json
    {
-       "bc98e3969950cca09614e27a6f597c181680fe9c749f353d03037ed2bf703fd5#0": {
-           "address": "addr_test1wzfdqhugac3hxczp9ntgczgaaf8g8535rvp7uzqese6ncugnx8cay",
+       "b98edd2dd6bc3d8cc8c3a73361bdcbda41a985a6b99f36a40a8e30e7303a29c5#0": {
+           "address": "addr_test1wqgvl76s9anu0hnnh07unfrzkrx27k4yu0vthn85w8agwxqteatvx",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -159,7 +159,7 @@ Step 5. Verify the voting member is removed
            "inlineDatumhash": "20003d8b8a9526ab5daf6f9e31ef5f0ac8cfb97832d85492e49c8e1456424ade",
            "referenceScript": null,
            "value": {
-               "abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841": {
+               "e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0": {
                    "": 1
                },
                "lovelace": 5000000

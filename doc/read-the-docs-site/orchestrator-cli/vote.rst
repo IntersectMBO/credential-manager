@@ -27,7 +27,7 @@ governance action with the command ``create-dummy-gov-action``
    $ create-dummy-gov-action
    Estimated transaction fee: Coin 174213
    Transaction successfully submitted.
-   Governance Action Tx ID: 256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45
+   Governance Action Tx ID: 662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3
    Governance Action Index: 0
 
 This will print out the governance action's tx ID and index, both of which will
@@ -67,7 +67,7 @@ Now we can use ``orchestrator-cli`` to build our transaction assets:
    $ orchestrator-cli hot-nft vote \
      --utxo-file hot-nft.utxo \
      --hot-credential-script-file hot-credential/script.plutus \
-     --governance-action-tx-id 256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45 \
+     --governance-action-tx-id $(cardano-cli conway query gov-state | jq -r '.proposals[0].actionId.txId') \
      --governance-action-index 0 \
      --yes \
      --metadata-url $ANCHOR \
@@ -103,7 +103,7 @@ provided details:
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45"
+                       "bytes": "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3"
                    },
                    {
                        "int": 0
@@ -129,8 +129,8 @@ is a vote file that we will add to the transaction to cast the vote:
 
    $ cardano-cli conway governance vote view --vote-file vote/vote
    {
-       "committee-scriptHash-44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136": {
-           "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45#0": {
+       "committee-scriptHash-c5ce2386d5fee41a026feb39814e8a0e4185917bfbcd6f1c553d738a": {
+           "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3#0": {
                "anchor": {
                    "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
                    "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
@@ -188,7 +188,9 @@ With that out of the way, here is the command to build the transaction:
       --out-file vote/body.json
 
 Most of what we covered when building the hot credential authorization script
-also applies here, so we won't cover it again.
+also applies here, so we won't cover it again. The only difference is that we
+are attaching and authorizing a vote file instead of a certificate, but the
+mechanism is similar.
 
 Step 4. Distribute the Transaction to The Voting Group
 ------------------------------------------------------
@@ -237,13 +239,13 @@ We can see the results of our vote by querying the gov state from the node:
    {
      "actionId": {
        "govActionIx": 0,
-       "txId": "256e5462231e70e00483c2b0401158164a3640b7fa45405acb290c5ed7bd3f45"
+       "txId": "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3"
      },
      "committeeVotes": {
-       "scriptHash-44240e961ca4e507e7d4074da28f103d62aae11adc0e19c1e14f6136": "VoteYes"
+       "scriptHash-c5ce2386d5fee41a026feb39814e8a0e4185917bfbcd6f1c553d738a": "VoteYes"
      },
      "dRepVotes": {},
-     "expiresAfter": 272,
+     "expiresAfter": 151,
      "proposalProcedure": {
        "anchor": {
          "dataHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -255,11 +257,11 @@ We can see the results of our vote by querying the gov state from the node:
        },
        "returnAddr": {
          "credential": {
-           "keyHash": "20d773742a67ac0d02a51993d88b8dcc04906ed9f134dd6b3af079c2"
+           "keyHash": "b16f9798924ecd9f6127afcf6de3273f8b28235c8cf621b73a81a04d"
          },
          "network": "Testnet"
        }
      },
-     "proposedIn": 172,
+     "proposedIn": 51,
      "stakePoolVotes": {}
    }

@@ -419,7 +419,7 @@ instance Arbitrary CN.TxInfo where
   shrink = genericShrink
 
 fromMap :: Map.Map k v -> AMap.Map k v
-fromMap = AMap.fromList . Map.toList
+fromMap = AMap.unsafeFromList . Map.toList
 
 toMap :: (Ord k) => AMap.Map k v -> Map.Map k v
 toMap = Map.fromList . AMap.toList

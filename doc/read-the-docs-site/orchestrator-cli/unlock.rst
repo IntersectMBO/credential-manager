@@ -84,7 +84,7 @@ transactions:
       --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file unlock-hot/body.json
-   Estimated transaction fee: Coin 431101
+   Estimated transaction fee: Coin 430730
    $ cardano-cli conway transaction witness \
       --tx-body-file unlock-hot/body.json \
       --signing-key-file example-certificates/children/child-1/child-1.skey \
@@ -116,7 +116,7 @@ transactions:
       --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file unlock-cold/body.json
-   Estimated transaction fee: Coin 409682
+   Estimated transaction fee: Coin 409311
    $ cardano-cli conway transaction witness \
       --tx-body-file unlock-cold/body.json \
       --signing-key-file example-certificates/children/child-4/child-4.skey \
@@ -152,8 +152,8 @@ Step 3. Verify the change on chain
    $ cardano-cli conway query utxo --address $(cat orchestrator.addr)
                               TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   0828d1224eaaee88bf101fb7462e536bc5393428bebf15e0074e6f693fae774f     0        5000000 lovelace + 1 abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841 + TxOutDatumNone
-   ad8461b9c13a02b546e31751db5ee685e3205eaf668c8a3c5aecb60209e09f57     0        5000000 lovelace + 1 40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc + TxOutDatumNone
+   0828d1224eaaee88bf101fb7462e536bc5393428bebf15e0074e6f693fae774f     0        5000000 lovelace + 1 e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0 + TxOutDatumNone
+   ad8461b9c13a02b546e31751db5ee685e3205eaf668c8a3c5aecb60209e09f57     0        5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4 + TxOutDatumNone
    ad8461b9c13a02b546e31751db5ee685e3205eaf668c8a3c5aecb60209e09f57     1        599990983091 lovelace + TxOutDatumNone
 
 This concludes the guide to using ``orchestrator-cli``.

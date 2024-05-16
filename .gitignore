@@ -28,3 +28,9 @@ dist-newstyle/
 /doc/read-the-docs-site/_build/
 /testnet/example
 /testnet/logs
+!coldMint.vkey
+!coldMint.skey
+!coldMint.hash
+!hotMint.vkey
+!hotMint.skey
+!hotMint.hash
