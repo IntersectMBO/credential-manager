@@ -267,7 +267,9 @@
     }
   },
   "committee": {
-    "members": {},
+    "members": {
+      "scriptHash-e04f00fc3676b756fcebeaabeb5b297d9cb6f0589db0893f6d5beb8b": 50000
+    },
     "threshold": 0
   }
 }
