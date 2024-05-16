@@ -66,7 +66,7 @@ We also have a new certificate, `resign.cert`:
    {
        "type": "CertificateConway",
        "description": "Constitution committee member hot key resignation",
-       "cborHex": "830f8201581c9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a82785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
+       "cborHex": "830f8201581ce04f00fc3676b756fcebeaabeb5b297d9cb6f0589db0893f6d5beb8b82785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
    }
 
 .. note::
@@ -106,7 +106,7 @@ The transaction must be signed by the membership group.
       --certificate-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
       --out-file resign/body.json
-   Estimated transaction fee: Coin 516517
+   Estimated transaction fee: Coin 517587
 
 Again, recall that we previously swapped the membership and delegation roles,
 so ``child-4`` and ``child-5`` are now in the membership group.
@@ -159,7 +159,7 @@ the node:
    $ cardano-cli conway query committee-state --cold-script-hash $(cat cold-credential/script.hash)
    {
        "committee": {
-           "scriptHash-9d085cd621852613d28d477dccb8d4bca9a132907028dbdd0c23147a": {
+           "scriptHash-e04f00fc3676b756fcebeaabeb5b297d9cb6f0589db0893f6d5beb8b": {
                "expiration": 50000,
                "hotCredsAuthStatus": {
                    "contents": {
@@ -177,3 +177,7 @@ the node:
        "epoch": 210,
        "threshold": 0
    }
+
+Although we are still in the committee, we can no longer authorize hot
+credentials nor vote - so we have effectively removed ourselves from the
+committee.

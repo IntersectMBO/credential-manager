@@ -135,8 +135,8 @@ Step 5. Verify the change on chain
 
    $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json
    {
-       "748849a5e0b7d5ab5386691561c5e863a0f32eb780e3f14f026eb41f10e3dd3a#0": {
-           "address": "addr_test1wzfdqhugac3hxczp9ntgczgaaf8g8535rvp7uzqese6ncugnx8cay",
+       "15bc8aed9c3cbde527f56b131c0aa4b5bf6e24e506f5996da0fb3524b860df37": {
+           "address": "addr_test1wqgvl76s9anu0hnnh07unfrzkrx27k4yu0vthn85w8agwxqteatvx",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -167,7 +167,7 @@ Step 5. Verify the change on chain
            "inlineDatumhash": "c76a8897910eae665c54b888ad9ac64aa555478349af5f2322c5cb06a6b373c0",
            "referenceScript": null,
            "value": {
-               "abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841": {
+               "e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0": {
                    "": 1
                },
                "lovelace": 5000000

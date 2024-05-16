@@ -95,7 +95,6 @@ cabalProject:
           --signing-key-file orchestrator-stake.skey
         cardano-cli address build \
           --payment-verification-key-file orchestrator.vkey \
-          --stake-verification-key-file orchestrator-stake.vkey \
           --out-file orchestrator.addr
       '';
     };
@@ -184,26 +183,27 @@ cabalProject:
           --tx-out "$(cat orchestrator.addr)+5000000 + 1 $COLD_POLICY_ID" \
           --mint "1 $COLD_POLICY_ID" \
           --mint-script-file coldMint.native \
-          --mint-redeemer-value {} \
           --change-address $(cat orchestrator.addr) \
           --out-file coldMint.body
         cardano-cli conway transaction sign \
-          --signing-key-file testnet/example/utxo-keys/utxo2.skey \
+          --signing-key-file orchestrator.skey \
+          --signing-key-file coldMint.skey \
           --tx-body-file coldMint.body \
           --out-file coldMint.tx
         echo "Sending cold NFT to orchestrator..."
         cardano-cli conway transaction submit --tx-file coldMint.tx
+        sleep 2
         echo "Minting hot NFT"
         cardano-cli conway transaction build \
           --tx-in $(get-orchestrator-ada-only | jq -r '.key') \
           --tx-out "$(cat orchestrator.addr)+5000000 + 1 $HOT_POLICY_ID" \
           --mint "1 $HOT_POLICY_ID" \
           --mint-script-file hotMint.native \
-          --mint-redeemer-value {} \
           --change-address $(cat orchestrator.addr) \
           --out-file hotMint.body
         cardano-cli conway transaction sign \
-          --signing-key-file testnet/example/utxo-keys/utxo3.skey \
+          --signing-key-file orchestrator.skey \
+          --signing-key-file hotMint.skey \
           --tx-body-file hotMint.body \
           --out-file hotMint.tx
         echo "Sending hot NFT to orchestrator..."

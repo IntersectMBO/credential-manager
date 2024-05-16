@@ -134,7 +134,7 @@ Step 2: Create the Transaction
       --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file rotate-cold/body.json
-   Estimated transaction fee: Coin 453559
+   Estimated transaction fee: Coin 453188
 
 Once again, we need signatures from multiple users. To authorize the ``rotate``
 action, the transaction must be signed by a majority of the (current)
@@ -179,8 +179,8 @@ Step 5. Verify the change on chain
 
    $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json
    {
-       "0813129da942da018a4b9398d5ea2fa7dbdaec5f26092c9422a6b078e9a7d8a0#0": {
-           "address": "addr_test1wz9pdjhxtamtu60sld9qqudlldxt06s95dcselvaeuqxzpcq786h2",
+       "3ed22ece44abca5368e8d90ca4b16425491d381cbf1c396ed3f4f538b89cf694": {
+           "address": "addr_test1wzng9lxemp4skvd9zs3zp4eslldxsg87afcvtm22qm07saqew8uzk",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -264,7 +264,7 @@ Step 5. Verify the change on chain
            "inlineDatumhash": "50841fe8863d612edd1c29eaceb68fdc5c8016580c509b5e1ff2636b23dc3aec",
            "referenceScript": null,
            "value": {
-               "40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc": {
+               "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {
                    "": 1
                },
                "lovelace": 5000000

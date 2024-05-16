@@ -106,6 +106,8 @@ This will write three files to the repo root directory:
 
 * ``orchestrator.vkey`` the orchestrator's verification key file
 * ``orchestrator.skey`` the orchestrator's signing key file
+* ``orchestrator-stake.vkey`` a staking verification key file for gov action deposit returns.
+* ``orchestrator-stake.skey`` a signing key file for the staking verification key.
 * ``orchestrator.addr`` the orchestrator's address file, which holds 600,000 ADA
 
 Check the balance with the command
@@ -150,24 +152,16 @@ and hot credentials. We have provided a convenience command to mint these NFTs.
 .. code-block:: bash
 
    $ mint-tokens
-   Minting cold NFT, minting policy: 40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc
-   Estimated transaction fee: Coin 329128
-   Minting hot NFT, minting policy: abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841
-   Estimated transaction fee: Coin 329128
+   Minting cold NFT
+   Estimated transaction fee: Coin 174961
    Sending cold NFT to orchestrator...
    Transaction successfully submitted.
+   Minting hot NFT
+   Estimated transaction fee: Coin 174961
    Sending hot NFT to orchestrator...
    Transaction successfully submitted.
-   This will write the following files to the repo root directory:
 
-This command will write four files to the repo root directory:
-
-* ``coldMint.plutus`` - the minting policy for the cold NFT as a plutus script.
-* ``coldMint.pol`` - the minting policy ID (script hash) of the cold NFT.
-* ``hotMint.plutus`` - the minting policy for the hot NFT as a plutus script.
-* ``hotMint.pol`` - the minting policy ID (script hash) of the hot NFT.
-
-Additionally, it will mint the two NFTs and send them to the orchestrator along
+This command will mint two NFTs and send them to the orchestrator along
 with 5 ADA each:
 
 .. code-block:: bash
@@ -176,29 +170,8 @@ with 5 ADA each:
                               TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
    256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b     0        600000000000 lovelace + TxOutDatumNone
-   678779930f025f96e568be011a8b1c9aa11b885437c9131db4ce6f808a37b3c1     0        5000000 lovelace + 1 40c80aff033eea853403adab3d29ebdaad9c4757a3cee9bfdff4a7cc + TxOutDatumNone
-   6d5f0892e3cfd3b2f5b58dc2965df7ef797125d3192327379ba3db6064e0048d     0        5000000 lovelace + 1 abd6e46e50b70e8b7bcc66bbe35ad8e7393bd9fb704cbbed84797841 + TxOutDatumNone
+   678779930f025f96e568be011a8b1c9aa11b885437c9131db4ce6f808a37b3c1     0        5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4 + TxOutDatumNone
+   6d5f0892e3cfd3b2f5b58dc2965df7ef797125d3192327379ba3db6064e0048d     0        5000000 lovelace + 1 e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0 + TxOutDatumNone
 
-Step 8: Setup a DRep
---------------------
-
-In order to add ourselves to the committee, we will need to ratify a governance
-action. Doing this requires a DRep to be registered on chain with voting power
-delegated to them. This is a somewhat involved process, so the nix shell has
-another script that takes care of this:
-
-.. code-block:: bash
-
-   $ setup-drep
-   Creating DRep wallet and funding...
-   Estimated transaction fee: Coin 171661
-   Transaction successfully submitted.
-   Registering DRep staking address...
-   Estimated transaction fee: Coin 180505
-   Transaction successfully submitted.
-   Registering DRep...
-   Estimated transaction fee: Coin 180725
-   Transaction successfully submitted.
-   Delegating to DRep...
-   Estimated transaction fee: Coin 181869
-   Transaction successfully submitted.
+The policy IDs for these two tokens are in the environment variables
+``$COLD_POLICY_ID`` and ``$HOT_POLICY_ID``.
