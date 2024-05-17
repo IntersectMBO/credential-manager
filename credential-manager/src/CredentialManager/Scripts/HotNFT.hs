@@ -132,7 +132,10 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
             && checkVote
           where
             votes = txInfoVotes txInfo
-            checkVote = Map.keys votes == [CommitteeVoter hotCred]
+            checkVote = case Map.toList votes of
+              [(voter, voterVotes)] ->
+                voter == CommitteeVoter hotCred && not (Map.null voterVotes)
+              _ -> False
         ResignVoting user ->
           isVotingUser
             && signedByResignee

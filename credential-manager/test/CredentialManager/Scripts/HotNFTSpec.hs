@@ -11,7 +11,7 @@ import CredentialManager.Scripts.ColdNFTSpec (
  )
 import CredentialManager.Scripts.HotNFT
 import Data.Foldable (Foldable (..))
-import Data.Function (on, (&))
+import Data.Function (on)
 import Data.List (nub, nubBy)
 import qualified Data.Map as Map
 import GHC.Generics (Generic)
@@ -340,16 +340,12 @@ importanceSampleVotes
   -> HotCommitteeCredential
   -> HotLockRedeemer
   -> Gen (Map Voter (Map GovernanceActionId PV3.Vote))
-importanceSampleVotes onlyValid hotCred red = do
-  actionId <- arbitrary
-  vote <- arbitrary
-  red
-    & importanceSampleArbitrary onlyValid . \case
-      Vote ->
-        pure $
-          AMap.singleton (CommitteeVoter hotCred) $
-            AMap.singleton actionId vote
-      _ -> pure AMap.empty
+importanceSampleVotes onlyValid hotCred =
+  importanceSampleArbitrary onlyValid . \case
+    Vote ->
+      AMap.singleton (CommitteeVoter hotCred)
+        <$> arbitrary `suchThat` (not . AMap.null)
+    _ -> pure AMap.empty
 
 importanceSampleSigners
   :: Bool -> [Identity] -> HotLockDatum -> HotLockRedeemer -> Gen [PubKeyHash]

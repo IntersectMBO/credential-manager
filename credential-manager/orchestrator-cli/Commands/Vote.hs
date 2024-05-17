@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 module Commands.Vote (
   VoteCommand (..),
   voteCommandParser,
@@ -5,9 +7,8 @@ module Commands.Vote (
 ) where
 
 import Cardano.Api.Ledger (
-  AnchorData,
+  Anchor (..),
   GovActionId (..),
-  SafeHash,
   StandardCrypto,
   Url,
   Vote (..),
@@ -28,8 +29,11 @@ import Commands.Common (
   writeTxOutValueToFile,
   writeVoteToFile,
  )
+import Control.Applicative (Alternative (..))
 import CredentialManager.Orchestrator.Vote
 import Data.Foldable (Foldable (..), asum)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Options.Applicative (
   InfoMod,
   Mod,
@@ -50,10 +54,7 @@ import Options.Applicative (
 data VoteCommand = VoteCommand
   { utxoFile :: FilePath
   , hotCredentialScriptFile :: FilePath
-  , govActionId :: GovActionId StandardCrypto
-  , vote_ :: Vote
-  , metadataUrl :: Url
-  , metadataHash :: SafeHash StandardCrypto AnchorData
+  , votes :: Map (GovActionId StandardCrypto) (Vote, Anchor StandardCrypto)
   , outDir :: FilePath
   }
 
@@ -69,11 +70,18 @@ voteCommandParser = info parser description
       VoteCommand
         <$> utxoFileParser
         <*> hotCredentialScriptFileParser
-        <*> govActionIdParser
-        <*> voteParser
-        <*> metadataUrlParser metadataInfo
-        <*> metadataHashParser
+        <*> votesParser
         <*> outDirParser
+
+votesParser
+  :: Parser (Map (GovActionId StandardCrypto) (Vote, Anchor StandardCrypto))
+votesParser =
+  Map.fromList <$> some do
+    govAction <- govActionIdParser
+    vote_ <- voteParser
+    url <- metadataUrlParser metadataInfo
+    hash <- metadataHashParser
+    pure (govAction, (vote_, Anchor url hash))
 
 govActionIdParser :: Parser (GovActionId StandardCrypto)
 govActionIdParser = GovActionId <$> txIdParser <*> govActionIxParser
