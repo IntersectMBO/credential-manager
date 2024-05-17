@@ -74,6 +74,14 @@ Now we can use ``orchestrator-cli`` to build our transaction assets:
      --metadata-hash $(cat anchor.hash) \
      --out-dir vote
 
+.. note::
+   You can cast more than one vote per transaction. To specify multiple votes,
+   specify ``--governance-action-tx-id``, ``--governance-action-index``,
+   ``(--yes|--no|--abstain)``, ``--metadata-url``, and ``--metadata-hash`` once
+   for each vote. Be careful about the ordering when specifying multiple votes,
+   as the order of the arguments determines how they are grouped when building
+   the vote file.
+
 Let's see what assets were created.
 
 .. code-block:: bash
@@ -90,36 +98,15 @@ As before, the output datum is the same as the input datum:
 
    diff <(jq '.inlineDatum' < hot-nft.utxo) <(jq '.' < vote/datum.json)
 
-And the redeemer instructs the script to perform the ``Vote`` action with the
-provided details:
+And the redeemer instructs the script to perform the ``Vote`` action:
 
 .. code-block:: bash
 
    cat vote/redeemer.json
    {
        "constructor": 0,
-       "fields": [
-           {
-               "constructor": 0,
-               "fields": [
-                   {
-                       "bytes": "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3"
-                   },
-                   {
-                       "int": 0
-                   }
-               ]
-           },
-           {
-               "constructor": 1,
-               "fields": []
-           }
-       ]
+       "fields": []
    }
-
-The outer constructor is the ``Vote`` constructor (index ``0``), the first
-field is the governance action ID, and the second field is the ``Yes`` vote
-(index ``1``).
 
 Ignoring the ``value`` file, which as before is just a convenience for building
 the transaction with ``cardano-cli``, the last file of note is ``vote``. This

@@ -95,8 +95,9 @@ findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
 txSignedBy :: TxInfo -> PubKeyHash -> Bool
 txSignedBy TxInfo{txInfoSignatories} k = k `elem` txInfoSignatories
 
--- | This script just checks that the hard-coded currency symbol of the NFT is
--- in any spending input of the transaction.
+-- | This script validates:
+-- * delegators group actions beside voting group management
+-- * members group actions
 {-# INLINEABLE coldNFTScript #-}
 coldNFTScript
   :: ColdCommitteeCredential

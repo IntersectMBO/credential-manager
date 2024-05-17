@@ -30,9 +30,8 @@ If the redeemer is a ``Vote`` action:
   **voting group** defined in the datum.
 * The transaction contains a committee voting procedure:
   * The hot credential performing the vote is the same credential provided to the script as a parameter.
-  * The ID of the Governance action being voted on matches the ID in the redeemer.
-  * The vote matches the vote in the redeemer redeemer.
-* The transaction does not contain any other votes.
+  * The voting procedure casts one or more votes.
+* The transaction does not contain votes from other voters.
 
 If the redeemer is a ``ResignVoting`` action:
 
@@ -95,13 +94,6 @@ Main schema
 * **Valid constructor indexes**:
     0. * **Haskell Name**: ``Vote``
        * **Description**: Require the transaction to cast a committee vote.
-       * **Fields**:
-          * Field 1:
-              * **Type**: GovernanceActionId from Plutus V3.
-              * **Description**: The governance action to vote on.
-          * Field 2:
-              * **Type**: Vote from Plutus V3.
-              * **Description**: Hot to vote.
     1. * **Haskell Name**: ``ResignVoting``
        * **Description**: Require the transaction to remove a user from the
          **voting group**.

@@ -58,7 +58,7 @@ Voting Role
 The voting role authorizes votes. This is the main working group in the system
 - they are the ones with the responsibility to deliberate and decide how to
 vote on governance actions, write and publish rationale documents, and
-coordinate with the orchestrator to publish votes. The are able to perform the
+coordinate with the orchestrator to publish votes. They are able to perform the
 following actions:
 
 * Vote on governance actions.

@@ -13,45 +13,32 @@ import Cardano.Api (
  )
 import Cardano.Api.Ledger (
   Anchor (..),
-  AnchorData,
   Credential (..),
   GovActionId (..),
-  SafeHash,
   StandardCrypto,
   StrictMaybe (..),
-  Url,
   Vote (..),
   Voter (..),
   VotingProcedure (..),
   VotingProcedures (..),
-  hashToBytes,
  )
 import Cardano.Api.Shelley (ShelleyLedgerEra, hashScript, toShelleyScriptHash)
 import qualified Cardano.Api.Shelley as Shelley
-import Cardano.Ledger.Conway.Governance (GovActionIx (..))
-import Cardano.Ledger.SafeHash (extractHash)
-import Cardano.Ledger.TxIn (TxId (..))
+import qualified Cardano.Ledger.Conway as L
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
   getInlineDatum,
   getScriptAddress,
  )
+import Data.Map (Map)
 import qualified Data.Map as Map
 import GHC.Generics (Generic)
-import PlutusLedgerApi.V3 (
-  GovernanceActionId (..),
-  toBuiltin,
- )
-import qualified PlutusLedgerApi.V3 as PV3
 
 data VoteInputs = VoteInputs
   { hotCredentialScript :: Script PlutusScriptV3
   , scriptUtxo :: TxOut CtxUTxO ConwayEra
-  , govActionId :: GovActionId StandardCrypto
-  , vote_ :: Vote
-  , metadataUrl :: Url
-  , metadataHash :: SafeHash StandardCrypto AnchorData
+  , votes :: Map (GovActionId StandardCrypto) (Vote, Anchor StandardCrypto)
   }
   deriving (Show, Eq, Generic)
 
@@ -79,16 +66,7 @@ vote VoteInputs{..} = do
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum
   let hotCredentialScriptHash = hashScript hotCredentialScript
-  let plutusGovActionId = case govActionId of
-        GovActionId (TxId txId) (GovActionIx ix) ->
-          GovernanceActionId
-            (PV3.TxId $ toBuiltin $ hashToBytes $ extractHash txId)
-            (fromIntegral ix)
-  let plutusVote = case vote_ of
-        VoteYes -> PV3.VoteYes
-        VoteNo -> PV3.VoteNo
-        Abstain -> PV3.Abstain
-  let redeemer = Vote plutusGovActionId plutusVote
+  let redeemer = Vote
   let outputDatum = inputDatum
   let outputValue = txOutValueToValue inputValue
   let voter =
@@ -99,8 +77,10 @@ vote VoteInputs{..} = do
         Shelley.VotingProcedures
           . VotingProcedures @(ShelleyLedgerEra ConwayEra)
           . Map.singleton voter
-          . Map.singleton govActionId
-          . VotingProcedure vote_
-          . SJust
-          $ Anchor metadataUrl metadataHash
+          $ toVotingProcedure <$> votes
   pure VoteOutputs{..}
+
+toVotingProcedure
+  :: (Vote, Anchor StandardCrypto)
+  -> VotingProcedure (L.ConwayEra StandardCrypto)
+toVotingProcedure (vote_, anchor) = VotingProcedure vote_ $ SJust anchor

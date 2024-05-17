@@ -112,8 +112,7 @@ findTxInByCurrencySymbolInRefUTxO symbol txInfo =
     (\txIn -> symbol `member` (getValue . txOutValue . txInInfoResolved) txIn)
     (txInfoReferenceInputs txInfo)
 
--- | This script just checks that the hard-coded currency symbol of the NFT is
--- in any spending input of the transaction.
+-- | This script validates voting group actions as well as its rotation through delagators action.
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
   :: CurrencySymbol
@@ -127,16 +126,16 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
       Just (TxInInfo _ ownInput) -> case red of
-        Vote govAction vote ->
+        Vote ->
           checkTxOutPreservation ownInput outputs
             && checkMultiSig votingUsers signatures
             && checkVote
           where
-            checkVote =
-              txInfoVotes txInfo
-                == Map.singleton
-                  (CommitteeVoter hotCred)
-                  (Map.singleton govAction vote)
+            votes = txInfoVotes txInfo
+            checkVote = case Map.toList votes of
+              [(voter, voterVotes)] ->
+                voter == CommitteeVoter hotCred && not (Map.null voterVotes)
+              _ -> False
         ResignVoting user ->
           isVotingUser
             && signedByResignee
