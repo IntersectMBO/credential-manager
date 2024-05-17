@@ -112,8 +112,7 @@ findTxInByCurrencySymbolInRefUTxO symbol txInfo =
     (\txIn -> symbol `member` (getValue . txOutValue . txInInfoResolved) txIn)
     (txInfoReferenceInputs txInfo)
 
--- | This script just checks that the hard-coded currency symbol of the NFT is
--- in any spending input of the transaction.
+-- | This script validates voting group actions as well as its rotation through delagators action.
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
   :: CurrencySymbol

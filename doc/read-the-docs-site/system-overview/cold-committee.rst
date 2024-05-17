@@ -25,7 +25,7 @@ The script enforces two rules:
   Note that it does not check:
 
   * That the certificate being authorized is a valid certificate for a cold
-    committee credential to authorized. This check is unnecessary, as the ledger
+    committee credential to be authorized. This check is unnecessary, as the ledger
     rules would not ask a cold committee credential to authorize any other type
     of certificate.
   * That the NFT is actually an NFT, as it doesn't have access to sufficient
