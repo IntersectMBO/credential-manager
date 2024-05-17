@@ -37,38 +37,32 @@ spec = do
     "Invariant V2: Vote ignores duplicate signers in voting group"
     invariantV2DuplicateVoting
   prop
-    "Invariant V3: Vote fails if gov action ID match"
-    invariantV3GovActionIdMismatch
+    "Invariant V3: Vote fails if the voter doesn't match"
+    invariantV3VoterMismatch
   prop
-    "Invariant V4: Vote fails if the voter doesn't match"
-    invariantV4VoterMismatch
+    "Invariant V4: Vote fails if voting list is empty"
+    invariantV4EmptyVoting
   prop
-    "Invariant V5: Vote fails if the vote doesn't match"
-    invariantV5VoteMismatch
+    "Invariant V5: Vote fails if extra votes are present"
+    invariantV5ExtraVotes
   prop
-    "Invariant V6: Vote fails if voting list is empty"
-    invariantV6EmptyVoting
+    "Invariant V6: Vote fails if no votes are present"
+    invariantV6VoteNoVotes
   prop
-    "Invariant V7: Vote fails if extra votes are present"
-    invariantV7ExtraVotes
+    "Invariant V8: Vote fails without output to self"
+    invariantV7VoteNoSelfOutput
   prop
-    "Invariant V8: Vote fails if no votes are present"
-    invariantV8VoteNoVotes
+    "Invariant V8: Vote fails with multiple outputs to self"
+    invariantV8VoteMultipleSelfOutputs
   prop
-    "Invariant V10: Vote fails without output to self"
-    invariantV9VoteNoSelfOutput
+    "Invariant V9: Vote fails if value not preserved"
+    invariantV9VoteValueNotPreserved
   prop
-    "Invariant V10: Vote fails with multiple outputs to self"
-    invariantV10VoteMultipleSelfOutputs
+    "Invariant V10: Vote fails if datum not preserved"
+    invariantV10VoteDatumNotPreserved
   prop
-    "Invariant V11: Vote fails if value not preserved"
-    invariantV11VoteValueNotPreserved
-  prop
-    "Invariant V12: Vote fails if datum not preserved"
-    invariantV12VoteDatumNotPreserved
-  prop
-    "Invariant V13: Vote fails if self output contains reference script"
-    invariantV13VoteReferenceScriptInOutput
+    "Invariant V11: Vote fails if self output contains reference script"
+    invariantV11VoteReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldPolicy datum redeemer ctx ->
@@ -110,25 +104,8 @@ invariantV2DuplicateVoting args@ValidArgs{..} =
       counterexample ("Datum: " <> show datum') $
         hotNFTScript coldPolicy voteHotCredential datum' redeemer ctx === True
 
-invariantV3GovActionIdMismatch :: ValidArgs -> Property
-invariantV3GovActionIdMismatch args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
-    actionId <- arbitrary `suchThat` (/= voteActionId)
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoVotes =
-                      AMap.singleton (CommitteeVoter voteHotCredential) $
-                        AMap.singleton actionId voteVote
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
-
-invariantV4VoterMismatch :: ValidArgs -> Property
-invariantV4VoterMismatch args@ValidArgs{..} =
+invariantV3VoterMismatch :: ValidArgs -> Property
+invariantV3VoterMismatch args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     voter <- arbitrary `suchThat` (/= CommitteeVoter voteHotCredential)
     let ctx' =
@@ -144,31 +121,14 @@ invariantV4VoterMismatch args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV5VoteMismatch :: ValidArgs -> Property
-invariantV5VoteMismatch args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
-    vote <- arbitrary `suchThat` (/= voteVote)
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoVotes =
-                      AMap.singleton (CommitteeVoter voteHotCredential) $
-                        AMap.singleton voteActionId vote
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
-
-invariantV6EmptyVoting :: ValidArgs -> Property
-invariantV6EmptyVoting args@ValidArgs{..} =
+invariantV4EmptyVoting :: ValidArgs -> Property
+invariantV4EmptyVoting args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     let datum' = datum{votingUsers = []}
     hotNFTScript coldPolicy voteHotCredential datum' redeemer ctx === False
 
-invariantV7ExtraVotes :: ValidArgs -> Property
-invariantV7ExtraVotes args@ValidArgs{..} =
+invariantV5ExtraVotes :: ValidArgs -> Property
+invariantV5ExtraVotes args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     extra <-
       arbitrary `suchThat` \votes ->
@@ -190,8 +150,8 @@ invariantV7ExtraVotes args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV8VoteNoVotes :: ValidArgs -> Property
-invariantV8VoteNoVotes args@ValidArgs{..} =
+invariantV6VoteNoVotes :: ValidArgs -> Property
+invariantV6VoteNoVotes args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     let ctx' =
           ctx
@@ -201,8 +161,8 @@ invariantV8VoteNoVotes args@ValidArgs{..} =
     counterexample ("Context: " <> show ctx') $
       hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV9VoteNoSelfOutput :: ValidArgs -> Property
-invariantV9VoteNoSelfOutput args@ValidArgs{..} =
+invariantV7VoteNoSelfOutput :: ValidArgs -> Property
+invariantV7VoteNoSelfOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     newAddress <- arbitrary `suchThat` (/= voteScriptAddress)
     let modifyAddress TxOut{..}
@@ -222,8 +182,8 @@ invariantV9VoteNoSelfOutput args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV10VoteMultipleSelfOutputs :: ValidArgs -> Property
-invariantV10VoteMultipleSelfOutputs args@ValidArgs{..} =
+invariantV8VoteMultipleSelfOutputs :: ValidArgs -> Property
+invariantV8VoteMultipleSelfOutputs args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     let setAddress txOut = txOut{txOutAddress = voteScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
@@ -237,8 +197,8 @@ invariantV10VoteMultipleSelfOutputs args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV11VoteValueNotPreserved :: ValidArgs -> Property
-invariantV11VoteValueNotPreserved args@ValidArgs{..} =
+invariantV9VoteValueNotPreserved :: ValidArgs -> Property
+invariantV9VoteValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     newValue <- arbitrary `suchThat` (/= voteValue)
     let modifyValue TxOut{..}
@@ -258,8 +218,8 @@ invariantV11VoteValueNotPreserved args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV12VoteDatumNotPreserved :: ValidArgs -> Property
-invariantV12VoteDatumNotPreserved args@ValidArgs{..} =
+invariantV10VoteDatumNotPreserved :: ValidArgs -> Property
+invariantV10VoteDatumNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     newDatum <-
       oneof
@@ -287,8 +247,8 @@ invariantV12VoteDatumNotPreserved args@ValidArgs{..} =
       counterexample ("Context: " <> show ctx') $
         hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
 
-invariantV13VoteReferenceScriptInOutput :: ValidArgs -> Property
-invariantV13VoteReferenceScriptInOutput args@ValidArgs{..} =
+invariantV11VoteReferenceScriptInOutput :: ValidArgs -> Property
+invariantV11VoteReferenceScriptInOutput args@ValidArgs{..} =
   forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
     referenceScript <- Just <$> arbitrary
     let addReferenceScript TxOut{..}
@@ -319,8 +279,7 @@ forAllValidScriptContexts
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $
-    f voteColdPolicy datum $
-      Vote voteActionId voteVote
+    f voteColdPolicy datum Vote -- voteActionId voteVote
   where
     gen = do
       additionalInputs <-

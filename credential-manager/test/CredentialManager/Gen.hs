@@ -129,7 +129,7 @@ instance Arbitrary HotLockDatum where
 instance Arbitrary HotLockRedeemer where
   arbitrary =
     oneof
-      [ Vote <$> arbitrary <*> arbitrary
+      [ pure Vote
       , ResignVoting <$> arbitrary
       , pure RotateHot
       , pure UnlockHot

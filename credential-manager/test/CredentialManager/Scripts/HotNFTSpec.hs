@@ -11,7 +11,7 @@ import CredentialManager.Scripts.ColdNFTSpec (
  )
 import CredentialManager.Scripts.HotNFT
 import Data.Foldable (Foldable (..))
-import Data.Function (on)
+import Data.Function (on, (&))
 import Data.List (nub, nubBy)
 import qualified Data.Map as Map
 import GHC.Generics (Generic)
@@ -59,7 +59,7 @@ invariant1BadPurpose args@ScriptArgs{..} =
   forAllScriptContexts False args \ctx ->
     classify (wrapHotNFTScript coldPolicy hotCredential datum redeemer ctx) "Valid"
       . label case redeemer of
-        Vote _ _ -> "Vote"
+        Vote -> "Vote"
         ResignVoting _ -> "ResignVoting"
         RotateHot -> "RotateHot"
         UnlockHot -> "UnlockHot"
@@ -206,7 +206,7 @@ importanceSampleColdDatum onlyValid = \case
 importanceSampleRedeemers :: Gen HotLockRedeemer
 importanceSampleRedeemers =
   frequency
-    [ (5, Vote <$> arbitrary <*> arbitrary)
+    [ (2, pure Vote)
     , (5, ResignVoting <$> arbitrary)
     , (2, pure RotateHot)
     , (1, pure UnlockHot)
@@ -243,7 +243,7 @@ importanceSampleOutputVoting
   :: Bool -> HotLockRedeemer -> HotLockDatum -> Gen [Identity]
 importanceSampleOutputVoting onlyValid redeemer HotLockDatum{..} =
   importanceSampleArbitrary onlyValid case redeemer of
-    Vote _ _ -> pure votingUsers
+    Vote -> pure votingUsers
     ResignVoting user -> pure $ filter (/= user) votingUsers
     RotateHot -> nubBy (on (==) pubKeyHash) <$> listOf1 arbitrary
     UnlockHot -> arbitrary
@@ -340,19 +340,22 @@ importanceSampleVotes
   -> HotCommitteeCredential
   -> HotLockRedeemer
   -> Gen (Map Voter (Map GovernanceActionId PV3.Vote))
-importanceSampleVotes onlyValid hotCred =
-  importanceSampleArbitrary onlyValid . \case
-    Vote actionId vote ->
-      pure $
-        AMap.singleton (CommitteeVoter hotCred) $
-          AMap.singleton actionId vote
-    _ -> pure AMap.empty
+importanceSampleVotes onlyValid hotCred red = do
+  actionId <- arbitrary
+  vote <- arbitrary
+  red
+    & importanceSampleArbitrary onlyValid . \case
+      Vote ->
+        pure $
+          AMap.singleton (CommitteeVoter hotCred) $
+            AMap.singleton actionId vote
+      _ -> pure AMap.empty
 
 importanceSampleSigners
   :: Bool -> [Identity] -> HotLockDatum -> HotLockRedeemer -> Gen [PubKeyHash]
 importanceSampleSigners onlyValid delegationUsers HotLockDatum{..} =
   importanceSampleArbitrary onlyValid . \case
-    Vote _ _ -> sampleSignersGroup votingUsers
+    Vote -> sampleSignersGroup votingUsers
     ResignVoting Identity{..} -> pure [pubKeyHash]
     RotateHot -> sampleSignersGroup delegationUsers
     UnlockHot -> sampleSignersGroup delegationUsers
