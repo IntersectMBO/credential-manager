@@ -132,12 +132,7 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
             && checkVote
           where
             votes = txInfoVotes txInfo
-            checkVote =
-              length votes
-                == 1
-                && elem
-                  (CommitteeVoter hotCred)
-                  (Map.keys votes)
+            checkVote = Map.keys votes == [CommitteeVoter hotCred]
         ResignVoting user ->
           isVotingUser
             && signedByResignee
