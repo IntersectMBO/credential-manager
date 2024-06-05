@@ -14,6 +14,7 @@ cabalProject:
   packages = [
     pkgs.scriv
     pkgs.jq
+    pkgs.wrapGAppsHook4
     inputs.cardano-node.packages.cardano-node
     inputs.cardano-cli.packages."cardano-cli:exe:cardano-cli"
     repoRoot.nix.jsonld-nix.default.nodeDependencies
@@ -217,7 +218,7 @@ cabalProject:
 
   shellHook = ''
     export CARDANO_NODE_SOCKET_PATH="$(git rev-parse --show-toplevel)/testnet/example/node-spo1/node.sock"
-    cabal update
+    export XDG_DATA_DIRS=$XDG_DATA_DIRS:$GSETTINGS_SCHEMAS_PATH
   '';
 }
  

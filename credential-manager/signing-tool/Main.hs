@@ -1,36 +1,51 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main where
 
+import Components.Common
+import Components.MainButtons (MainButtons (..), buildMainButtons)
+import Components.TxView (buildTxView)
 import Control.Exception (catch)
 import Data.Functor (void)
 import Data.GI.Base
 import Data.Int (Int32)
-import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import GHC.IO.Exception (ExitCode (ExitFailure))
+import qualified GI.Gio as GIO
 import qualified GI.Gtk as G
+import Options (Options (..), options)
+import Options.Applicative (execParser)
 import Reactive.Banana
 import Reactive.Banana.Frameworks
 import Reactive.Banana.GI.Gtk (signalE0)
 import System.Exit (exitSuccess, exitWith)
 
 main :: IO ()
-main = runApp `catch` \(e :: GError) -> gerrorMessage e >>= putStrLn . T.unpack
+main = do
+  Options{..} <- execParser options
+  config <- traverse loadConfig configFile
+  runApp config `catch` \(e :: GError) -> do
+    msg <- gerrorMessage e
+    T.putStrLn msg
 
-runApp :: IO ()
-runApp = do
+runApp :: Maybe (AppConfig GIO.File) -> IO ()
+runApp config = do
   app <- new G.Application [#applicationId := "iog.signing-tool"]
   appNetwork <- compile do
     activateE <- signalE0 app #activate
     let ?app = app
+        ?config = config
      in void $ execute $ buildMainWindow <$ activateE
   actuate appNetwork
   exitWithInt =<< app.run Nothing
 
-buildMainWindow :: (?app :: G.Application) => MomentIO ()
-buildMainWindow = do
+buildMainWindow :: (Globals) => MomentIO ()
+buildMainWindow = mdo
   window <- new G.ApplicationWindow [#application := ?app]
   window.setTitle $ Just "Transaction Signing Tool"
 
@@ -48,30 +63,14 @@ buildMainWindow = do
   txViewLabel.setHalign G.AlignStart
   box.append txViewLabel
 
-  txView <- new G.ScrolledWindow []
-  txView.setVexpand True
-  txView.setHasFrame True
+  txView <- buildTxView newTxE
   box.append txView
 
-  mainButtons <- buildMainButtons
-  box.append mainButtons
+  mainButtons <- buildMainButtons window
+  let newTxE = mainButtons.newTxE
+  box.append mainButtons.widget
 
   window.present
-
-buildMainButtons :: MomentIO G.Box
-buildMainButtons = do
-  box <- new G.Box [#orientation := G.OrientationHorizontal]
-  box.setHalign G.AlignStart
-  box.setValign G.AlignCenter
-  box.setSpacing 8
-
-  importTxButton <- new G.Button [#label := "Import transaction"]
-  box.append importTxButton
-
-  createKeyPairButton <- new G.Button [#label := "Create new key pair"]
-  box.append createKeyPairButton
-
-  pure box
 
 exitWithInt :: Int32 -> IO ()
 exitWithInt 0 = exitSuccess
