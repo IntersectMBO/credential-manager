@@ -5,26 +5,13 @@
 
 module Components.TxView where
 
-import Cardano.Api (
-  ConwayEra,
-  FileError (..),
-  TextEnvelopeCddlError (..),
-  TxBody (..),
-  TxBodyContent (..),
- )
-import Cardano.Binary (DecoderError)
 import Components.Common
-import Control.Exception (Exception (..))
-import Control.Monad.Trans.Maybe (MaybeT (..))
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.Functor (void)
 import Data.GI.Base
 import Data.GI.Base.Attributes (AttrOpTag (..))
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TLB
-import Formatting.Buildable (Buildable (..))
 import GI.Gtk (
   ScrolledWindow (..),
   TextBuffer,
@@ -34,12 +21,10 @@ import GI.Gtk (
  )
 import Reactive.Banana (Event)
 import Reactive.Banana.Frameworks
+import TxSummary.Common (ItemStatus (..), SummaryItem (..))
 
-buildTxView
-  :: (Globals)
-  => Event (Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra))
-  -> MomentIO ScrolledWindow
-buildTxView newTxE = do
+buildTxView :: (Globals) => Event [SummaryItem] -> MomentIO ScrolledWindow
+buildTxView summaryItemsE = do
   scrollWindow <-
     new
       ScrolledWindow
@@ -61,7 +46,7 @@ buildTxView newTxE = do
   initializeBuffer buffer
   scrollWindow.setChild $ Just textView
 
-  reactimate $ renderBuffer buffer <$> newTxE
+  reactimate $ renderBuffer buffer <$> summaryItemsE
 
   pure scrollWindow
 
@@ -96,7 +81,7 @@ initializeBuffer buffer = do
   createTag
     buffer
     [ #name := "step-warn"
-    , #foreground := "yellow"
+    , #foreground := "goldenrod"
     ]
   createTag
     buffer
@@ -111,81 +96,27 @@ createTag buffer attrs = do
   tag <- new TextTag attrs
   void $ tbl.add tag
 
-renderBuffer
-  :: TextBuffer
-  -> Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra)
-  -> IO ()
-renderBuffer buffer state = do
+renderBuffer :: TextBuffer -> [SummaryItem] -> IO ()
+renderBuffer buffer items = do
   (start, end) <- buffer.getBounds
   buffer.delete start end
   iter <- buffer.getIterAtOffset 0
-  void $ runMaybeT do
-    tx <- insertStep buffer iter "Check transaction body file" do
-      case state of
-        Left err -> renderError buffer iter err
-        Right tx -> pure (Ok tx)
-    renderTx buffer iter tx
+  traverse_ (renderItem buffer iter) items
   (start', end') <- buffer.getBounds
   buffer.applyTagByName "mono" start' end'
 
-renderError
-  :: TextBuffer -> TextIter -> FileError TextEnvelopeCddlError -> IO (StepResult a)
-renderError buffer iter err = do
-  case err of
-    FileError _ (TextEnvelopeCddlErrUnknownType t) -> do
-      buffer.insert
-        iter
-        ("Text envelope \"type\" field invalid. Unknown type: " <> t <> "\n")
-        (-1)
-    FileError _ (TextEnvelopeCddlTypeError expected received) ->
-      renderTextEnvelopeTypeError buffer iter expected received
-    FileError _ (TextEnvelopeCddlErrCBORDecodingError decodeError) ->
-      renderTextEnvelopeDecodeError buffer iter decodeError
-    FileError _ (TextEnvelopeCddlAesonDecodeError _ decodeError) ->
-      renderTextEnvelopeAesonDecodeError buffer iter decodeError
-    FileError _ TextEnvelopeCddlUnknownKeyWitness -> pure () -- won't happen here
-    FileError _ TextEnvelopeCddlErrByronKeyWitnessUnsupported -> pure () -- won't happen here
-    FileErrorTempFile{} -> do
-      buffer.insert iter "Unable to open temporary file\n" (-1)
-    FileDoesNotExistError{} -> do
-      buffer.insert iter "File does not exist\n" (-1)
-    FileIOError _ ioErr -> do
-      buffer.insert iter "Error reading file:\n" (-1)
-      buffer.insert iter (T.pack $ displayException ioErr) (-1)
-  pure Error
-
-renderTextEnvelopeTypeError
-  :: TextBuffer
-  -> TextIter
-  -> [Text]
-  -> Text
-  -> IO ()
-renderTextEnvelopeTypeError buffer iter expected received = do
-  buffer.insert
+renderItem :: TextBuffer -> TextIter -> SummaryItem -> IO ()
+renderItem buffer iter SummaryItem{..} = do
+  let (icon, titleTag) = case itemStatus of
+        Ok -> ("✓", "step-ok")
+        Warn -> ("⚠", "step-warn")
+        Error -> ("✘", "step-error")
+  insertWithTagsByName
+    buffer
     iter
-    "Text envelope \"type\" field invalid. Expected one of:\n"
-    (-1)
-  renderWithTagsByName buffer iter ["indent"] do
-    for_ expected \t -> buffer.insert iter ("⋅ " <> t <> "\n") (-1)
-  buffer.insert iter "But got " (-1)
-  buffer.insert iter received (-1)
-
-renderTextEnvelopeDecodeError :: TextBuffer -> TextIter -> DecoderError -> IO ()
-renderTextEnvelopeDecodeError buffer iter err = do
-  buffer.insert
-    iter
-    "Text envelope file contains invalid tx body binary data. Details:\n"
-    (-1)
-  renderWithTagsByName buffer iter ["indent"] do
-    buffer.insert iter (TL.toStrict $ TLB.toLazyText $ build err) (-1)
-
-renderTextEnvelopeAesonDecodeError :: TextBuffer -> TextIter -> String -> IO ()
-renderTextEnvelopeAesonDecodeError buffer iter err = do
-  buffer.insert iter "Text envelope file contains invalid JSON. Details:\n" (-1)
-  buffer.insert iter (T.pack err) (-1)
-
-renderTx :: TextBuffer -> TextIter -> TxBody ConwayEra -> MaybeT IO ()
-renderTx _buffer _iter (TxBody TxBodyContent{}) = pure ()
+    (icon <> " " <> itemTitle <> "\n")
+    [titleTag, "step"]
+  insertWithTagsByName buffer iter (T.unlines itemDetails) ["step-details"]
 
 renderWithTagsByName :: TextBuffer -> TextIter -> [Text] -> IO a -> IO a
 renderWithTagsByName buffer iter tags render = do
@@ -198,24 +129,3 @@ renderWithTagsByName buffer iter tags render = do
 insertWithTagsByName :: TextBuffer -> TextIter -> Text -> [Text] -> IO ()
 insertWithTagsByName buffer iter text tags = do
   renderWithTagsByName buffer iter tags (buffer.insert iter text (-1))
-
-data StepResult a = Ok a | Warn a | Error
-
-insertStep :: TextBuffer -> TextIter -> Text -> IO (StepResult a) -> MaybeT IO a
-insertStep buffer iter title step = MaybeT do
-  titleStart <- buffer.createMark Nothing iter True
-  buffer.insert iter title (-1)
-  titleEnd <- buffer.createMark Nothing iter True
-  buffer.insert iter "\n" (-1)
-  result <- renderWithTagsByName buffer iter ["step-details"] step
-  let (icon, titleTag, mResult) = case result of
-        Ok a -> ("✓", "step-ok", Just a)
-        Warn a -> ("⚠", "step-warn", Just a)
-        Error -> ("✘", "step-error", Nothing)
-  titleStartIter <- buffer.getIterAtMark titleStart
-  buffer.insert titleStartIter (icon <> " ") (-1)
-  titleStartIter' <- buffer.getIterAtMark titleStart
-  titleEndIter <- buffer.getIterAtMark titleEnd
-  buffer.applyTagByName "step" titleStartIter' titleEndIter
-  buffer.applyTagByName titleTag titleStartIter' titleEndIter
-  pure mResult

@@ -24,6 +24,7 @@ import Reactive.Banana
 import Reactive.Banana.Frameworks
 import Reactive.Banana.GI.Gtk (signalE0)
 import System.Exit (exitSuccess, exitWith)
+import TxSummary (summarizeTx)
 
 main :: IO ()
 main = do
@@ -63,11 +64,11 @@ buildMainWindow = mdo
   txViewLabel.setHalign G.AlignStart
   box.append txViewLabel
 
-  txView <- buildTxView newTxE
+  txView <- buildTxView summaryItemsE
   box.append txView
 
   mainButtons <- buildMainButtons window
-  let newTxE = mainButtons.newTxE
+  let summaryItemsE = summarizeTx <$> mainButtons.newTxE
   box.append mainButtons.widget
 
   window.present
