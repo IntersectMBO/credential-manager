@@ -1,18 +1,42 @@
 .. _cc_credentials:
 
-Constitutional Committee Credentials
-====================================
+Balancing security and accessibility with cold and hot credentials
+==================================================================
 
-Having covered credentials in general, let's take a closer look at
-Constitutional Committee credentials. Members of the constitutional committee
-have two credentials to manage: a cold credential and a hot credential.
+Constitutional Committee members maintain operational integrity by managing two credentials: a cold credential and a hot credential.
 
-Cold Credentials
+One of the purposes of this credential management system is to provide multiple layers of security to help committee members prevent losing control over a cold credential and to give good options for recovery if necessary. 
+
+Before looking more closely at details, let's briefly put this discussion into a practical context. 
+
+Querying the committee state
+-------------------------------------------
+
+Querying the current committee state from a Cardano node is a standard procedure for those involved in the governance and maintenance of the Cardano network. 
+It is technical step performed to interact with and verify the state of the blockchain regarding committee membership and credential status. 
+
+The purpose of querying the committee state includes the following: 
+
+- **Checking membership:** By querying the committee state, you can verify which members are currently part of the committee by checking their cold credentials.
+- **Confirming credential status:** It allows you to check the status of both hot and cold credentials, such as whether a hot credential is authorized to vote on behalf of a cold credential.
+- **Validating changes:** After performing certain actions, like authorizing a hot credential or submitting a resignation, querying the state helps confirm that these changes have taken effect on-chain.
+- **Monitoring expiration:** The query can show you the expiration of credentials, which is crucial for maintaining active participation in the committee's activities.
+
+Typically done by the Orchestrator role
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Typically, someone in the Orchestrator role would be querying the current committee state. 
+The Orchestrator is one of the operational roles within the Constitutional Committee Credential Management System. 
+
+The Orchestrator role requires a deep understanding of the Credential Manager system and the ability to execute commands using the Cardano CLI. 
+
+Cold credentials
 ----------------
 
-The cold credential is used to identify committee members, and can be thought
-of as a sort of "primary" credential. The cold credential is what you see if
-you query the current committee state from a Cardano node:
+Given that context, let's take a closer look at some details about the cold credential. 
+
+Think of the cold credential as a "primary" credential that's used for identifying committee members. 
+The cold credential is what the Orchestrator sees from the command line when querying the current committee state from a Cardano node:
 
 .. code-block:: bash
 
@@ -34,51 +58,44 @@ you query the current committee state from a Cardano node:
       "threshold": 0.67
    }
 
-This example shows a committee with one member identified by the cold
-credential ``keyHash-5e86313210aef13297187c38c98abb632678906230f555a1bf0a647a``.
-The cold credential is used to authorize transactions that publish two types of
-certificates:
+This example shows a committee with one member identified by the cold credential ``keyHash-5e86313210aef13297187c38c98abb632678906230f555a1bf0a647a``.
+Note the tag: ``MemberNotAuthorized``.
 
-1. Hot credential authorization certificates, which have the effect of
-   registering a hot credential to vote on behalf of the cold credential.
-2. Committee resignation certificates, which have the effect of removing the
-   member from the committee.
+Authorizing transactions that publish two types of certificates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Both of these are exceptional events which should occur infrequently, if at all
-(a hot credential must be authorized at least once to allow for voting).
+The cold credential is used to authorize transactions that publish two types of certificates:
 
-A cold credential can be added to the committee in one of two ways:
+1. Hot credential authorization certificates, which have the effect of registering a hot credential to vote on behalf of the cold credential.
+2. Committee resignation certificates, which have the effect of removing the member from the committee.
 
-1. A governance action proposing to add it to the committee is ratified and
-   enacted.
-2. It is hard-coded in the Conway Genesis configuration file.
+Both of these are exceptional events which should occur infrequently, if at all, although a hot credential must be authorized at least once to allow for voting.
 
-Both of these processes are beyond the control of the bearer of the cold
-credential. In the first case, it is up to the electorate (DReps and SPOs) of
-Cardano whether or not the governance action is ratified. In the second case,
-there is only one Conway Genesis file, and it cannot be altered (though in
-theory new committee members *could* be injected in a subsequent hard-fork
-event, though this is highly unlikely, and would still be subject to approval
-from the DReps and SPOs).
+Two ways to add a cold credential to a committee 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This makes the cold credential extremely security critical, as losing control
-over it can only be remedied by the member being voted out of the committee in
-the best case, or the entire committee being disbanded via a no confidence
-governance action in the worst case. Either way, the member is unlikely to be
-re-elected after such a display of negligence. One of the purposes of this
-credential management system is to provide additional layers of security which
-help prevent this sort of situation and give better options for recovery if
-necessary.
+A cold credential can be added to the committee in one of two ways, both of which are beyond the control of the one who holds the cold credential. 
 
-Hot Credentials
+1. Ratifying and enacting a governance action that proposes to add a cold credential to the committee. The electorate (DReps and SPOs) of Cardano determine whether or not to ratify governance actions. 
+
+2. Hard-coding a cold credential in the Conway Genesis configuration file. There is only one Conway Genesis file, and it cannot be altered. 
+
+Cold credential is extremely security critical
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This makes the cold credential extremely security critical, as losing control over it can only be remedied by the member being voted out of the committee in the best case, or the entire committee being disbanded via a no confidence governance action in the worst case. 
+Either way, the member is unlikely to be re-elected after such a display of negligence. 
+
+Hot credentials
 ---------------
 
-The hot credential is required to vote as a committee member. It is the
-"workhorse" credential, in that it is expected to be used frequently for
-everyday business. This is in contrast to the cold credential, which is expected
-to be used only in exceptional circumstances. A hot credential must be
-authorized by the cold credential, and also appears in the committee state
-queried from a Cardano node:
+For a committee member to be authorized to vote, they must have a hot credential. 
+It is the "workhorse" credential, in that it is expected to be used frequently for everyday business. 
+
+This is in contrast to the cold credential, which is expected to be used infrequently and only in exceptional circumstances. 
+
+A hot credential must be authorized by the cold credential. 
+It also appears in the committee state queried from a Cardano node:
 
 .. code-block:: bash
 
@@ -103,47 +120,22 @@ queried from a Cardano node:
       "threshold": 0.67
    }
 
-This example shows the same committee member as before, only this time they
-have authorized a hot credential, namely
-``{ "keyHash": "e394a160b9f1345b7b84cd25f0a3f1d12cb0c9835a4167f7dc5b52ca" }``.
+This example shows the same committee member as before, only this time they have authorized a hot credential, namely
+``{ "keyHash": "e394a160b9f1345b7b84cd25f0a3f1d12cb0c9835a4167f7dc5b52ca" }``. 
+Note the tag: ``MemberAuthorized``.
 
-Compared with the cold credential, a hot credential is relatively cheap to
-replace: when a new hot credential is authorized by the cold credential, it
-invalidates the existing hot credential, taking its place. This is entirely
-within the control of the bearer of the cold credential, and comes into effect
-as soon as the authorization certificate is published on chain via a
-transaction. That notwithstanding, it is still undesirable to replace the hot
-credential if it can be avoided. This is because doing so requires using the
-cold credential, which is meant to be used sparingly - ideally never after the
-hot credential is authorized. Replacing hot credentials frequently is also
-highly visible activity and may negatively impact the reputation of the
-committee member within the community - remember, the community has the power
-to depose individual committee members or the whole committee if they lose
-faith in them. This system also offers greater flexibility for managing the hot
-credential without having to replace it.
+Replaceable 
+~~~~~~~~~~~~
 
-Note on Terminology
--------------------
+Compared with the cold credential, a hot credential is relatively cheap to replace: when a new hot credential is authorized by the cold credential, it invalidates the existing hot credential, taking its place. 
+This is entirely within the control of the bearer of the cold credential, and comes into effect as soon as the authorization certificate is published on chain via a transaction. 
 
-The names "hot" and "cold" come from the terms "hot key" and "cold key". A cold
-key is a key that is only used to authorize a hot key to act on its behalf, but
-is otherwise kept in "cold storage" (e.g. on a computer physically separated
-from the internet, or a non-digital medium) for security purposes. The hot
-credential is used to conduct everyday business, and may be kept in "hot" or
-"live" storage so that it is easier to access. The benefit of such a setup is
-that it offers many of the security benefits of keeping keys in cold storage
-while mitigating the drawbacks of doing so - namely it is not convenient to use
-the cold key frequently.
+Drawbacks of replacing hot credentials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Analogously, the cold committee credential is used only for hot credential
-authorization and committee resignation, both of which are exceptional
-activities, while the hot credential is used for everyday LOB work. Indeed, if
-public key credentials are used for both, the analogy is perfect. However, the
-analogy breaks down somewhat when script credentials are used, as there is no
-notion of keeping private keys in hot or cold storage with script credentials.
-The concept is still applicable though: The cold credential is used rarely, the
-hot credential is used often. Therefore, any private data needed to activate
-the cold credential should be treated like a cold private key and kept in cold
-storage. For example, if the cold credential requires the transaction to be
-signed by multiple private keys, as is the case with this system, those private
-keys should be treated like cold keys, because that is what they are.
+Replacing a hot credential requires using the cold credential, which is meant to be used sparingly --- ideally never after the hot credential is authorized. 
+
+Replacing hot credentials frequently is a highly visible activity and may negatively impact the reputation of the committee member within the community. 
+Remember, the community has the power to depose individual committee members or the whole committee if they lose faith in them. 
+
+This system also offers greater flexibility for managing the hot credential without having to replace it.
