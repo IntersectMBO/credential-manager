@@ -22,7 +22,8 @@ import Control.Monad ((<=<))
 import Data.Foldable (traverse_)
 import Data.GI.Base (AttrOp (..), new)
 import Data.GI.Base.GError (GError)
-import GI.Gio.Interfaces.File (fileGetPath)
+import Data.Maybe (fromMaybe)
+import GI.Gio.Interfaces.File (fileGetPath, fileNewForPath)
 import GI.Gio.Objects.Cancellable (Cancellable)
 import GI.Gtk.Objects (FileDialog (..))
 import GI.Gtk.Objects.ApplicationWindow (ApplicationWindow)
@@ -30,6 +31,7 @@ import GI.Gtk.Objects.Button (Button (..))
 import Reactive.Banana
 import Reactive.Banana.Frameworks
 import Reactive.Banana.GI.Gtk (signalE0)
+import System.Directory (getCurrentDirectory)
 import Witherable (Witherable (wither))
 
 data ImportTxButton = ImportTxButton
@@ -51,7 +53,9 @@ importTx
   -> MomentIO (Event (Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra)))
 importTx appWindow = do
   fileDialog <- new FileDialog [#title := "Import transaction"]
-  fileDialog.setInitialFolder ?config.documentsDir
+  dir <- liftIO getCurrentDirectory
+  currentDir <- fileNewForPath dir
+  fileDialog.setInitialFolder $ Just $ fromMaybe currentDir ?config.documentsDir
   (addHandler, fire) <- liftIO newAddHandler
   fileDialog.open (Just appWindow) (Nothing @Cancellable) $ Just \_ result -> do
     mGFile <-
