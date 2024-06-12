@@ -2,20 +2,38 @@ module TxSummary where
 
 import Cardano.Api (
   AlonzoEraOnwards (..),
+  AssetId (..),
   Certificate (..),
   ConwayEra,
   ConwayEraOnwards (..),
+  CtxTx,
   Featured (..),
   FileError (..),
+  HashableScriptData,
+  Quantity (..),
+  SerialiseAddress (serialiseAddress),
+  SerialiseAsRawBytes (..),
   ShelleyBasedEra (..),
   TextEnvelopeCddlError (..),
   TxBody (..),
   TxBodyContent (..),
   TxBodyScriptData (..),
   TxCertificates (..),
+  TxExtraKeyWitnesses (..),
+  TxMintValue (..),
+  TxOut (..),
+  TxOutDatum (..),
+  TxProposalProcedures (..),
   TxVotingProcedures (TxVotingProcedures, TxVotingProceduresNone),
+  TxWithdrawals (..),
+  getScriptData,
+  selectLovelace,
+  serialiseToRawBytesHexText,
+  txOutValueToValue,
+  valueToList,
  )
 import Cardano.Api.Ledger (
+  Coin (unCoin),
   ConwayGovCert (..),
   ConwayTxCert (..),
   GovActionId (..),
@@ -24,6 +42,7 @@ import Cardano.Api.Ledger (
   VotingProcedure (..),
   VotingProcedures (..),
  )
+import Cardano.Api.Shelley (toPlutusData)
 import qualified Cardano.Ledger.Alonzo.Scripts as L (AsIx)
 import Cardano.Ledger.Alonzo.TxWits (Redeemers (..))
 import qualified Cardano.Ledger.Conway as L (ConwayEra)
@@ -34,10 +53,11 @@ import Control.Applicative (Alternative (..))
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Writer (Writer, runWriter)
 import CredentialManager.Api
-import Data.Foldable (traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import PlutusLedgerApi.Common (Data (..))
 import PlutusLedgerApi.V3 (
   Credential (..),
@@ -72,15 +92,17 @@ checkTx result = summarize "Check transaction body file" do
 summarizeTxBody :: TxBody ConwayEra -> SummaryM ()
 summarizeTxBody txBody = do
   classification <- classifyTx txBody
-  case classification of
-    ColdTx redeemer -> summarizeCertificates txBody redeemer
-    HotTx redeemer -> summarizeVotes txBody redeemer
+  summarizeCertificates txBody classification
+  summarizeVotes txBody classification
+  summarizeOutputs classification txBody
+  summarizeSignatories txBody
+  checkExtraTxBodyFields txBody
 
-summarizeVotes :: TxBody ConwayEra -> HotLockRedeemer -> SummaryM ()
-summarizeVotes (TxBody TxBodyContent{..}) redeemer =
+summarizeVotes :: TxBody ConwayEra -> TxClassification -> SummaryM ()
+summarizeVotes (TxBody TxBodyContent{..}) classification =
   summarize "Check transaction votes" do
-    case redeemer of
-      Vote ->
+    case classification of
+      HotTx Vote ->
         case txVotingProcedures of
           Nothing -> do
             errorStatus
@@ -111,9 +133,16 @@ summarizeVotes (TxBody TxBodyContent{..}) redeemer =
           Nothing -> describe "No votes cast, as expected"
           Just (Featured ConwayEraOnwardsConway TxVotingProceduresNone) -> do
             describe "No votes cast, as expected"
-          Just (Featured ConwayEraOnwardsConway TxVotingProcedures{}) -> do
-            errorStatus
-            describe "Transaction casts votes when not allowed to"
+          Just
+            ( Featured
+                ConwayEraOnwardsConway
+                (TxVotingProcedures (VotingProcedures voters) _)
+              )
+              | Map.null voters -> do
+                  describe "No votes cast, as expected"
+              | otherwise -> do
+                  errorStatus
+                  describe "Transaction casts votes when not allowed to"
 
 flipTuple :: (a, b) -> (b, a)
 flipTuple (a, b) = (b, a)
@@ -131,12 +160,12 @@ summarizeVote govActionId (VotingProcedure vote mAnchor) = do
       describe "No rationale file anchor included in vote"
     SJust anchor -> describe $ "Rationale " <> T.pack (show anchor)
 
-summarizeCertificates :: TxBody ConwayEra -> ColdLockRedeemer -> SummaryM ()
-summarizeCertificates (TxBody TxBodyContent{..}) redeemer =
+summarizeCertificates :: TxBody ConwayEra -> TxClassification -> SummaryM ()
+summarizeCertificates (TxBody TxBodyContent{..}) classification =
   summarize "Check transaction certificates" do
-    let certificatesExpected = case redeemer of
-          AuthorizeHot{} -> True
-          ResignCold -> True
+    let certificatesExpected = case classification of
+          ColdTx AuthorizeHot{} -> True
+          ColdTx ResignCold -> True
           _ -> False
     case txCertificates of
       TxCertificatesNone
@@ -189,32 +218,6 @@ printCertificate (ConwayCertificate _ (ConwayTxCertGov govCert)) =
       errorStatus
       describe "Unexpected gov certificate found"
       describe $ T.pack $ show govCert
-
-summarizeResignColdTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeResignColdTx = undefined
-
-summarizeResignDelegationTx
-  :: Identity -> TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeResignDelegationTx = undefined
-
-summarizeRotateColdTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeRotateColdTx = undefined
-
-summarizeUnlockColdTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeUnlockColdTx = undefined
-
-summarizeVoteTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeVoteTx = undefined
-
-summarizeResignVotingTx
-  :: Identity -> TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeResignVotingTx = undefined
-
-summarizeRotateHotTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeRotateHotTx = undefined
-
-summarizeUnlockHotTx :: TxBody ConwayEra -> Writer [SummaryItem] ()
-summarizeUnlockHotTx = undefined
 
 classifyTx :: TxBody ConwayEra -> SummaryM TxClassification
 classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) =
@@ -278,18 +281,109 @@ classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) =
             describe "Transaction spends multiple script outputs."
             empty
 
-classificationStatus :: TxClassification -> ItemStatus
-classificationStatus = \case
-  ColdTx (AuthorizeHot (HotCommitteeCredential ScriptCredential{})) -> Ok
-  ColdTx (AuthorizeHot (HotCommitteeCredential PubKeyCredential{})) -> Warn
-  ColdTx ResignCold -> Ok
-  ColdTx ResignDelegation{} -> Ok
-  ColdTx RotateCold -> Ok
-  ColdTx UnlockCold -> Warn
-  HotTx Vote -> Ok
-  HotTx ResignVoting{} -> Ok
-  HotTx RotateHot -> Ok
-  HotTx UnlockHot -> Warn
+summarizeOutputs :: TxClassification -> TxBody ConwayEra -> SummaryM ()
+summarizeOutputs classification (TxBody TxBodyContent{..}) =
+  for_ (zip @Int [0 ..] txOuts) \(ix, txOut) ->
+    summarize ("Check transaction output #" <> T.pack (show ix)) $
+      summarizeOutput classification txOut
+
+summarizeOutput :: TxClassification -> TxOut CtxTx ConwayEra -> ItemM ()
+summarizeOutput classification (TxOut address outValue outDatum _refScript) = do
+  let value = txOutValueToValue outValue
+  describe $ "Send to address " <> serialiseAddress address
+  describe $ T.pack (show $ unCoin $ selectLovelace value) <> " Lovelace"
+  for_ (valueToList value) \case
+    (AdaAssetId, _) -> pure ()
+    (AssetId p n, Quantity q) ->
+      describe $
+        T.pack (show q)
+          <> " "
+          <> serialiseToRawBytesHexText p
+          <> case decodeUtf8 $ serialiseToRawBytes n of
+            "" -> ""
+            n' -> "." <> n'
+  case outDatum of
+    TxOutDatumNone ->
+      pure ()
+    TxOutDatumHash _ scriptHash -> do
+      warnStatus
+      describe $
+        "Unexpected output datum hash: "
+          <> serialiseToRawBytesHexText scriptHash
+    TxOutDatumInTx _ datum ->
+      summarizeDatum classification datum
+    TxOutDatumInline _ datum ->
+      summarizeDatum classification datum
+
+summarizeDatum :: TxClassification -> HashableScriptData -> ItemM ()
+summarizeDatum classification datum = do
+  let plutusDatum = toPlutusData $ getScriptData datum
+  case fromData plutusDatum of
+    Just ColdLockDatum{..} -> do
+      describe "Cold NFT datum found"
+      case classification of
+        ColdTx RotateCold -> do
+          describe "New membership keys:"
+          for_ membershipUsers summarizeIdentity
+          describe "New delegation keys:"
+          for_ delegationUsers summarizeIdentity
+        ColdTx _ -> pure ()
+        HotTx _ -> do
+          warnStatus
+          describe "Not expected in a hot credential transaction"
+    Nothing -> case fromData plutusDatum of
+      Just HotLockDatum{..} -> do
+        describe "Hot NFT datum found"
+        case classification of
+          HotTx RotateHot -> do
+            describe "New voting keys:"
+            for_ votingUsers summarizeIdentity
+          HotTx _ -> pure ()
+          ColdTx _ -> do
+            warnStatus
+            describe "Not expected in a cold credential transaction"
+      Nothing -> do
+        warnStatus
+        describe "Unrecognized datum in output"
+        describe $ T.pack $ show datum
+
+summarizeIdentity :: Identity -> ItemM ()
+summarizeIdentity Identity{..} = do
+  describe $ "⋅ public key hash: " <> T.pack (show pubKeyHash)
+  describe $ "  certificate hash: " <> T.pack (show certificateHash)
+
+summarizeSignatories :: TxBody ConwayEra -> SummaryM ()
+summarizeSignatories (TxBody TxBodyContent{..}) = do
+  summarize "Check transaction signatories" do
+    case txExtraKeyWits of
+      TxExtraKeyWitnessesNone -> pure ()
+      TxExtraKeyWitnesses _ signatories -> for_ signatories \pkh ->
+        describe $ "Requires signature from " <> serialiseToRawBytesHexText pkh
+
+checkExtraTxBodyFields :: TxBody ConwayEra -> SummaryM ()
+checkExtraTxBodyFields (TxBody TxBodyContent{..}) = do
+  summarize "Check extra tx body fields" do
+    case txWithdrawals of
+      TxWithdrawalsNone -> pure ()
+      TxWithdrawals _ [] -> pure ()
+      TxWithdrawals _ _ -> do
+        warnStatus
+        describe "Transaction unexpectedly withdraws staking rewards."
+    case txMintValue of
+      TxMintNone -> pure ()
+      TxMintValue _ value _
+        | value == mempty -> pure ()
+        | otherwise -> do
+            warnStatus
+            describe "Transaction unexpectedly mints or burns tokens."
+    case txProposalProcedures of
+      Nothing -> pure ()
+      Just (Featured _ TxProposalProceduresNone) -> pure ()
+      Just (Featured _ (TxProposalProcedures proposalProcedures _))
+        | proposalProcedures == mempty -> pure ()
+        | otherwise -> do
+            warnStatus
+            describe "Transaction unexpectedly submits governance actions."
 
 spendingRedeemers
   :: Map (L.ConwayPlutusPurpose L.AsIx (L.ConwayEra L.StandardCrypto)) a -> [a]
