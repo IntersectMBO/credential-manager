@@ -76,7 +76,7 @@ Two ways to add a cold credential to a committee
 
 A cold credential can be added to the committee in one of two ways, both of which are beyond the control of the one who holds the cold credential. 
 
-1. Ratifying and enacting a governance action that proposes to add a cold credential to the committee. The electorate (DReps and SPOs) of Cardano determine whether or not to ratify governance actions. 
+1. Ratifying and enacting a governance action that proposes to add a cold credential to the committee. The electorate – Cardano's delegate representatives (DReps) and stake pool operators (SPOs) – determine whether or not to ratify governance actions. 
 
 2. Hard-coding a cold credential in the Conway Genesis configuration file. There is only one Conway Genesis file, and it cannot be altered. 
 
