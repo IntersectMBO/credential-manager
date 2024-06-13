@@ -36,7 +36,7 @@ Cold credentials
 Given that context, let's take a closer look at some details about the cold credential. 
 
 Think of the cold credential as a "primary" credential that's used for identifying committee members. 
-The cold credential is what the Orchestrator sees from the command line when querying the current committee state from a Cardano node:
+The cold credential is what the orchestrator sees from the command line when querying the current committee state from a Cardano node:
 
 .. code-block:: bash
 
