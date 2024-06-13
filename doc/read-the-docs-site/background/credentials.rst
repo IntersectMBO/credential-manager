@@ -47,18 +47,11 @@ Disadvantages of public key credentials
 
 However, they also have drawbacks:
 
-* They are single points of failure. If the private key is lost or stolen, the
-  legitimate owner of the credential will be unable to authorize transactions or
-  stop thieves from impersonating them.
-* They are not sufficient for circumstances requiring authorization from multiple
-  individuals.
-* They are opaque on their own --- they do not contain identifiable information.
-  Depending on the application, this can also be an advantage, but not when
-  transparency is important.
-* They may be difficult to change if a credential is compromised. For example,
-  all UTxOs owned by a payment key would need to be sent to the new one,
-  costing the owner ADA in fees. Other types of credentials, particularly
-  constitutional committee cold credentials, are far more difficult to change.
+* Single points of failure. If the private key is lost or stolen, the
+  legitimate owner cannot authorize transactions or prevent theft. 
+* Insufficient for scenarios requiring authorization from multiple individuals.
+* Opaque on their own, lacking identifiable information. This can be an advantage for privacy but a disadvantage when transparency is needed.
+* Difficult to change if compromised. All UTXOs owned by the compromised key must be sent to a new one, incurring ada fees. Other credentials, like constitutional committee cold credentials, are even harder to change. 
 
 All of these drawbacks make public key credentials generally inappropriate for organizations that 
 distribute and delegate authority to staff or other types of trustees.
@@ -99,27 +92,19 @@ Benefits of script credentials
 
 Script credentials offer many benefits over public key credentials:
 
-* They can encode arbitrarily sophisticated security requirements, such as
-  requiring multiple signatures, limiting the amount of an asset that is
-  withdrawn, enforcing time limits, and much more.
-* Via the datum, they can be associated with supplemental information, which
-  can be used for identity verification.
-* They can have failsafe options built into them to allow recovery of the credential
-  if auxillary data, such as private keys, are compromised.
+* They can encode sophisticated security requirements, such as requiring multiple signatures, limiting asset withdrawal amounts, and enforcing time limits.
+* They can be associated with supplemental information via the datum, which can be used for identity verification.
+* They can include failsafe options to allow credential recovery if auxiliary data, such as private keys, are compromised.
 
 Disadvangates of script credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 However, they also have several disadvantages:
 
-* They are complicated and expensive to create and use compared with public
-  key credentials.
-* If they are not carefully written and tested, there can be unintended edge
-  cases or bugs that compromise their security.
-* Between the script bytes, the datum and the redeemer, they consume a lot of
-  space in transactions, and are expensive to validate compared with public
-  keys and signatures. This makes them more expensive, as these factors
-  increase transaction fees.
+* They are complicated and expensive to create and use compared with public key credentials.
+* If not carefully written and tested, they can have unintended edge cases or bugs that compromise security.
+* They consume more space in transactions and are more expensive to validate due to the script bytes, datum, and redeemer. This increases transaction fees.
+* They require significant upfront investment, especially for high-risk applications, and are costly to operate, necessitating higher transaction fees and technical expertise, either from trained staff or commercial service providers who may charge additional fees.
 
 Ultimately, script credentials can solve many of the shortcomings of public key
 credentials, but they do so at a cost. They can require significant upfront
