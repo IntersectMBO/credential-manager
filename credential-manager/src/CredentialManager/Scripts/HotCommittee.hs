@@ -16,8 +16,8 @@
 module CredentialManager.Scripts.HotCommittee where
 
 import GHC.Generics (Generic)
-import PlutusLedgerApi.V3 (CurrencySymbol, TxOut (..), Value (getValue))
-import PlutusTx.AssocMap (member)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
+import PlutusLedgerApi.V3 (TxOut (..))
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
 import PlutusTx.Prelude
@@ -72,15 +72,17 @@ data TxInInfo = TxInInfo
   }
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
--- | This script just checks that the hard-coded currency symbol of the "Hot NFT" is
--- in any spending input of the transaction.# INLINEABLE hotCommitteeScript #-}
-hotCommitteeScript :: CurrencySymbol -> BuiltinData -> ScriptContext -> Bool
-hotCommitteeScript symbol _ ctx = case scriptContextPurpose ctx of
+-- | This script just checks that the hard-coded "Hot NFT" is in any spending
+-- input of the transaction.
+{-# INLINEABLE hotCommitteeScript #-}
+hotCommitteeScript :: AssetClass -> BuiltinData -> ScriptContext -> Bool
+hotCommitteeScript nft _ ctx = case scriptContextPurpose ctx of
   Voting _ -> any inputSpendsToken txInputs
   _ -> False
   where
-    -- Checks if an input spends a token with the correct currencySymbol
-    inputSpendsToken TxInInfo{txInInfoResolved} = symbol `member` getValue (txOutValue txInInfoResolved)
+    -- Checks if an input spends the correct token
+    inputSpendsToken TxInInfo{txInInfoResolved = TxOut{..}} =
+      assetClassValueOf txOutValue nft == 1
     -- The list of transaction inputs being consumed in this transaction.
     txInputs = txInfoInputs (scriptContextTxInfo ctx)
 

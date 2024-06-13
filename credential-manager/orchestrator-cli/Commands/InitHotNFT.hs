@@ -45,6 +45,7 @@ import Options.Applicative (
 data InitHotNFTCommand = InitHotNFTCommand
   { networkId :: NetworkId
   , coldNFTPolicyId :: PolicyId
+  , coldNFTTokenName :: TokenName
   , hotCredentialScriptFile :: FilePath
   , votingCerts :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile

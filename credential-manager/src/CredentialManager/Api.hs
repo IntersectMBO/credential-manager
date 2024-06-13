@@ -9,6 +9,8 @@
 {-# OPTIONS_GHC -fno-unbox-strict-fields #-}
 
 module CredentialManager.Api (
+  CheckDatum (..),
+  MintingRedeemer (..),
   CertificateHash (..),
   Identity (..),
   ColdLockDatum (..),
@@ -42,12 +44,29 @@ import Data.X509 (
   getCertificate,
  )
 import GHC.Generics (Generic)
+import qualified PlutusLedgerApi.V2 as PV2
+import PlutusLedgerApi.V3 (FromData)
 import qualified PlutusLedgerApi.V3 as PV3
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
 import qualified PlutusTx.Prelude as PlutusTx
 import qualified PlutusTx.Show as PlutusTx
 import Prettyprinter (Pretty)
+
+class (FromData a) => CheckDatum a where
+  checkDatum :: a -> Bool
+
+-- | Redeemer type for the minting validator
+data MintingRedeemer
+  = -- | Mint a cold NFT by consuming a tx out and sending it to a script address.
+    --   also checks the datum
+    MintCold PV2.TxOutRef PV2.ScriptHash
+  | -- | Mint a hot NFT by consuming a tx out and sending it to a script address.
+    --   also checks the datum
+    MintHot PV2.TxOutRef PV2.ScriptHash
+  | -- | Burn a token by consuming it from a tx out.
+    Burn PV2.TxOutRef
+  deriving stock (Show, Eq, Generic)
 
 -- | A SHA-256 hash of an X.509 certificate file.
 newtype CertificateHash = CertificateHash {unCertificateHash :: PV3.BuiltinByteString}
@@ -343,4 +362,11 @@ PlutusTx.makeIsDataIndexed
   , ('ResignVoting, 1)
   , ('RotateHot, 2)
   , ('UnlockHot, 3)
+  ]
+
+PlutusTx.makeIsDataIndexed
+  ''MintingRedeemer
+  [ ('MintCold, 0)
+  , ('MintHot, 1)
+  , ('Burn, 2)
   ]

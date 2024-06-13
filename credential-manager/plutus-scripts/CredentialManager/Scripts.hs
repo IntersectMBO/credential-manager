@@ -7,9 +7,9 @@ import CredentialManager.Scripts.ColdCommittee (coldCommitteeScript)
 import CredentialManager.Scripts.ColdNFT (coldNFTScript)
 import CredentialManager.Scripts.HotCommittee (hotCommitteeScript)
 import CredentialManager.Scripts.HotNFT (hotNFTScript)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   ColdCommitteeCredential,
-  CurrencySymbol,
   HotCommitteeCredential,
  )
 import PlutusTx (
@@ -86,14 +86,14 @@ wrapFiveArgs f a b c d ctx =
       (unsafeFromBuiltinData ctx)
 
 coldCommittee
-  :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinData -> ())
 coldCommittee =
   unsafeApplyCode $$(compile [||wrapThreeArgs coldCommitteeScript||])
     . liftCodeDef
     . toBuiltinData
 
 hotCommittee
-  :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinData -> ())
 hotCommittee =
   unsafeApplyCode $$(compile [||wrapThreeArgs hotCommitteeScript||])
     . liftCodeDef
@@ -108,13 +108,13 @@ coldNFT =
     . toBuiltinData
 
 hotNFT
-  :: CurrencySymbol
+  :: AssetClass
   -> HotCommitteeCredential
   -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-hotNFT coldPolicyId hotCred =
+hotNFT coldAssetClass hotCred =
   unsafeApplyCode
     ( unsafeApplyCode
         $$(compile [||wrapFiveArgs hotNFTScript||])
-        (liftCodeDef (toBuiltinData coldPolicyId))
+        (liftCodeDef (toBuiltinData coldAssetClass))
     )
     (liftCodeDef (toBuiltinData hotCred))

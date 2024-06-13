@@ -22,8 +22,8 @@ import CredentialManager.Api (
  )
 import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
-  CurrencySymbol,
   Datum (..),
   FromData (..),
   GovernanceActionId,
@@ -34,13 +34,11 @@ import PlutusLedgerApi.V3 (
   TxInInfo (..),
   TxOut (..),
   TxOutRef,
-  Value (..),
   Voter (..),
   unsafeFromBuiltinData,
  )
 import qualified PlutusLedgerApi.V3 as PV3
 import PlutusLedgerApi.V3.Contexts (HotCommitteeCredential)
-import PlutusTx.AssocMap (member)
 import qualified PlutusTx.AssocMap as Map
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
@@ -104,24 +102,24 @@ findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
 txSignedBy :: TxInfo -> PubKeyHash -> Bool
 txSignedBy TxInfo{txInfoSignatories} k = k `elem` txInfoSignatories
 
--- | Find the reference input that contains a certain currency symbol.
-{-# INLINEABLE findTxInByCurrencySymbolInRefUTxO #-}
-findTxInByCurrencySymbolInRefUTxO :: CurrencySymbol -> TxInfo -> Maybe TxInInfo
-findTxInByCurrencySymbolInRefUTxO symbol txInfo =
+-- | Find the reference input that contains 1 of a certain token.
+{-# INLINEABLE findTxInByNFTInRefUTxO #-}
+findTxInByNFTInRefUTxO :: AssetClass -> TxInfo -> Maybe TxInInfo
+findTxInByNFTInRefUTxO token txInfo =
   find
-    (\txIn -> symbol `member` (getValue . txOutValue . txInInfoResolved) txIn)
+    (\txIn -> assetClassValueOf (txOutValue $ txInInfoResolved txIn) token == 1)
     (txInfoReferenceInputs txInfo)
 
 -- | This script validates voting group actions as well as its rotation through delagators action.
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
-  :: CurrencySymbol
+  :: AssetClass
   -> HotCommitteeCredential
   -> HotLockDatum
   -> HotLockRedeemer
   -> ScriptContext
   -> Bool
-hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
+hotNFTScript coldNFT hotCred (HotLockDatum votingUsers) red ctx =
   case scriptContextPurpose ctx of
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
@@ -172,7 +170,7 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
               _ -> False
             checkNoVotes = Map.null $ txInfoVotes txInfo
             signedByDelegators =
-              case findTxInByCurrencySymbolInRefUTxO coldPolicyId txInfo of
+              case findTxInByNFTInRefUTxO coldNFT txInfo of
                 Nothing -> False
                 Just (TxInInfo _ refInput) -> case txOutDatum refInput of
                   OutputDatum datum -> case fromBuiltinData $ getDatum datum of
@@ -182,7 +180,7 @@ hotNFTScript coldPolicyId hotCred (HotLockDatum votingUsers) red ctx =
         UnlockHot -> signedByDelegators
           where
             signedByDelegators =
-              case findTxInByCurrencySymbolInRefUTxO coldPolicyId txInfo of
+              case findTxInByNFTInRefUTxO coldNFT txInfo of
                 Nothing -> False
                 Just (TxInInfo _ refInput) -> case txOutDatum refInput of
                   OutputDatum datum -> case fromBuiltinData $ getDatum datum of

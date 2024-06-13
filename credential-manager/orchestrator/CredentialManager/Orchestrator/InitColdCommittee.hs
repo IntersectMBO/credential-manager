@@ -3,6 +3,7 @@
 module CredentialManager.Orchestrator.InitColdCommittee where
 
 import Cardano.Api (
+  AssetName,
   PlutusScriptV3,
   PolicyId,
   Script,
@@ -13,13 +14,15 @@ import Cardano.Api.Shelley (hashScript)
 import CredentialManager.Orchestrator.Common (serialiseScript)
 import CredentialManager.Scripts (coldCommittee)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass (..), TokenName (..))
 import PlutusLedgerApi.V3 (
   CurrencySymbol (CurrencySymbol),
   toBuiltin,
  )
 
-newtype InitColdCommitteeInputs = InitColdCommitteeInputs
+data InitColdCommitteeInputs = InitColdCommitteeInputs
   { nftPolicyId :: PolicyId
+  , nftAssetName :: AssetName
   }
   deriving (Show, Eq, Generic)
 
@@ -36,11 +39,11 @@ initColdCommittee
   :: InitColdCommitteeInputs
   -> Either InitColdCommitteeError InitColdCommitteeOutputs
 initColdCommittee InitColdCommitteeInputs{..} = do
-  let script =
-        serialiseScript
-          . coldCommittee
-          . CurrencySymbol
-          . toBuiltin
-          $ serialiseToRawBytes nftPolicyId
+  let assetClass =
+        curry
+          AssetClass
+          (CurrencySymbol . toBuiltin $ serialiseToRawBytes nftPolicyId)
+          (TokenName . toBuiltin $ serialiseToRawBytes nftAssetName)
+  let script = serialiseScript . coldCommittee $ assetClass
   let scriptHash = hashScript script
   pure InitColdCommitteeOutputs{..}

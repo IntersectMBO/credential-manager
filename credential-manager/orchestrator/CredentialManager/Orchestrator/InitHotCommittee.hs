@@ -3,6 +3,7 @@
 module CredentialManager.Orchestrator.InitHotCommittee where
 
 import Cardano.Api (
+  AssetName,
   PlutusScriptV3,
   PolicyId,
   Script,
@@ -13,13 +14,15 @@ import Cardano.Api.Shelley (hashScript)
 import CredentialManager.Orchestrator.Common (serialiseScript)
 import CredentialManager.Scripts (hotCommittee)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass (..), TokenName (..))
 import PlutusLedgerApi.V3 (
   CurrencySymbol (CurrencySymbol),
   toBuiltin,
  )
 
-newtype InitHotCommitteeInputs = InitHotCommitteeInputs
+data InitHotCommitteeInputs = InitHotCommitteeInputs
   { nftPolicyId :: PolicyId
+  , nftAssetName :: AssetName
   }
   deriving (Show, Eq, Generic)
 
@@ -35,11 +38,11 @@ data InitHotCommitteeError
 initHotCommittee
   :: InitHotCommitteeInputs -> Either InitHotCommitteeError InitHotCommitteeOutputs
 initHotCommittee InitHotCommitteeInputs{..} = do
-  let script =
-        serialiseScript
-          . hotCommittee
-          . CurrencySymbol
-          . toBuiltin
-          $ serialiseToRawBytes nftPolicyId
+  let assetClass =
+        curry
+          AssetClass
+          (CurrencySymbol . toBuiltin $ serialiseToRawBytes nftPolicyId)
+          (TokenName . toBuiltin $ serialiseToRawBytes nftAssetName)
+  let script = serialiseScript . hotCommittee $ assetClass
   let scriptHash = hashScript script
   pure InitHotCommitteeOutputs{..}

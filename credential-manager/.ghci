@@ -1,0 +1,5 @@
+:set -Wwarn -package asn1-encoding
+:m +Data.ASN1.Encoding
+:m +Data.ASN1.Object
+:m +Data.ByteString
+

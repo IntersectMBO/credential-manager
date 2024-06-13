@@ -2,6 +2,7 @@ module CredentialManager.Orchestrator.InitHotNFT where
 
 import Cardano.Api (
   Address,
+  AssetName,
   NetworkId,
   PaymentCredential (..),
   PlutusScriptV3,
@@ -18,11 +19,13 @@ import CredentialManager.Api (CertificateHash, HotLockDatum (..), Identity (..))
 import CredentialManager.Orchestrator.Common (serialiseScript, validateGroup)
 import CredentialManager.Scripts (hotNFT)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass (..))
 import PlutusLedgerApi.V3 (
   Credential (..),
   CurrencySymbol (..),
   HotCommitteeCredential (..),
   PubKeyHash,
+  TokenName (..),
   toBuiltin,
  )
 import qualified PlutusLedgerApi.V3 as PV3
@@ -30,6 +33,7 @@ import qualified PlutusLedgerApi.V3 as PV3
 data InitHotNFTInputs = InitHotNFTInputs
   { networkId :: NetworkId
   , coldNFTPolicyId :: PolicyId
+  , coldNFTAssetName :: AssetName
   , hotCredentialScript :: Script PlutusScriptV3
   , stakeAddress :: StakeAddressReference
   , votingUsers :: [Identity]
@@ -61,9 +65,14 @@ initHotNFT InitHotNFTInputs{..} = do
         CurrencySymbol $
           toBuiltin $
             serialiseToRawBytes coldNFTPolicyId
+  let tokenName =
+        TokenName $
+          toBuiltin $
+            serialiseToRawBytes coldNFTAssetName
+  let coldNFT = curry AssetClass coldPolicy tokenName
   let script =
         serialiseScript
-          . hotNFT coldPolicy
+          . hotNFT coldNFT
           . HotCommitteeCredential
           . ScriptCredential
           . PV3.ScriptHash
