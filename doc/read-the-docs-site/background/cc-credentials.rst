@@ -90,7 +90,7 @@ Hot credentials
 ---------------
 
 For a committee member to be authorized to vote, they must have a hot credential. 
-It is the "workhorse" credential, in that it is expected to be used frequently for everyday business. 
+It is the 'workhorse' credential as it is expected to be used frequently for everyday business. 
 
 This is in contrast to the cold credential, which is expected to be used infrequently and only in exceptional circumstances. 
 
