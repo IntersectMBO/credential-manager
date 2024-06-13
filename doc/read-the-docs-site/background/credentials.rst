@@ -83,14 +83,14 @@ Though many scripting languages target Cardano, there are only two types of scri
 Description of a Plutus script example 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As an example, a Plutus script can be used to control how a UTxO is spent. 
+As an example, a Plutus script can be used to control how a UTXO is spent. 
 
-The UTxO is held by an address containing the script's payment credential, which is a cryptographic hash of the script's serialized representation. 
-It is also held alongside a piece of data (the *datum*) which can be used to represent the "state" of the script. 
+The UTXO is held by an address containing the script's payment credential, which is a cryptographic hash of the script's serialized representation. 
+It is also held alongside a piece of data (the *datum*) which can be used to represent the 'state' of the script. 
 
-To spend the UTxO, the spending transaction must include the actual script bytes, either directly or via a reference to a script stored elsewhere on chain. 
+To spend the UTXO, the spending transaction must include the actual script bytes, either directly or via a reference to a script stored elsewhere on chain. 
 The transaction can also provide an argument to the script, called a *redeemer*. 
-The script is then executed with the datum held in the UTxO, the redeemer provided in the spending transaction, and a summary of the spending transaction, called the *script context*. 
+The script is then executed with the datum held in the UTXO, the redeemer provided in the spending transaction, and a summary of the spending transaction called the *script context*. 
 
 If it executes without raising an exception, the UTxO is authorized for being spent.
 
