@@ -6,7 +6,7 @@ Public key credentials versus script credentials
 On Cardano, anyone can verify the legitimacy of a transaction on the blockchain by using a credential. 
 Credentials are used for many purposes in the Conway era, including:
 
-* Consuming UTxOs
+* Consuming UTXOs
 * Withdrawing staking rewards
 * Publishing governance certificates
 * Voting
