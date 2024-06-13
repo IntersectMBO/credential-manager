@@ -9,7 +9,7 @@ Credentials are used for many purposes in the Conway era, including:
 * Consuming UTXOs
 * Withdrawing staking rewards
 * Publishing governance certificates
-* Voting
+* Voting.
 
 There are two types of credentials: 
 
