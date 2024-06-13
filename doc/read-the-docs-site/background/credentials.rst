@@ -76,9 +76,9 @@ Native scripts and Plutus scripts
 
 Though many scripting languages target Cardano, there are only two types of script credentials: native scripts and Plutus scripts. 
 
-* **Native scripts** --- With native scripts, you can set up simple rules like requiring signatures, setting deadlines, and combining conditions using 'all of' or 'any of' options. 
+* **Native scripts**. With native scripts, you can set up simple rules like requiring signatures, setting deadlines, and combining conditions using 'all of' or 'any of' options. 
 
-* **Plutus scripts** --- Plutus scripts are programs compiled to Untyped Plutus Core, a low-level variant of lambda calculus, that serves as a compilation target for other higher-level scripting languages such as PlutusTx or Aiken.
+* **Plutus scripts**. Plutus scripts are programs compiled to Untyped Plutus Core, a low-level variant of lambda calculus, that serves as a compilation target for other higher-level scripting languages such as PlutusTx or Aiken.
 
 Description of a Plutus script example 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
