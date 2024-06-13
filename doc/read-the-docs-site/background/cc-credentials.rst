@@ -17,10 +17,10 @@ It is technical step performed to interact with and verify the state of the bloc
 
 The purpose of querying the committee state includes the following: 
 
-- **Checking membership:** By querying the committee state, you can verify which members are currently part of the committee by checking their cold credentials.
-- **Confirming credential status:** It allows you to check the status of both hot and cold credentials, such as whether a hot credential is authorized to vote on behalf of a cold credential.
-- **Validating changes:** After performing certain actions, like authorizing a hot credential or submitting a resignation, querying the state helps confirm that these changes have taken effect on-chain.
-- **Monitoring expiration:** The query can show you the expiration of credentials, which is crucial for maintaining active participation in the committee's activities.
+- **Checking membership.** By querying the committee state, you can verify which members are currently part of the committee by checking their cold credentials.
+- **Confirming credential status.** It allows you to check the status of both hot and cold credentials, such as whether a hot credential is authorized to vote on behalf of a cold credential.
+- **Validating changes.** After performing certain actions, like authorizing a hot credential or submitting a resignation, querying the state helps confirm that these changes have taken effect on-chain.
+- **Monitoring expiration.** The query can show you the expiration of credentials, which is crucial for maintaining active participation in the committee's activities.
 
 Typically done by the Orchestrator role
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
