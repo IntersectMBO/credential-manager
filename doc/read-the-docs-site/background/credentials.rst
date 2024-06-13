@@ -67,7 +67,7 @@ Script credentials
 -------------------
 
 Script credentials are executable programs that encode custom authorization rules. 
-These are also informally referred to as "smart contracts." 
+These are also informally referred to as 'smart contracts.'
 To authorize a transaction, the smart contract receives a summary of the transaction it is authorizing and executes it. 
 If the program terminates without raising an exception, it is considered to have authorized the transaction. 
 
