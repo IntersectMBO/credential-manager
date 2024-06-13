@@ -35,12 +35,12 @@ Anyone can use the public key to verify the signature. During verification, the 
 Advantages of public key credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are a number of advantages to public key credentials:
+Public key credentials offer several advantages:
 
-* They are easy to create. 
-* They provide quite good security without much room for exploitation, provided that a secure source of randomness was used to generate the key pair, and that the private key is managed securely. 
-* They are cheap to verify and small in size, all of which lowers transaction fees significantly compared with script credentials.
-* They are based on a mature and standard cryptographic algorithm (Ed25519).
+* Easy to create
+* High security if generated with a secure source of randomness and managed properly
+* Cheap to verify and small in size, reducing transaction fees compared to script credentials
+* Based on the mature and standard Ed25519 cryptographic algorithm.
 
 Disadvantages of public key credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
