@@ -9,7 +9,9 @@ import Cardano.Api (
   CtxTx,
   Featured (..),
   FileError (..),
+  Hash,
   HashableScriptData,
+  PaymentKey,
   Quantity (..),
   SerialiseAddress (serialiseAddress),
   SerialiseAsRawBytes (..),
@@ -50,14 +52,18 @@ import qualified Cardano.Ledger.Conway.Scripts as L (ConwayPlutusPurpose (..))
 import qualified Cardano.Ledger.Crypto as L (StandardCrypto)
 import qualified Cardano.Ledger.Plutus as L
 import Control.Applicative (Alternative (..))
+import Control.Monad (unless)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Writer (Writer, runWriter)
 import CredentialManager.Api
 import Data.Foldable (for_, traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import Data.Traversable (for)
 import PlutusLedgerApi.Common (Data (..))
 import PlutusLedgerApi.V3 (
   Credential (..),
@@ -68,11 +74,12 @@ import TxSummary.Common
 import TxSummary.Error (renderError)
 
 summarizeTx
-  :: Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra)
+  :: Set (Hash PaymentKey)
+  -> Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra)
   -> [SummaryItem]
-summarizeTx result = evalWriter $ runMaybeT do
+summarizeTx myKeys result = evalWriter $ runMaybeT do
   tx <- checkTx result
-  summarizeTxBody tx
+  summarizeTxBody myKeys tx
   pure ()
 
 evalWriter :: Writer w a -> w
@@ -89,13 +96,16 @@ checkTx result = summarize "Check transaction body file" do
       empty
     Right tx -> pure tx
 
-summarizeTxBody :: TxBody ConwayEra -> SummaryM ()
-summarizeTxBody txBody = do
+summarizeTxBody
+  :: Set (Hash PaymentKey)
+  -> TxBody ConwayEra
+  -> SummaryM ()
+summarizeTxBody myKeys txBody = do
   classification <- classifyTx txBody
   summarizeCertificates txBody classification
   summarizeVotes txBody classification
   summarizeOutputs classification txBody
-  summarizeSignatories txBody
+  summarizeSignatories myKeys txBody
   checkExtraTxBodyFields txBody
 
 summarizeVotes :: TxBody ConwayEra -> TxClassification -> SummaryM ()
@@ -352,13 +362,28 @@ summarizeIdentity Identity{..} = do
   describe $ "⋅ public key hash: " <> T.pack (show pubKeyHash)
   describe $ "  certificate hash: " <> T.pack (show certificateHash)
 
-summarizeSignatories :: TxBody ConwayEra -> SummaryM ()
-summarizeSignatories (TxBody TxBodyContent{..}) = do
+summarizeSignatories
+  :: Set (Hash PaymentKey)
+  -> TxBody ConwayEra
+  -> SummaryM ()
+summarizeSignatories myKeys (TxBody TxBodyContent{..}) = do
   summarize "Check transaction signatories" do
     case txExtraKeyWits of
       TxExtraKeyWitnessesNone -> pure ()
-      TxExtraKeyWitnesses _ signatories -> for_ signatories \pkh ->
-        describe $ "Requires signature from " <> serialiseToRawBytesHexText pkh
+      TxExtraKeyWitnesses _ signatories -> do
+        canSign <-
+          or <$> for signatories \pkh -> do
+            let canSign = Set.member pkh myKeys
+            describe $
+              "Requires signature from "
+                <> serialiseToRawBytesHexText pkh
+                <> if canSign
+                  then " (you can sign)"
+                  else ""
+            pure canSign
+        unless canSign do
+          warnStatus
+          describe "You cannot sign this transaction."
 
 checkExtraTxBodyFields :: TxBody ConwayEra -> SummaryM ()
 checkExtraTxBodyFields (TxBody TxBodyContent{..}) = do
