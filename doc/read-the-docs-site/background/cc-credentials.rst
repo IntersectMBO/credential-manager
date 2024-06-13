@@ -28,7 +28,7 @@ Typically done by the Orchestrator role
 Typically, someone in the Orchestrator role would be querying the current committee state. 
 The Orchestrator is one of the operational roles within the Constitutional Committee Credential Management System. 
 
-The Orchestrator role requires a deep understanding of the Credential Manager system and the ability to execute commands using the Cardano CLI. 
+The orchestrator role requires a deep understanding of the credential management system and the ability to execute commands using the Cardano CLI. 
 
 Cold credentials
 ----------------
