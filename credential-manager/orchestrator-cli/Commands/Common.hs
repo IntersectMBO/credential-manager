@@ -3,35 +3,37 @@ module Commands.Common where
 import Cardano.Api (
   Address,
   AsType (..),
-  AssetId (..),
-  AssetName (..),
+  AssetName,
   Certificate,
   ConwayEra,
   CtxUTxO,
   File (..),
   FromSomeType (..),
+  IsPlutusScriptLanguage,
   Key (..),
   NetworkId (..),
   NetworkMagic (..),
   PlutusScriptV3,
   PlutusScriptVersion (..),
   PolicyId,
-  Quantity (..),
   Script (..),
   SerialiseAsBech32,
   SerialiseAsRawBytes (..),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
   ShelleyAddr,
   StakeAddressReference (..),
+  TxIn (..),
+  TxIx (..),
   TxOut,
   Value,
   hashScript,
+  plutusScriptVersion,
   readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
+  renderValue,
   serialiseToBech32,
   serialiseToRawBytesHexText,
   unsafeHashableScriptData,
-  valueToList,
   writeFileTextEnvelope,
  )
 import Cardano.Api.Ledger (
@@ -58,7 +60,6 @@ import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import Options.Applicative (
@@ -82,6 +83,7 @@ import PlutusTx (ToData, toData)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (die)
 import System.FilePath ((</>))
+import Text.Read (readEither)
 
 data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
 
@@ -101,8 +103,20 @@ networkIdParser =
           ]
     ]
 
+assetNameParser :: Mod OptionFields AssetName -> Parser AssetName
+assetNameParser = option readAssetName . (<> metavar "ASSET_NAME")
+
 policyIdParser :: Mod OptionFields PolicyId -> Parser PolicyId
 policyIdParser = option readPolicyId . (<> metavar "POLICY_ID")
+
+seedInputParser :: Parser TxIn
+seedInputParser =
+  option readTxIn $
+    fold
+      [ long "seed-input"
+      , help "The tx in to consume to determine the token name of the NFT"
+      , metavar "TX_ID#TX_IX"
+      ]
 
 utxoFileParser :: Parser FilePath
 utxoFileParser =
@@ -207,6 +221,30 @@ readPolicyId = do
     (readerError . unSerialiseAsRawBytesError)
     pure
     $ deserialiseFromRawBytes AsPolicyId bytes
+
+readAssetName :: ReadM AssetName
+readAssetName = do
+  bytes <- readBase16
+  either
+    (readerError . unSerialiseAsRawBytesError)
+    pure
+    $ deserialiseFromRawBytes AsAssetName bytes
+
+readTxIn :: ReadM TxIn
+readTxIn = eitherReader \raw -> do
+  let (txIdStr, rest) = splitAt 64 raw
+  txIdBytes <-
+    first (const "Invalid hexadecimal text")
+      . decodeBase16Untyped
+      . T.encodeUtf8
+      $ T.pack txIdStr
+  txId <-
+    first unSerialiseAsRawBytesError $ deserialiseFromRawBytes AsTxId txIdBytes
+  case rest of
+    '#' : txIxStr -> do
+      txIxWord <- readEither txIxStr
+      pure $ TxIn txId $ TxIx txIxWord
+    _ -> Left "Expected \"#<TX_IX>\""
 
 readBase16 :: ReadM ByteString
 readBase16 =
@@ -320,12 +358,19 @@ writeVoteToFile dir file votingProcedures = do
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing votingProcedures
 
-writeScriptToFile :: FilePath -> FilePath -> Script PlutusScriptV3 -> IO ()
+writeScriptToFile
+  :: forall lang
+   . (IsPlutusScriptLanguage lang)
+  => FilePath
+  -> FilePath
+  -> Script lang
+  -> IO ()
 writeScriptToFile dir file (PlutusScript _ script) = do
   createDirectoryIfMissing True dir
   let path = dir </> file
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing script
+writeScriptToFile _ _ SimpleScript{} = case plutusScriptVersion @lang of {}
 
 writeHexBytesToFile
   :: (SerialiseAsRawBytes a) => FilePath -> FilePath -> a -> IO ()
@@ -360,16 +405,5 @@ writeTxOutValueToFile dir file address value = do
     fold
       [ serialiseToBech32 address
       , "+"
-      , T.intercalate " + " $ uncurry renderAsset <$> valueToList value
+      , renderValue value
       ]
-
-renderAsset :: AssetId -> Quantity -> T.Text
-renderAsset AdaAssetId (Quantity i) = T.pack (show i) <> " lovelace"
-renderAsset (AssetId policyId "") (Quantity i) =
-  T.pack (show i) <> " " <> serialiseToRawBytesHexText policyId
-renderAsset (AssetId policyId (AssetName assetName)) (Quantity i) =
-  T.pack (show i)
-    <> " "
-    <> serialiseToRawBytesHexText policyId
-    <> "."
-    <> decodeUtf8 assetName

@@ -39,7 +39,7 @@ validateHotLockDatum datum = case fromBuiltinData datum of
 checkGroup :: [Identity] -> Bool
 checkGroup group =
   traceIfFalse "Group contains duplicate keys" (groupLength == length uniqueGroup)
-    && traceIfFalse "Group is too small" (groupLength < 3)
+    && traceIfFalse "Group is empty" (not $ null group)
   where
     groupLength = length group
     uniqueGroup =
@@ -140,7 +140,11 @@ mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
     tokenName :: TokenName
     tokenName
       | seedIx >= 256 = traceError "Seed input index must be less than 256"
-      | otherwise = TokenName $ consByteString seedIx seedId
+      | otherwise =
+          TokenName
+            . appendByteString (dropByteString 4 seedId)
+            . consByteString 35 -- '#' in ascii
+            $ consByteString seedIx emptyByteString
 
     TxOutRef (TxId seedId) seedIx = seed
 

@@ -5,7 +5,6 @@ import Cardano.Api (
   AddressInEra (..),
   ConwayEra,
   CtxUTxO,
-  PlutusScriptV3,
   PlutusScriptVersion (..),
   Script (..),
   ScriptData,
@@ -50,9 +49,9 @@ getInlineDatum missing nonInline = \case
   TxOutDatumNone -> Left missing
   TxOutDatumHash _ _ -> Left nonInline
 
-serialiseScript :: CompiledCode a -> Script PlutusScriptV3
-serialiseScript =
-  PlutusScript PlutusScriptV3 . PlutusScriptSerialised . serialiseCompiledCode
+serialiseScript :: PlutusScriptVersion v -> CompiledCode a -> Script v
+serialiseScript v =
+  PlutusScript v . PlutusScriptSerialised . serialiseCompiledCode
 
 validateGroup
   :: e
