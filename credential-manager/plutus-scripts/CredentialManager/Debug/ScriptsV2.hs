@@ -1,8 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
-module CredentialManager.ScriptsV2 where
+module CredentialManager.Debug.ScriptsV2 where
 
 import CredentialManager.Scripts.Minting (coldMintingScript, hotMintingScript)
 import PlutusTx (CompiledCode, UnsafeFromData (..), compile)

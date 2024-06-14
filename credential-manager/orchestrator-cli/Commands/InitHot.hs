@@ -14,6 +14,7 @@ import Cardano.Api (
 import Commands.Common (
   StakeCredentialFile,
   assetNameParser,
+  debugParser,
   networkIdParser,
   outDirParser,
   policyIdParser,
@@ -50,6 +51,7 @@ data InitHotCommand = InitHotCommand
   , coldNFTAssetName :: AssetName
   , votingCertFiles :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
+  , debug :: Bool
   , outDir :: FilePath
   }
 
@@ -68,6 +70,7 @@ initHotCommandParser = info parser description
         <*> assetNameParser coldNFTAssetNameInfo
         <*> some votingCertParser
         <*> optional stakeCredentialFileParser
+        <*> debugParser
         <*> outDirParser
 
 coldNFTPolicyIdInfo :: Mod OptionFields PolicyId

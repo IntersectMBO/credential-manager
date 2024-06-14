@@ -7,6 +7,7 @@ module Commands.InitCold (
 import Cardano.Api (NetworkId, StakeAddressReference (..), TxIn)
 import Commands.Common (
   StakeCredentialFile,
+  debugParser,
   delegationCertParser,
   membershipCertParser,
   networkIdParser,
@@ -44,6 +45,7 @@ data InitColdCommand = InitColdCommand
   , membershipCertFiles :: [FilePath]
   , delegationCertFiles :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
+  , debug :: Bool
   , outDir :: FilePath
   }
 
@@ -62,6 +64,7 @@ initColdCommandParser = info parser description
         <*> some membershipCertParser
         <*> some delegationCertParser
         <*> optional stakeCredentialFileParser
+        <*> debugParser
         <*> outDirParser
 
 caCertFileParser :: Parser FilePath

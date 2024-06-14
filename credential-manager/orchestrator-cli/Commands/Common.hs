@@ -69,6 +69,7 @@ import Options.Applicative (
   ReadM,
   action,
   eitherReader,
+  flag,
   flag',
   help,
   long,
@@ -102,6 +103,15 @@ networkIdParser =
           , help "Build a testnet script address"
           ]
     ]
+
+debugParser :: Parser Bool
+debugParser =
+  flag False True $
+    fold
+      [ long "debug"
+      , short 'd'
+      , help "Compile scripts in debug mode"
+      ]
 
 assetNameParser :: Mod OptionFields AssetName -> Parser AssetName
 assetNameParser = option readAssetName . (<> metavar "ASSET_NAME")

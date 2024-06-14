@@ -21,19 +21,49 @@ import PlutusLedgerApi.V2
 import qualified PlutusTx.AssocMap as AMap
 import PlutusTx.Prelude
 
+{-# INLINEABLE coldMintingScript #-}
+coldMintingScript :: MintingRedeemer -> ScriptContext -> Bool
+coldMintingScript = mintingScript validateColdLockDatum
+
+{-# INLINEABLE hotMintingScript #-}
+hotMintingScript :: MintingRedeemer -> ScriptContext -> Bool
+hotMintingScript = mintingScript validateHotLockDatum
+
+{-# INLINEABLE mintingScript #-}
+mintingScript
+  :: (BuiltinData -> Bool) -> MintingRedeemer -> ScriptContext -> Bool
+mintingScript validateDatum redeemer ScriptContext{..} = case scriptContextPurpose of
+  Minting symbol -> case AMap.lookup symbol (getValue txInfoMint) of
+    Nothing -> traceError "Transaction does not mint any tokens"
+    Just mintedTokens -> case redeemer of
+      Burn input ->
+        burnScript input symbol mintedTokens scriptContextTxInfo
+      Mint seed scriptHash ->
+        mintScript
+          validateDatum
+          seed
+          scriptHash
+          symbol
+          mintedTokens
+          scriptContextTxInfo
+  _ -> traceError "Wrong script purpose"
+  where
+    TxInfo{..} = scriptContextTxInfo
+
 {-# INLINEABLE validateColdLockDatum #-}
 validateColdLockDatum :: BuiltinData -> Bool
 validateColdLockDatum datum = case fromBuiltinData datum of
   Nothing -> traceError "Invalid cold lock datum"
   Just ColdLockDatum{..} ->
-    checkGroup membershipUsers
-      && checkGroup delegationUsers
+    traceIfFalse "Membership group invalid" (checkGroup membershipUsers)
+      && traceIfFalse "Delegation group invalid" (checkGroup delegationUsers)
 
 {-# INLINEABLE validateHotLockDatum #-}
 validateHotLockDatum :: BuiltinData -> Bool
 validateHotLockDatum datum = case fromBuiltinData datum of
   Nothing -> traceError "Invalid hot lock datum"
-  Just HotLockDatum{..} -> checkGroup votingUsers
+  Just HotLockDatum{..} ->
+    traceIfFalse "Voting group invalid" $ checkGroup votingUsers
 
 {-# INLINEABLE checkGroup #-}
 checkGroup :: [Identity] -> Bool
@@ -44,34 +74,6 @@ checkGroup group =
     groupLength = length group
     uniqueGroup =
       nubBy (\(Identity pkh _) (Identity pkh' _) -> pkh == pkh') group
-
-{-# INLINEABLE mintingScript #-}
-mintingScript :: MintingRedeemer -> ScriptContext -> Bool
-mintingScript redeemer ScriptContext{..} = case scriptContextPurpose of
-  Minting symbol -> case AMap.lookup symbol (getValue txInfoMint) of
-    Nothing -> traceError "Transaction does not mint any tokens"
-    Just mintedTokens -> case redeemer of
-      Burn input ->
-        burnScript input symbol mintedTokens scriptContextTxInfo
-      MintCold seed scriptHash ->
-        mintScript
-          validateColdLockDatum
-          seed
-          scriptHash
-          symbol
-          mintedTokens
-          scriptContextTxInfo
-      MintHot seed scriptHash ->
-        mintScript
-          validateHotLockDatum
-          seed
-          scriptHash
-          symbol
-          mintedTokens
-          scriptContextTxInfo
-  _ -> traceError "Wrong script purpose"
-  where
-    TxInfo{..} = scriptContextTxInfo
 
 {-# INLINEABLE burnScript #-}
 burnScript

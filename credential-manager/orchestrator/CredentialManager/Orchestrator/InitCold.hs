@@ -25,9 +25,11 @@ import CredentialManager.Api (
   Identity (..),
   MintingRedeemer (..),
  )
+import qualified CredentialManager.Debug.Scripts as Debug
+import qualified CredentialManager.Debug.ScriptsV2 as DebugV2
 import CredentialManager.Orchestrator.Common (serialiseScript, validateGroup)
-import CredentialManager.Scripts (coldCommittee, coldNFT)
-import CredentialManager.ScriptsV2 (minting)
+import qualified CredentialManager.Scripts as Scripts
+import qualified CredentialManager.ScriptsV2 as ScriptsV2
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
 import GHC.Generics (Generic)
@@ -53,6 +55,7 @@ data InitColdInputs = InitColdInputs
   , certificateAuthority :: Identity
   , membershipUsers :: [Identity]
   , delegationUsers :: [Identity]
+  , debug :: Bool
   }
   deriving (Show, Eq, Generic)
 
@@ -98,18 +101,28 @@ initCold InitColdInputs{..} = do
   let txIxByte = fromIntegral txIx
   let tokenName = BS.drop 4 txIdBytes <> BS.pack [BS.c2w '#', txIxByte]
   let coldNFTAssetName = AssetName tokenName
-  let mintingScript = serialiseScript PlutusScriptV2 minting
+  let mintingScript =
+        serialiseScript
+          PlutusScriptV2
+          if debug
+            then DebugV2.coldMinting
+            else ScriptsV2.coldMinting
   let mintingScriptHash = hashScript mintingScript
   let assetClass =
         curry
           AssetClass
           (CurrencySymbol . toBuiltin $ serialiseToRawBytes mintingScriptHash)
           (TokenName $ toBuiltin tokenName)
-  let credentialScript = serialiseScript PlutusScriptV3 . coldCommittee $ assetClass
+  let credentialScript =
+        serialiseScript
+          PlutusScriptV3
+          if debug
+            then Debug.coldCommittee assetClass
+            else Scripts.coldCommittee assetClass
   let credentialScriptHash = hashScript credentialScript
   let nftScript =
         serialiseScript PlutusScriptV3
-          . coldNFT
+          . (if debug then Debug.coldNFT else Scripts.coldNFT)
           . ColdCommitteeCredential
           . ScriptCredential
           . PV3.ScriptHash
@@ -124,5 +137,5 @@ initCold InitColdInputs{..} = do
   let txIx' = fromIntegral txIx
   let seedInput' = TxOutRef txId' txIx'
   let nftScriptHash' = PV2.ScriptHash $ toBuiltin $ serialiseToRawBytes nftScriptHash
-  let mintingRedeemer = MintCold seedInput' nftScriptHash'
+  let mintingRedeemer = Mint seedInput' nftScriptHash'
   pure InitColdOutputs{..}

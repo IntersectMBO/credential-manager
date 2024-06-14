@@ -58,12 +58,8 @@ class (FromData a) => CheckDatum a where
 
 -- | Redeemer type for the minting validator
 data MintingRedeemer
-  = -- | Mint a cold NFT by consuming a tx out and sending it to a script address.
-    --   also checks the datum
-    MintCold PV2.TxOutRef PV2.ScriptHash
-  | -- | Mint a hot NFT by consuming a tx out and sending it to a script address.
-    --   also checks the datum
-    MintHot PV2.TxOutRef PV2.ScriptHash
+  = -- | Mint an NFT by consuming a tx out and sending it to a script address.
+    Mint PV2.TxOutRef PV2.ScriptHash
   | -- | Burn a token by consuming it from a tx out.
     Burn PV2.TxOutRef
   deriving stock (Show, Eq, Generic)
@@ -366,7 +362,6 @@ PlutusTx.makeIsDataIndexed
 
 PlutusTx.makeIsDataIndexed
   ''MintingRedeemer
-  [ ('MintCold, 0)
-  , ('MintHot, 1)
-  , ('Burn, 2)
+  [ ('Mint, 0)
+  , ('Burn, 1)
   ]
