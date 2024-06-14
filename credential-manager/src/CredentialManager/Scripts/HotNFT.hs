@@ -24,6 +24,8 @@ import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
+  Address (..),
+  Credential (..),
   Datum (..),
   FromData (..),
   GovernanceActionId,
@@ -114,12 +116,13 @@ findTxInByNFTInRefUTxO token txInfo =
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
   :: AssetClass
+  -> AssetClass
   -> HotCommitteeCredential
   -> HotLockDatum
   -> HotLockRedeemer
   -> ScriptContext
   -> Bool
-hotNFTScript coldNFT hotCred (HotLockDatum votingUsers) red ctx =
+hotNFTScript coldNFT hotNFT hotCred (HotLockDatum votingUsers) red ctx =
   case scriptContextPurpose ctx of
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
@@ -154,7 +157,6 @@ hotNFTScript coldNFT hotCred (HotLockDatum votingUsers) red ctx =
                         OutputDatum $ Datum $ toBuiltinData newDatum
                     }
               _ -> False
-            checkNoVotes = Map.null $ txInfoVotes txInfo
         RotateHot ->
           checkOutput
             && signedByDelegators
@@ -168,30 +170,40 @@ hotNFTScript coldNFT hotCred (HotLockDatum votingUsers) red ctx =
                       && not (null voting')
                       && (value' == txOutValue ownInput)
               _ -> False
-            checkNoVotes = Map.null $ txInfoVotes txInfo
-            signedByDelegators =
-              case findTxInByNFTInRefUTxO coldNFT txInfo of
-                Nothing -> False
-                Just (TxInInfo _ refInput) -> case txOutDatum refInput of
-                  OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
-                    _ -> False
-                  _ -> False
-        UnlockHot -> signedByDelegators
+        BurnHot ->
+          signedByDelegators
+            && checkOutputs
+            && checkNoVotes
           where
-            signedByDelegators =
-              case findTxInByNFTInRefUTxO coldNFT txInfo of
-                Nothing -> False
-                Just (TxInInfo _ refInput) -> case txOutDatum refInput of
-                  OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-                    Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
-                    _ -> False
+            checkOutputs = not $ any outputContainsNFT $ txInfoOutputs txInfo
+        UpgradeHot destination ->
+          signedByDelegators
+            && checkOutputs
+            && checkNoVotes
+          where
+            checkOutputs = any checkOutput $ txInfoOutputs txInfo
+            checkOutput TxOut{..} =
+              addressMatches
+                && (assetClassValueOf txOutValue hotNFT == 1)
+              where
+                addressMatches = case addressCredential txOutAddress of
+                  ScriptCredential scriptHash -> destination == scriptHash
                   _ -> False
     _ -> False
   where
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
+    signedByDelegators =
+      case findTxInByNFTInRefUTxO coldNFT txInfo of
+        Nothing -> False
+        Just (TxInInfo _ refInput) -> case txOutDatum refInput of
+          OutputDatum datum -> case fromBuiltinData $ getDatum datum of
+            Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
+            _ -> False
+          _ -> False
+    outputContainsNFT TxOut{..} = assetClassValueOf txOutValue coldNFT == 0
+    checkNoVotes = Map.null $ txInfoVotes txInfo
 
 PlutusTx.makeLift ''ScriptPurpose
 PlutusTx.makeIsDataIndexed

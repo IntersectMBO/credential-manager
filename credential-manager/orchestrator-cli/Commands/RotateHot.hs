@@ -6,7 +6,7 @@ module Commands.RotateHot (
 
 import Commands.Common (
   outDirParser,
-  readFileTxOut,
+  readFileUTxO,
   readIdentityFromPEMFile',
   runCommand,
   utxoFileParser,
@@ -46,7 +46,7 @@ rotateHotCommandParser = info parser description
 
 runRotateHotCommand :: RotateHotCommand -> IO ()
 runRotateHotCommand RotateHotCommand{..} = do
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   newVoting <- traverse readIdentityFromPEMFile' votingCerts
   let inputs = RotateHotInputs{..}
   RotateHotOutputs{..} <- runCommand rotateHot inputs \case
@@ -60,6 +60,8 @@ runRotateHotCommand RotateHotCommand{..} = do
       "Multiple voting users have the same certificate hash " <> show cert
     DuplicateVotingPubKeyHash key ->
       "Multiple voting users have the same public key hash " <> show key
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

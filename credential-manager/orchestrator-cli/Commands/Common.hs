@@ -6,7 +6,6 @@ import Cardano.Api (
   AssetName,
   Certificate,
   ConwayEra,
-  CtxUTxO,
   File (..),
   FromSomeType (..),
   IsPlutusScriptLanguage,
@@ -17,6 +16,7 @@ import Cardano.Api (
   PlutusScriptVersion (..),
   PolicyId,
   Script (..),
+  ScriptHash,
   SerialiseAsBech32,
   SerialiseAsRawBytes (..),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
@@ -24,7 +24,7 @@ import Cardano.Api (
   StakeAddressReference (..),
   TxIn (..),
   TxIx (..),
-  TxOut,
+  UTxO (..),
   Value,
   hashScript,
   plutusScriptVersion,
@@ -51,6 +51,7 @@ import Cardano.Api.Shelley (
   scriptDataToJsonDetailedSchema,
  )
 import qualified Cardano.Api.Shelley as Shelley
+import Control.Applicative ((<|>))
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -59,6 +60,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
+import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
@@ -80,6 +82,8 @@ import Options.Applicative (
   str,
   strOption,
  )
+import PlutusLedgerApi.V2 (TxOutRef (TxOutRef))
+import qualified PlutusLedgerApi.V2 as PV2
 import PlutusTx (ToData, toData)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (die)
@@ -159,6 +163,28 @@ hotCredentialScriptFileParser =
       , help "A relative path to the compiled hot credential script file."
       , action "file"
       ]
+
+newScriptFileParser :: Parser FilePath
+newScriptFileParser =
+  strOption $
+    fold
+      [ long "new-script-file"
+      , metavar "FILE_PATH"
+      , help "The relative path of a file containing the script to send the NFT to."
+      , action "file"
+      ]
+
+newScriptHashParser :: Parser ScriptHash
+newScriptHashParser =
+  strOption $
+    fold
+      [ long "new-script-hash"
+      , metavar "HEX"
+      , help "The Blake2b-224 hash of the script to send the NFT to, in hex."
+      ]
+
+newScriptParser :: Parser (Either ScriptHash FilePath)
+newScriptParser = Left <$> newScriptHashParser <|> Right <$> newScriptFileParser
 
 outDirParser :: Parser FilePath
 outDirParser =
@@ -335,9 +361,9 @@ readFilePlutusV3Script path = do
     Left err -> error $ "Failed to read script file " <> path <> ": " <> show err
     Right script -> pure $ PlutusScript PlutusScriptV3 script
 
-readFileTxOut :: FilePath -> IO (TxOut CtxUTxO ConwayEra)
-readFileTxOut path = do
-  result <- eitherDecodeFileStrict @(TxOut CtxUTxO ConwayEra) path
+readFileUTxO :: FilePath -> IO (UTxO ConwayEra)
+readFileUTxO path = do
+  result <- eitherDecodeFileStrict @(UTxO ConwayEra) path
   case result of
     Left err -> do error $ "Failed to read utxo file: " <> show err
     Right u -> pure u
@@ -417,3 +443,13 @@ writeTxOutValueToFile dir file address value = do
       , "+"
       , renderValue value
       ]
+
+extractTxIn :: UTxO ConwayEra -> IO TxOutRef
+extractTxIn (UTxO utxo) = case Map.keys utxo of
+  [] -> die "Script UTxO is empty"
+  [TxIn txId (TxIx txIx)] ->
+    pure $
+      TxOutRef
+        (PV2.TxId $ PV2.toBuiltin $ serialiseToRawBytes txId)
+        (toInteger txIx)
+  _ -> die "Script UTxO has more than one output"

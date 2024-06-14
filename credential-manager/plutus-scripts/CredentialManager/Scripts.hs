@@ -85,6 +85,33 @@ wrapFiveArgs f a b c d ctx =
       (unsafeFromBuiltinData d)
       (unsafeFromBuiltinData ctx)
 
+{-# INLINEABLE wrapSixArgs #-}
+wrapSixArgs
+  :: ( UnsafeFromData a
+     , UnsafeFromData b
+     , UnsafeFromData c
+     , UnsafeFromData d
+     , UnsafeFromData e
+     , UnsafeFromData f
+     )
+  => (a -> b -> c -> d -> e -> f -> Bool)
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinData
+  -> ()
+wrapSixArgs f a b c d e ctx =
+  check
+    $ f
+      (unsafeFromBuiltinData a)
+      (unsafeFromBuiltinData b)
+      (unsafeFromBuiltinData c)
+      (unsafeFromBuiltinData d)
+      (unsafeFromBuiltinData e)
+      (unsafeFromBuiltinData ctx)
+
 coldCommittee
   :: AssetClass -> CompiledCode (BuiltinData -> BuiltinData -> ())
 coldCommittee =
@@ -100,21 +127,29 @@ hotCommittee =
     . toBuiltinData
 
 coldNFT
-  :: ColdCommitteeCredential
+  :: AssetClass
+  -> ColdCommitteeCredential
   -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-coldNFT =
-  unsafeApplyCode $$(compile [||wrapFourArgs coldNFTScript||])
-    . liftCodeDef
-    . toBuiltinData
+coldNFT coldAssetClass coldCred =
+  unsafeApplyCode
+    ( unsafeApplyCode
+        $$(compile [||wrapFiveArgs coldNFTScript||])
+        (liftCodeDef (toBuiltinData coldAssetClass))
+    )
+    (liftCodeDef (toBuiltinData coldCred))
 
 hotNFT
   :: AssetClass
+  -> AssetClass
   -> HotCommitteeCredential
   -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-hotNFT coldAssetClass hotCred =
+hotNFT coldAssetClass hotAssetClass hotCred =
   unsafeApplyCode
     ( unsafeApplyCode
-        $$(compile [||wrapFiveArgs hotNFTScript||])
-        (liftCodeDef (toBuiltinData coldAssetClass))
+        ( unsafeApplyCode
+            $$(compile [||wrapSixArgs hotNFTScript||])
+            (liftCodeDef (toBuiltinData coldAssetClass))
+        )
+        (liftCodeDef (toBuiltinData hotAssetClass))
     )
     (liftCodeDef (toBuiltinData hotCred))

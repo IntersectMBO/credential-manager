@@ -21,7 +21,10 @@ import CredentialManager.Api (
  )
 import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
+  Address (..),
+  Credential (..),
   Datum (..),
   OutputDatum (..),
   PubKeyHash,
@@ -100,12 +103,13 @@ txSignedBy TxInfo{txInfoSignatories} k = k `elem` txInfoSignatories
 -- * members group actions
 {-# INLINEABLE coldNFTScript #-}
 coldNFTScript
-  :: ColdCommitteeCredential
+  :: AssetClass
+  -> ColdCommitteeCredential
   -> ColdLockDatum
   -> ColdLockRedeemer
   -> ScriptContext
   -> Bool
-coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ctx =
+coldNFTScript coldNFT coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ctx =
   case scriptContextPurpose ctx of
     Spending txOurRef -> case txInInfoResolved <$> findTxInByTxOutRef txOurRef txInfo of
       Nothing -> False
@@ -136,7 +140,6 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
             resigneeRemoved = case ownOutputs ownInput outputs of
               [ownOutput] -> ownOutput == newOutput
               _ -> False
-            checkNoCerts = null $ txInfoTxCerts txInfo
         ResignCold ->
           checkTxOutPreservation ownInput outputs
             && checkMultiSig membershipUsers signatures
@@ -160,13 +163,32 @@ coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ct
                       && not (null delegation')
                       && (value' == txOutValue ownInput)
               _ -> False
-            checkNoCerts = null $ txInfoTxCerts txInfo
-        UnlockCold -> checkMultiSig membershipUsers signatures
+        BurnCold ->
+          checkMultiSig membershipUsers signatures
+            && checkOutputs
+            && checkNoCerts
+          where
+            checkOutputs = not $ any outputContainsNFT $ txInfoOutputs txInfo
+        UpgradeCold destination ->
+          checkMultiSig membershipUsers signatures
+            && checkOutputs
+            && checkNoCerts
+          where
+            checkOutputs = any checkOutput $ txInfoOutputs txInfo
+            checkOutput TxOut{..} =
+              addressMatches
+                && (assetClassValueOf txOutValue coldNFT == 1)
+              where
+                addressMatches = case addressCredential txOutAddress of
+                  ScriptCredential scriptHash -> destination == scriptHash
+                  _ -> False
     _ -> False
   where
+    checkNoCerts = null $ txInfoTxCerts txInfo
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
+    outputContainsNFT TxOut{..} = assetClassValueOf txOutValue coldNFT == 0
 
 PlutusTx.makeLift ''ScriptPurpose
 PlutusTx.makeIsDataIndexed

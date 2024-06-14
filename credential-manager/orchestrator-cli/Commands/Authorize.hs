@@ -9,7 +9,7 @@ import Commands.Common (
   hotCredentialScriptFileParser,
   outDirParser,
   readFilePlutusV3Script,
-  readFileTxOut,
+  readFileUTxO,
   runCommand,
   utxoFileParser,
   writeCertificateToFile,
@@ -51,7 +51,7 @@ runAuthorizeCommand :: AuthorizeCommand -> IO ()
 runAuthorizeCommand AuthorizeCommand{..} = do
   coldCredentialScript <- readFilePlutusV3Script coldCredentialScriptFile
   hotCredentialScript <- readFilePlutusV3Script hotCredentialScriptFile
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   let inputs = AuthorizeHotInputs{..}
   AuthorizeHotOutputs{..} <- runCommand authorizeHot inputs \case
     AddressIsByron -> "UTxO has a Byron address."
@@ -59,6 +59,8 @@ runAuthorizeCommand AuthorizeCommand{..} = do
     MissingDatum -> "UTxO has no datum present."
     NonInlineDatum -> "UTxO has a non-inline datum present."
     InvalidDatum -> "UTxO has an invalid datum."
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

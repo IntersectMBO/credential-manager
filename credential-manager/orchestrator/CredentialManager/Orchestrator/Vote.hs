@@ -3,7 +3,6 @@ module CredentialManager.Orchestrator.Vote where
 import Cardano.Api (
   Address,
   ConwayEra,
-  CtxUTxO,
   PlutusScriptV3,
   Script,
   ShelleyAddr,
@@ -28,6 +27,7 @@ import qualified Cardano.Ledger.Conway as L
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
  )
@@ -37,7 +37,7 @@ import GHC.Generics (Generic)
 
 data VoteInputs = VoteInputs
   { hotCredentialScript :: Script PlutusScriptV3
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: Shelley.UTxO ConwayEra
   , votes :: Map (GovActionId StandardCrypto) (Vote, Anchor StandardCrypto)
   }
   deriving (Show, Eq, Generic)
@@ -57,11 +57,14 @@ data VoteError
   | MissingDatum
   | NonInlineDatum
   | InvalidDatum
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 vote :: VoteInputs -> Either VoteError VoteOutputs
 vote VoteInputs{..} = do
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

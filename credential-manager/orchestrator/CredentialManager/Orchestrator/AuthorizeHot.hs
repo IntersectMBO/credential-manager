@@ -5,12 +5,12 @@ import Cardano.Api (
   Certificate (..),
   ConwayEra,
   ConwayEraOnwards (..),
-  CtxUTxO,
   PlutusScriptV3,
   Script,
   SerialiseAsRawBytes (..),
   ShelleyAddr,
   TxOut (..),
+  UTxO,
   Value,
   txOutValueToValue,
  )
@@ -23,6 +23,7 @@ import Cardano.Api.Shelley (hashScript, toShelleyScriptHash)
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
  )
@@ -37,7 +38,7 @@ import PlutusLedgerApi.V3 (
 data AuthorizeHotInputs = AuthorizeHotInputs
   { coldCredentialScript :: Script PlutusScriptV3
   , hotCredentialScript :: Script PlutusScriptV3
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: UTxO ConwayEra
   }
   deriving (Show, Eq, Generic)
 
@@ -56,12 +57,15 @@ data AuthorizeHotError
   | MissingDatum
   | NonInlineDatum
   | InvalidDatum
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 authorizeHot
   :: AuthorizeHotInputs -> Either AuthorizeHotError AuthorizeHotOutputs
 authorizeHot AuthorizeHotInputs{..} = do
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

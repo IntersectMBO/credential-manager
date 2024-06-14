@@ -9,7 +9,9 @@ import Cardano.Api (
   Script (..),
   ScriptData,
   ShelleyAddr,
+  TxOut,
   TxOutDatum (..),
+  UTxO (..),
   getScriptData,
  )
 import Cardano.Api.Byron (Address (..))
@@ -21,6 +23,7 @@ import Cardano.Api.Shelley (
  )
 import CredentialManager.Api (CertificateHash, Identity (..))
 import Data.List (group, sort)
+import qualified Data.Map as Map
 import Data.Maybe (listToMaybe)
 import PlutusLedgerApi.V3 (
   FromData (..),
@@ -76,3 +79,9 @@ validateGroup _ duplicateCert duplicateKey list = do
 validate :: e -> Bool -> Either e ()
 validate _ True = Right ()
 validate e False = Left e
+
+extractOutput :: a -> a -> UTxO ConwayEra -> Either a (TxOut CtxUTxO ConwayEra)
+extractOutput emptyErr ambiguousErr (UTxO utxo) = case Map.elems utxo of
+  [] -> Left emptyErr
+  [out] -> Right out
+  _ -> Left ambiguousErr

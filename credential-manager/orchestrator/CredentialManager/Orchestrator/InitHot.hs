@@ -106,7 +106,7 @@ initHot InitHotInputs{..} = do
           AssetClass
           (CurrencySymbol . toBuiltin $ serialiseToRawBytes coldNFTPolicyId)
           (TokenName $ toBuiltin $ serialiseToRawBytes coldNFTAssetName)
-  let assetClass =
+  let hotAssetClass =
         curry
           AssetClass
           (CurrencySymbol . toBuiltin $ serialiseToRawBytes mintingScriptHash)
@@ -115,18 +115,22 @@ initHot InitHotInputs{..} = do
         serialiseScript
           PlutusScriptV3
           if debug
-            then Debug.hotCommittee assetClass
-            else Scripts.hotCommittee assetClass
+            then Debug.hotCommittee hotAssetClass
+            else Scripts.hotCommittee hotAssetClass
   let credentialScriptHash = hashScript credentialScript
-  let nftScript =
-        serialiseScript PlutusScriptV3
-          . (if debug then Debug.hotNFT else Scripts.hotNFT) coldNFTAssetClass
-          . HotCommitteeCredential
+  let mkNFTScript
+        | debug = Debug.hotNFT
+        | otherwise = Scripts.hotNFT
+  let hotCredential =
+        HotCommitteeCredential
           . ScriptCredential
           . PV3.ScriptHash
           . toBuiltin
           . serialiseToRawBytes
           $ credentialScriptHash
+  let nftScript =
+        serialiseScript PlutusScriptV3 $
+          mkNFTScript coldNFTAssetClass hotAssetClass hotCredential
   let nftScriptHash = hashScript nftScript
   let paymentCredential = PaymentCredentialByScript nftScriptHash
   let nftScriptAddress = makeShelleyAddress networkId paymentCredential stakeAddress

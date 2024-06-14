@@ -108,7 +108,7 @@ initCold InitColdInputs{..} = do
             then DebugV2.coldMinting
             else ScriptsV2.coldMinting
   let mintingScriptHash = hashScript mintingScript
-  let assetClass =
+  let coldAssetClass =
         curry
           AssetClass
           (CurrencySymbol . toBuiltin $ serialiseToRawBytes mintingScriptHash)
@@ -117,18 +117,22 @@ initCold InitColdInputs{..} = do
         serialiseScript
           PlutusScriptV3
           if debug
-            then Debug.coldCommittee assetClass
-            else Scripts.coldCommittee assetClass
+            then Debug.coldCommittee coldAssetClass
+            else Scripts.coldCommittee coldAssetClass
   let credentialScriptHash = hashScript credentialScript
-  let nftScript =
-        serialiseScript PlutusScriptV3
-          . (if debug then Debug.coldNFT else Scripts.coldNFT)
-          . ColdCommitteeCredential
+  let mkNFTScript
+        | debug = Debug.coldNFT
+        | otherwise = Scripts.coldNFT
+  let coldCredential =
+        ColdCommitteeCredential
           . ScriptCredential
           . PV3.ScriptHash
           . toBuiltin
           . serialiseToRawBytes
           $ credentialScriptHash
+  let nftScript =
+        serialiseScript PlutusScriptV3 $
+          mkNFTScript coldAssetClass coldCredential
   let nftScriptHash = hashScript nftScript
   let paymentCredential = PaymentCredentialByScript nftScriptHash
   let nftScriptAddress = makeShelleyAddress networkId paymentCredential stakeAddress

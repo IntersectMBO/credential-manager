@@ -21,7 +21,7 @@ import Commands.Common (
   metadataUrlParser,
   outDirParser,
   readFilePlutusV3Script,
-  readFileTxOut,
+  readFileUTxO,
   readSafeHash,
   runCommand,
   utxoFileParser,
@@ -127,7 +127,7 @@ metadataInfo =
 runVoteCommand :: VoteCommand -> IO ()
 runVoteCommand VoteCommand{..} = do
   hotCredentialScript <- readFilePlutusV3Script hotCredentialScriptFile
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   let inputs = VoteInputs{..}
   VoteOutputs{..} <- runCommand vote inputs \case
     AddressIsByron -> "UTxO has a Byron address."
@@ -135,6 +135,8 @@ runVoteCommand VoteCommand{..} = do
     MissingDatum -> "UTxO has no datum present."
     NonInlineDatum -> "UTxO has a non-inline datum present."
     InvalidDatum -> "UTxO has an invalid datum."
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

@@ -3,15 +3,16 @@ module CredentialManager.Orchestrator.ResignVoting where
 import Cardano.Api (
   Address,
   ConwayEra,
-  CtxUTxO,
   ShelleyAddr,
   TxOut (..),
+  UTxO,
   Value,
   txOutValueToValue,
  )
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
   validate,
@@ -20,7 +21,7 @@ import GHC.Generics (Generic)
 
 data ResignVotingInputs = ResignVotingInputs
   { resignee :: Identity
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: UTxO ConwayEra
   }
   deriving (Show, Eq, Generic)
 
@@ -40,12 +41,15 @@ data ResignVotingError
   | InvalidDatum
   | ResigneeNotInVotingGroup
   | EmptyVoting
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 resignVoting
   :: ResignVotingInputs -> Either ResignVotingError ResignVotingOutputs
 resignVoting ResignVotingInputs{..} = do
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

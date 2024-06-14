@@ -9,6 +9,16 @@ import Commands.Authorize (
   authorizeCommandParser,
   runAuthorizeCommand,
  )
+import Commands.BurnCold (
+  BurnColdCommand,
+  burnColdCommandParser,
+  runBurnColdCommand,
+ )
+import Commands.BurnHot (
+  BurnHotCommand,
+  burnHotCommandParser,
+  runBurnHotCommand,
+ )
 import Commands.InitCold (
   InitColdCommand,
   initColdCommandParser,
@@ -40,15 +50,15 @@ import Commands.RotateHot (
   rotateHotCommandParser,
   runRotateHotCommand,
  )
-import Commands.UnlockCold (
-  UnlockColdCommand,
-  runUnlockColdCommand,
-  unlockColdCommandParser,
+import Commands.UpgradeCold (
+  UpgradeColdCommand,
+  runUpgradeColdCommand,
+  upgradeColdCommandParser,
  )
-import Commands.UnlockHot (
-  UnlockHotCommand,
-  runUnlockHotCommand,
-  unlockHotCommandParser,
+import Commands.UpgradeHot (
+  UpgradeHotCommand,
+  runUpgradeHotCommand,
+  upgradeHotCommandParser,
  )
 import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Data.Foldable (Foldable (..))
@@ -60,12 +70,14 @@ data Command
   | Resign ResignCommand
   | ResignDelegation ResignDelegationCommand
   | RotateCold RotateColdCommand
-  | UnlockCold UnlockColdCommand
+  | BurnCold BurnColdCommand
+  | UpgradeCold UpgradeColdCommand
   | InitHot InitHotCommand
   | Vote VoteCommand
   | ResignVoting ResignVotingCommand
   | RotateHot RotateHotCommand
-  | UnlockHot UnlockHotCommand
+  | BurnHot BurnHotCommand
+  | UpgradeHot UpgradeHotCommand
 
 -- Parsers
 
@@ -82,8 +94,10 @@ commandParser =
       , command "resign-voting" $ ResignVoting <$> resignVotingCommandParser
       , command "rotate-cold" $ RotateCold <$> rotateColdCommandParser
       , command "rotate-hot" $ RotateHot <$> rotateHotCommandParser
-      , command "unlock-cold" $ UnlockCold <$> unlockColdCommandParser
-      , command "unlock-hot" $ UnlockHot <$> unlockHotCommandParser
+      , command "burn-cold" $ BurnCold <$> burnColdCommandParser
+      , command "burn-hot" $ BurnHot <$> burnHotCommandParser
+      , command "upgrade-cold" $ UpgradeCold <$> upgradeColdCommandParser
+      , command "upgrade-hot" $ UpgradeHot <$> upgradeHotCommandParser
       ]
 
 -- Implementations
@@ -95,9 +109,11 @@ runCommand = \case
   Resign cmd -> runResignCommand cmd
   ResignDelegation cmd -> runResignDelegationCommand cmd
   RotateCold cmd -> runRotateColdCommand cmd
-  UnlockCold cmd -> runUnlockColdCommand cmd
+  BurnCold cmd -> runBurnColdCommand cmd
   InitHot cmd -> runInitHotCommand cmd
   Vote cmd -> runVoteCommand cmd
   ResignVoting cmd -> runResignVotingCommand cmd
   RotateHot cmd -> runRotateHotCommand cmd
-  UnlockHot cmd -> runUnlockHotCommand cmd
+  BurnHot cmd -> runBurnHotCommand cmd
+  UpgradeHot cmd -> runUpgradeHotCommand cmd
+  UpgradeCold cmd -> runUpgradeColdCommand cmd

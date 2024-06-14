@@ -215,25 +215,19 @@ data ColdLockRedeemer
     -- Requires the address and value to be preserved between the input
     -- and output that contain the NFT.
     RotateCold
-  | -- | Allows the transaction to do anything with the NFT. Transaction must be
+  | -- | Allows the transaction to burn the NFT. Transaction must be
     -- signed by a majority of identities from membershipUsers.
     --
-    -- Warning: this action invalidates all security guarantees if invoked,
-    -- which effectively grants full control of the CC cold credential to the
-    -- membership users. As such, it is imperative to both generate and manage
-    -- the membership signing keys in a secure manner
-    -- (see https://developers.cardano.org/docs/get-started/secure-workflow).
+    -- Forbids issuing any certificates.
+    -- Requires the NFT to be burned.
+    BurnCold
+  | -- | Allows the transaction to send the NFT to a new script address.
+    -- Transaction must be signed by a majority of identities from
+    -- membershipUsers.
     --
-    -- The justification for the existence of this intentional vulnerability is
-    -- to support upgrading the cold locking script if unintentional security
-    -- vulnerabilities are found and patched by sending the NFT to the address
-    -- of the new script. Without this feature, the NFT could never leave the
-    -- locking script address, and the only way to prevent an attacker from
-    -- exploiting the compromised script would be to resign the cold credential
-    -- from the committee, which would render the committee member unable to
-    -- participate in governance until they were re-elected, a process
-    -- over which they have no control.
-    UnlockCold
+    -- Forbids issuing any certificates.
+    -- Requires the NFT to be sent to the specified script.
+    UpgradeCold PV3.ScriptHash
   deriving stock (Show, Eq, Generic)
 
 instance PlutusTx.Eq ColdLockRedeemer where
@@ -246,8 +240,10 @@ instance PlutusTx.Eq ColdLockRedeemer where
   ResignDelegation _ == _ = PlutusTx.False
   RotateCold == RotateCold = PlutusTx.True
   RotateCold == _ = PlutusTx.False
-  UnlockCold == UnlockCold = PlutusTx.True
-  UnlockCold == _ = PlutusTx.False
+  BurnCold == BurnCold = PlutusTx.True
+  BurnCold == _ = PlutusTx.False
+  UpgradeCold h1 == UpgradeCold h2 = h1 PlutusTx.== h2
+  UpgradeCold _ == _ = PlutusTx.False
 
 PlutusTx.makeLift ''CertificateHash
 
@@ -266,7 +262,8 @@ PlutusTx.makeIsDataIndexed
   , ('ResignCold, 1)
   , ('ResignDelegation, 2)
   , ('RotateCold, 3)
-  , ('UnlockCold, 4)
+  , ('BurnCold, 4)
+  , ('UpgradeCold, 4)
   ]
 
 -- | The datum of the CC hot credential NFT locking script.
@@ -318,24 +315,27 @@ data HotLockRedeemer
     -- Requires the address and value to be preserved between the input
     -- and output that contain the NFT.
     RotateHot
-  | -- | Allows the transaction to do anything with the NFT. Transaction must be
-    -- signed by a majority of the delegation group.
+  | -- | Allows the transaction to burn the NFT. Transaction must be signed by
+    -- a majority of identities from membershipUsers.
     --
     -- In order to obtain the list of delegation users, the transaction must
     -- reference the output containing the cold credential NFT as a reference
     -- input.
     --
-    -- Forbids casing any votes.
+    -- Forbids casting any votes.
+    -- Requires the NFT to be sent to the specified script.
+    BurnHot
+  | -- | Allows the transaction to send the NFT to a new script address.
+    -- Transaction must be signed by a majority of identities from
+    -- membershipUsers.
     --
-    -- Unlike the cold credential, only burning is allowed - there is no
-    -- redeemer which allows sending the hot NFT to an arbitrary address. This
-    -- is to avoid introducing an unnecessary attack vector by making it impossible
-    -- for the hot credential NFT to be sent to an arbitrary address.
+    -- In order to obtain the list of delegation users, the transaction must
+    -- reference the output containing the cold credential NFT as a reference
+    -- input.
     --
-    -- For the anticipated use case of upgrading the locking script, the
-    -- delegation users should instead authorize a new hot credential with a
-    -- new NFT in the cold locking script and burn the old hot credential NFT.
-    UnlockHot
+    -- Forbids casting any votes.
+    -- Requires the NFT to be sent to the specified script.
+    UpgradeHot PV3.ScriptHash
   deriving stock (Show, Eq, Generic)
 
 instance PlutusTx.Eq HotLockRedeemer where
@@ -346,8 +346,10 @@ instance PlutusTx.Eq HotLockRedeemer where
   ResignVoting _ == _ = PlutusTx.False
   RotateHot == RotateHot = PlutusTx.True
   RotateHot == _ = PlutusTx.False
-  UnlockHot == UnlockHot = PlutusTx.True
-  UnlockHot == _ = PlutusTx.False
+  BurnHot == BurnHot = PlutusTx.True
+  BurnHot == _ = PlutusTx.False
+  UpgradeHot h1 == UpgradeHot h2 = h1 PlutusTx.== h2
+  UpgradeHot _ == _ = PlutusTx.False
 
 PlutusTx.makeLift ''HotLockDatum
 PlutusTx.makeLift ''HotLockRedeemer
@@ -357,7 +359,8 @@ PlutusTx.makeIsDataIndexed
   [ ('Vote, 0)
   , ('ResignVoting, 1)
   , ('RotateHot, 2)
-  , ('UnlockHot, 3)
+  , ('BurnHot, 3)
+  , ('UpgradeHot, 4)
   ]
 
 PlutusTx.makeIsDataIndexed
