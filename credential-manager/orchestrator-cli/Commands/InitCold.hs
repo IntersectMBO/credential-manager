@@ -7,6 +7,7 @@ module Commands.InitCold (
 import Cardano.Api (NetworkId, StakeAddressReference (..), TxIn)
 import Commands.Common (
   StakeCredentialFile,
+  checkGroupSize,
   debugParser,
   delegationCertParser,
   membershipCertParser,
@@ -87,6 +88,8 @@ runInitColdCommand InitColdCommand{..} = do
   certificateAuthority <- readIdentityFromPEMFile' caCertFile
   membershipUsers <- traverse readIdentityFromPEMFile' membershipCertFiles
   delegationUsers <- traverse readIdentityFromPEMFile' delegationCertFiles
+  checkGroupSize "membership" membershipUsers
+  checkGroupSize "delegation" delegationUsers
   let inputs = InitColdInputs{..}
   InitColdOutputs{..} <- runCommand initCold inputs \case
     SeedTxIxTooLarge -> "The seed input has too large of an index. It must be less than 256."

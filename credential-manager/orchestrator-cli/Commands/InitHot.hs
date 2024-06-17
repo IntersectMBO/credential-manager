@@ -14,6 +14,7 @@ import Cardano.Api (
 import Commands.Common (
   StakeCredentialFile,
   assetNameParser,
+  checkGroupSize,
   debugParser,
   networkIdParser,
   outDirParser,
@@ -95,6 +96,7 @@ runInitHotCommand InitHotCommand{..} = do
       readStakeAddressFile
       stakeCredentialFile
   votingUsers <- traverse readIdentityFromPEMFile' votingCertFiles
+  checkGroupSize "voting" votingUsers
   let inputs = InitHotInputs{..}
   InitHotOutputs{..} <- runCommand initHot inputs \case
     SeedTxIxTooLarge -> "The seed input has too large of an index. It must be less than 256."

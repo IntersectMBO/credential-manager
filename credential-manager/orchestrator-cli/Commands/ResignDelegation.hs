@@ -5,6 +5,7 @@ module Commands.ResignDelegation (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   delegationCertParser,
   outDirParser,
   readFileUTxO,
@@ -14,6 +15,7 @@ import Commands.Common (
   writePlutusDataToFile,
   writeTxOutValueToFile,
  )
+import CredentialManager.Api (ColdLockDatum (..))
 import CredentialManager.Orchestrator.ResignDelegation
 import Options.Applicative (
   InfoMod,
@@ -58,6 +60,8 @@ runResignDelegationCommand ResignDelegationCommand{..} = do
     EmptyDelegation -> "Resignee is the last member of the delegation group."
     EmptyUTxO -> "Script UTxO is empty"
     AmbiguousUTxO -> "Script UTxO has more than one output"
+  let ColdLockDatum{..} = outputDatum
+  checkGroupSize "delegation" delegationUsers
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

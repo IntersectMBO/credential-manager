@@ -5,6 +5,7 @@ module Commands.ResignVoting (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   outDirParser,
   readFileUTxO,
   readIdentityFromPEMFile',
@@ -14,6 +15,7 @@ import Commands.Common (
   writePlutusDataToFile,
   writeTxOutValueToFile,
  )
+import CredentialManager.Api (HotLockDatum (..))
 import CredentialManager.Orchestrator.ResignVoting
 import Options.Applicative (
   InfoMod,
@@ -58,6 +60,8 @@ runResignVotingCommand ResignVotingCommand{..} = do
     EmptyVoting -> "Resignee is the last member of the voting group."
     EmptyUTxO -> "Script UTxO is empty"
     AmbiguousUTxO -> "Script UTxO has more than one output"
+  let HotLockDatum{..} = outputDatum
+  checkGroupSize "delegation" votingUsers
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

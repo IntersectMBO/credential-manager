@@ -88,6 +88,7 @@ import PlutusTx (ToData, toData)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (die)
 import System.FilePath ((</>))
+import System.IO (hPutStrLn, stderr)
 import Text.Read (readEither)
 
 data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
@@ -453,3 +454,13 @@ extractTxIn (UTxO utxo) = case Map.keys utxo of
         (PV2.TxId $ PV2.toBuiltin $ serialiseToRawBytes txId)
         (toInteger txIx)
   _ -> die "Script UTxO has more than one output"
+
+checkGroupSize :: String -> [Identity] -> IO ()
+checkGroupSize groupName group
+  | length group < 3 = hPutStrLn stderr msg
+  | otherwise = pure ()
+  where
+    msg =
+      "WARNING: "
+        <> groupName
+        <> " group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3."

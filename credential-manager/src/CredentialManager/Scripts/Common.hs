@@ -24,14 +24,15 @@ checkMultiSig list signatures = majority <= numberOfSignatures
     numberOfSignatures = length $ filter (`elem` signatures) allSignatures
 
 {-# INLINEABLE ownOutputs #-}
-ownOutputs :: TxOut -> [TxOut] -> [TxOut]
-ownOutputs ownInput = filter toSelf
-  where
-    toSelf (TxOut address _ _ _) =
-      addressCredential (txOutAddress ownInput) == addressCredential address
+ownOutputs :: Address -> [TxOut] -> [TxOut]
+ownOutputs (Address ownCredential _) =
+  filter \(TxOut (Address outCredential _) _ _ _) ->
+    ownCredential == outCredential
 
 {-# INLINEABLE checkTxOutPreservation #-}
 checkTxOutPreservation :: TxOut -> [TxOut] -> Bool
-checkTxOutPreservation ownInput outputs = case ownOutputs ownInput outputs of
-  [output] -> output == ownInput
-  _ -> False
+checkTxOutPreservation (TxOut addrIn valueIn datumIn _) outputs =
+  case ownOutputs addrIn outputs of
+    [TxOut addrOut valueOut datumOut _] ->
+      addrIn == addrOut && valueIn == valueOut && datumIn == datumOut
+    _ -> False

@@ -5,6 +5,7 @@ module Commands.RotateCold (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   delegationCertParser,
   membershipCertParser,
   outDirParser,
@@ -53,6 +54,8 @@ runRotateColdCommand RotateColdCommand{..} = do
   scriptUtxo <- readFileUTxO utxoFile
   newMembership <- traverse readIdentityFromPEMFile' membershipCerts
   newDelegation <- traverse readIdentityFromPEMFile' delegationCerts
+  checkGroupSize "membership" newMembership
+  checkGroupSize "delegation" newDelegation
   let inputs = RotateColdInputs{..}
   RotateColdOutputs{..} <- runCommand rotateCold inputs \case
     AddressIsByron -> "UTxO has a Byron address."

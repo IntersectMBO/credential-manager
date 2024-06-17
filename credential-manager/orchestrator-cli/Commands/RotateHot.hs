@@ -5,6 +5,7 @@ module Commands.RotateHot (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   outDirParser,
   readFileUTxO,
   readIdentityFromPEMFile',
@@ -48,6 +49,7 @@ runRotateHotCommand :: RotateHotCommand -> IO ()
 runRotateHotCommand RotateHotCommand{..} = do
   scriptUtxo <- readFileUTxO utxoFile
   newVoting <- traverse readIdentityFromPEMFile' votingCerts
+  checkGroupSize "voting" newVoting
   let inputs = RotateHotInputs{..}
   RotateHotOutputs{..} <- runCommand rotateHot inputs \case
     AddressIsByron -> "UTxO has a Byron address."

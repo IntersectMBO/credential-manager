@@ -132,13 +132,14 @@ coldNFTScript coldNFT coldCred (ColdLockDatum ca membershipUsers delegationUsers
             signedByResignee = txSignedBy txInfo $ pubKeyHash user
             notLastDelegation = not $ null newDelegation
             newDelegation = filter (/= user) delegationUsers
+            TxOut addrIn valueIn _ _ = ownInput
             newDatum = ColdLockDatum ca membershipUsers newDelegation
-            newOutput =
-              ownInput
-                { txOutDatum = OutputDatum $ Datum $ toBuiltinData newDatum
-                }
-            resigneeRemoved = case ownOutputs ownInput outputs of
-              [ownOutput] -> ownOutput == newOutput
+            newOutputDatum = OutputDatum $ Datum $ toBuiltinData newDatum
+            resigneeRemoved = case ownOutputs addrIn outputs of
+              [TxOut addrOut valueOut datumOut _] ->
+                (addrIn == addrOut)
+                  && (valueIn == valueOut)
+                  && (newOutputDatum == datumOut)
               _ -> False
         ResignCold ->
           checkTxOutPreservation ownInput outputs
@@ -153,8 +154,8 @@ coldNFTScript coldNFT coldCred (ColdLockDatum ca membershipUsers delegationUsers
             && checkNoCerts
           where
             ownAddress = txOutAddress ownInput
-            checkOutput = case ownOutputs ownInput outputs of
-              [TxOut address value' (OutputDatum (Datum datum')) Nothing] ->
+            checkOutput = case ownOutputs ownAddress outputs of
+              [TxOut address value' (OutputDatum (Datum datum')) _] ->
                 let ColdLockDatum ca' membership' delegation' =
                       unsafeFromBuiltinData datum'
                  in (address == ownAddress)

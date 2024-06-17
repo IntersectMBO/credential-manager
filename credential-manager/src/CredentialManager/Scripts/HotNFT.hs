@@ -147,23 +147,24 @@ hotNFTScript coldNFT hotNFT hotCred (HotLockDatum votingUsers) red ctx =
             isVotingUser = user `elem` votingUsers
             signedByResignee = txSignedBy txInfo $ pubKeyHash user
             newVoting = filter (/= user) votingUsers
+            TxOut addrIn valueIn _ _ = ownInput
             newDatum = HotLockDatum newVoting
             notLastVoting = not $ null newVoting
-            resigneeRemoved = case ownOutputs ownInput outputs of
-              [ownOutput] ->
-                ownOutput
-                  == ownInput
-                    { txOutDatum =
-                        OutputDatum $ Datum $ toBuiltinData newDatum
-                    }
+            newOutputDatum = OutputDatum $ Datum $ toBuiltinData newDatum
+            resigneeRemoved = case ownOutputs addrIn outputs of
+              [TxOut addrOut valueOut datumOut _] ->
+                (addrIn == addrOut)
+                  && (valueIn == valueOut)
+                  && (newOutputDatum == datumOut)
               _ -> False
         RotateHot ->
           checkOutput
             && signedByDelegators
             && checkNoVotes
           where
-            checkOutput = case ownOutputs ownInput outputs of
-              [TxOut address value' (OutputDatum (Datum datum')) Nothing] ->
+            ownAddress = txOutAddress ownInput
+            checkOutput = case ownOutputs ownAddress outputs of
+              [TxOut address value' (OutputDatum (Datum datum')) _] ->
                 let HotLockDatum voting' =
                       unsafeFromBuiltinData datum'
                  in (address == txOutAddress ownInput)
