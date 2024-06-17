@@ -221,35 +221,24 @@ stakeCredentialFileParser =
             ]
     ]
 
-membershipCertParser :: Parser FilePath
-membershipCertParser =
+certParser :: String -> Parser FilePath
+certParser group =
   strOption $
     fold
-      [ long "membership-cert"
+      [ long $ group <> "-cert"
       , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a membership user."
+      , help $ "A relative path to the certificate PEM file of a " <> group <> " user."
       , action "file"
       ]
+
+membershipCertParser :: Parser FilePath
+membershipCertParser = certParser "membership"
 
 delegationCertParser :: Parser FilePath
-delegationCertParser =
-  strOption $
-    fold
-      [ long "delegation-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a delegation user."
-      , action "file"
-      ]
+delegationCertParser = certParser "delegation"
 
 votingCertParser :: Parser FilePath
-votingCertParser =
-  strOption $
-    fold
-      [ long "voting-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a voting user."
-      , action "file"
-      ]
+votingCertParser = certParser "delegation"
 
 readPolicyId :: ReadM PolicyId
 readPolicyId = do

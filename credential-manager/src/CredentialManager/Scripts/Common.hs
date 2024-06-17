@@ -11,35 +11,100 @@
 module CredentialManager.Scripts.Common where
 
 import CredentialManager.Api (Identity (..))
-import PlutusLedgerApi.V3 (Address (..), PubKeyHash, TxOut (..))
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
+import PlutusLedgerApi.V3 (
+  Address (..),
+  Credential (..),
+  Datum (..),
+  FromData,
+  OutputDatum (..),
+  PubKeyHash,
+  ScriptHash,
+  TxOut (..),
+  fromBuiltinData,
+ )
 import PlutusTx.Prelude
 
 {-# INLINEABLE checkMultiSig #-}
 checkMultiSig :: [Identity] -> [PubKeyHash] -> Bool
-checkMultiSig [] _ = False
-checkMultiSig list signatures = majority <= numberOfSignatures
+checkMultiSig [] _ = trace "Empty multisig requirement" False
+checkMultiSig list signatures =
+  traceIfFalse "insufficient signatures" $ majority <= numberOfSignatures
   where
     allSignatures = nub $ pubKeyHash <$> list
     majority = (\x -> divide x 2 + modulo x 2) $ length allSignatures
     numberOfSignatures = length $ filter (`elem` signatures) allSignatures
 
-{-# INLINEABLE ownOutputs #-}
-ownOutputs :: Address -> [TxOut] -> [TxOut]
-ownOutputs (Address ownCredential _) =
+{-# INLINEABLE findOutputsByCredential #-}
+findOutputsByCredential :: Credential -> [TxOut] -> [TxOut]
+findOutputsByCredential ownCredential =
   filter \(TxOut (Address outCredential _) _ _ _) ->
     ownCredential == outCredential
 
-{-# INLINEABLE checkTxOutPreservation #-}
-checkTxOutPreservation :: TxOut -> [TxOut] -> Bool
-checkTxOutPreservation (TxOut addrIn valueIn datumIn _) outputs =
-  case ownOutputs addrIn outputs of
-    [TxOut addrOut valueOut datumOut _] ->
-      addrIn == addrOut && valueIn == valueOut && datumIn == datumOut
-    _ -> False
+{-# INLINEABLE checkResignation #-}
+checkResignation
+  :: [PubKeyHash]
+  -> Identity
+  -> [Identity]
+  -> [Identity]
+  -> Bool
+checkResignation signatories resignee oldGroup newGroup =
+  traceIfFalse "resignee is not a group member" checkGroupMembership
+    && traceIfFalse "resignee has not signed transaction" checkSignature
+    && traceIfFalse "resignee is last member of the group" checkNonEmptyOutputGroup
+    && traceIfFalse "unexpected group in output" checkOutputGroup
+  where
+    checkGroupMembership = resignee `elem` oldGroup
+    checkSignature = pubKeyHash resignee `elem` signatories
+    expectedNewGroup = filter (/= resignee) oldGroup
+    checkNonEmptyOutputGroup = not $ null expectedNewGroup
+    checkOutputGroup = newGroup == expectedNewGroup
 
-{-# INLINEABLE added #-}
-added :: [Identity] -> [Identity] -> [Identity]
-added _ [] = []
-added old (i@(Identity pkh _) : new)
-  | any (\(Identity pkh' _) -> pkh == pkh') old = added old new
-  | otherwise = i : added old new
+{-# INLINEABLE checkContinuingTx #-}
+checkContinuingTx :: (FromData a) => TxOut -> [TxOut] -> (a -> Bool) -> Bool
+checkContinuingTx (TxOut addrIn valueIn _ _) outputs checkDatum =
+  case findOutputsByCredential (addressCredential addrIn) outputs of
+    [TxOut addrOut valueOut datumOut _] ->
+      traceIfFalse "own address not preserved" (addrIn == addrOut)
+        && traceIfFalse "own value not preserved" (valueIn == valueOut)
+        && case datumOut of
+          OutputDatum (Datum datum) -> case fromBuiltinData datum of
+            Just datum' -> checkDatum datum'
+            Nothing -> trace "Invalid output datum" False
+          _ -> trace "Output has no datum" False
+    [] -> trace "No continuing output found" False
+    _ -> trace "Multiple continuing outputs found" False
+
+{-# INLINEABLE checkRotation #-}
+checkRotation
+  :: [PubKeyHash]
+  -> [Identity]
+  -> [Identity]
+  -> Bool
+checkRotation signatories oldGroup newGroup =
+  traceIfFalse "New group empty" checkNonEmptyOutputGroup
+    && traceIfFalse "Added user signatures missing" checkSignatures
+  where
+    checkNonEmptyOutputGroup = not $ null newGroup
+    checkSignatures = all signedIfNew newGroup
+    signedIfNew i@Identity{..} =
+      i `elem` oldGroup || pubKeyHash `elem` signatories
+
+{-# INLINEABLE checkBurn #-}
+checkBurn :: AssetClass -> [TxOut] -> Bool
+checkBurn assetClass = traceIfFalse "NFT not burned" . not . any containsAsset
+  where
+    containsAsset TxOut{..} = assetClassValueOf txOutValue assetClass > 0
+
+{-# INLINEABLE checkUpgrade #-}
+checkUpgrade :: AssetClass -> ScriptHash -> [TxOut] -> Bool
+checkUpgrade assetClass destination = go
+  where
+    go [] = trace "NFT not found in outputs" False
+    go (TxOut{..} : outputs)
+      | assetClassValueOf txOutValue assetClass > 0 =
+          case addressCredential txOutAddress of
+            ScriptCredential scriptHash ->
+              traceIfFalse "NFT sent to incorrect script" $ destination == scriptHash
+            _ -> trace "NFT sent to key hash address" False
+      | otherwise = go outputs

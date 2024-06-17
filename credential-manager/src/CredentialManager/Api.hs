@@ -205,15 +205,28 @@ data ColdLockRedeemer
     -- Requires the address and value to be preserved between the input
     -- and output that contain the NFT.
     ResignDelegation Identity
-  | -- | Allows the transaction to change the list of membership and / or
-    -- delegation users. Transaction must be signed by a majority of identities
-    -- from membershipUsers.
+  | -- | Requires the transaction to remove the requested identity from
+    -- membershipUsers. Transaction must be signed by the resigning user.
     --
     -- Forbids issuing any certificates.
     -- Forbids burning the NFT.
+    -- Forbids resigning the last membership user.
     --
     -- Requires the address and value to be preserved between the input
     -- and output that contain the NFT.
+    ResignMembership Identity
+  | -- | Allows the transaction to change the list of membership and / or
+    -- delegation users. Transaction must be signed by a majority of identities
+    -- from membershipUsers and by any users being added to one of the groups.
+    --
+    -- Forbids issuing any certificates.
+    -- Forbids burning the NFT.
+    -- Forbids empty membership groups.
+    -- Forbids empty delegation groups.
+    -- Requires signatures from the current (pre-rotation) membership group.
+    -- Requires signatures from added membership keys.
+    -- Requires signatures from added delegation keys.
+    -- Requires the ca, address, and value to be preserved.
     RotateCold
   | -- | Allows the transaction to burn the NFT. Transaction must be
     -- signed by a majority of identities from membershipUsers.
@@ -238,6 +251,8 @@ instance PlutusTx.Eq ColdLockRedeemer where
   ResignCold == _ = PlutusTx.False
   ResignDelegation d1 == ResignDelegation d2 = d1 PlutusTx.== d2
   ResignDelegation _ == _ = PlutusTx.False
+  ResignMembership m1 == ResignMembership m2 = m1 PlutusTx.== m2
+  ResignMembership _ == _ = PlutusTx.False
   RotateCold == RotateCold = PlutusTx.True
   RotateCold == _ = PlutusTx.False
   BurnCold == BurnCold = PlutusTx.True
@@ -261,9 +276,10 @@ PlutusTx.makeIsDataIndexed
   [ ('AuthorizeHot, 0)
   , ('ResignCold, 1)
   , ('ResignDelegation, 2)
-  , ('RotateCold, 3)
-  , ('BurnCold, 4)
-  , ('UpgradeCold, 4)
+  , ('ResignMembership, 3)
+  , ('RotateCold, 4)
+  , ('BurnCold, 5)
+  , ('UpgradeCold, 6)
   ]
 
 -- | The datum of the CC hot credential NFT locking script.
@@ -311,9 +327,10 @@ data HotLockRedeemer
     --
     -- Forbids casting any votes.
     -- Forbids burning the NFT.
-    --
-    -- Requires the address and value to be preserved between the input
-    -- and output that contain the NFT.
+    -- Forbids empty voting groups.
+    -- Requires signatures from the input delegation group
+    -- Requires signatures from added voting keys
+    -- Requires the address and value to be preserved.
     RotateHot
   | -- | Allows the transaction to burn the NFT. Transaction must be signed by
     -- a majority of identities from membershipUsers.

@@ -35,6 +35,11 @@ import Commands.ResignDelegation (
   resignDelegationCommandParser,
   runResignDelegationCommand,
  )
+import Commands.ResignMembership (
+  ResignMembershipCommand,
+  resignMembershipCommandParser,
+  runResignMembershipCommand,
+ )
 import Commands.ResignVoting (
   ResignVotingCommand,
   resignVotingCommandParser,
@@ -68,6 +73,7 @@ data Command
   = InitCold InitColdCommand
   | Authorize AuthorizeCommand
   | Resign ResignCommand
+  | ResignMembership ResignMembershipCommand
   | ResignDelegation ResignDelegationCommand
   | RotateCold RotateColdCommand
   | BurnCold BurnColdCommand
@@ -90,6 +96,7 @@ commandParser =
       , command "authorize" $ Authorize <$> authorizeCommandParser
       , command "vote" $ Vote <$> voteCommandParser
       , command "resign-committee" $ Resign <$> resignCommandParser
+      , command "resign-membership" $ ResignMembership <$> resignMembershipCommandParser
       , command "resign-delegation" $ ResignDelegation <$> resignDelegationCommandParser
       , command "resign-voting" $ ResignVoting <$> resignVotingCommandParser
       , command "rotate-cold" $ RotateCold <$> rotateColdCommandParser
@@ -107,6 +114,7 @@ runCommand = \case
   InitCold cmd -> runInitColdCommand cmd
   Authorize cmd -> runAuthorizeCommand cmd
   Resign cmd -> runResignCommand cmd
+  ResignMembership cmd -> runResignMembershipCommand cmd
   ResignDelegation cmd -> runResignDelegationCommand cmd
   RotateCold cmd -> runRotateColdCommand cmd
   BurnCold cmd -> runBurnColdCommand cmd

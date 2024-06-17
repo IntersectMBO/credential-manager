@@ -18,26 +18,21 @@ import CredentialManager.Api (
   ColdLockDatum (..),
   HotLockDatum (..),
   HotLockRedeemer (..),
-  Identity (..),
  )
 import CredentialManager.Scripts.Common
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
-  Address (..),
-  Credential (..),
   Datum (..),
   FromData (..),
   GovernanceActionId,
   Map,
   OutputDatum (..),
   PubKeyHash,
-  ToData (..),
   TxInInfo (..),
   TxOut (..),
   TxOutRef,
   Voter (..),
-  unsafeFromBuiltinData,
  )
 import qualified PlutusLedgerApi.V3 as PV3
 import PlutusLedgerApi.V3.Contexts (HotCommitteeCredential)
@@ -99,11 +94,6 @@ findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
     (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == outRef)
     txInfoInputs
 
--- | Check if a transaction was signed by the given public key.
-{-# INLINEABLE txSignedBy #-}
-txSignedBy :: TxInfo -> PubKeyHash -> Bool
-txSignedBy TxInfo{txInfoSignatories} k = k `elem` txInfoSignatories
-
 -- | Find the reference input that contains 1 of a certain token.
 {-# INLINEABLE findTxInByNFTInRefUTxO #-}
 findTxInByNFTInRefUTxO :: AssetClass -> TxInfo -> Maybe TxInInfo
@@ -122,92 +112,55 @@ hotNFTScript
   -> HotLockRedeemer
   -> ScriptContext
   -> Bool
-hotNFTScript coldNFT hotNFT hotCred (HotLockDatum votingUsers) red ctx =
+hotNFTScript coldNFT hotNFT hotCred datumIn@HotLockDatum{..} red ctx =
   case scriptContextPurpose ctx of
     Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
-      Nothing -> False
+      Nothing -> trace "Own input not found" False
       Just (TxInInfo _ ownInput) -> case red of
         Vote ->
-          checkTxOutPreservation ownInput outputs
-            && checkMultiSig votingUsers signatures
-            && checkVote
+          checkContinuingTx ownInput outputs \datumOut ->
+            traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+              && checkMultiSig votingUsers signatures
+              && checkVote
           where
-            votes = txInfoVotes txInfo
-            checkVote = case Map.toList votes of
+            checkVote = case Map.toList $ txInfoVotes txInfo of
               [(voter, voterVotes)] ->
-                voter == CommitteeVoter hotCred && not (Map.null voterVotes)
-              _ -> False
+                traceIfFalse "Unexpected voter" (voter == CommitteeVoter hotCred)
+                  && traceIfFalse "No votes" (not $ Map.null voterVotes)
+              _ -> trace "Invalid number of voters" False
         ResignVoting user ->
-          isVotingUser
-            && signedByResignee
-            && notLastVoting
-            && resigneeRemoved
-            && checkNoVotes
-          where
-            isVotingUser = user `elem` votingUsers
-            signedByResignee = txSignedBy txInfo $ pubKeyHash user
-            newVoting = filter (/= user) votingUsers
-            TxOut addrIn valueIn _ _ = ownInput
-            newDatum = HotLockDatum newVoting
-            notLastVoting = not $ null newVoting
-            newOutputDatum = OutputDatum $ Datum $ toBuiltinData newDatum
-            resigneeRemoved = case ownOutputs addrIn outputs of
-              [TxOut addrOut valueOut datumOut _] ->
-                (addrIn == addrOut)
-                  && (valueIn == valueOut)
-                  && (newOutputDatum == datumOut)
-              _ -> False
+          checkContinuingTx ownInput outputs \case
+            HotLockDatum voting' ->
+              traceIfFalse "Tx casts votes" checkNoVotes
+                && checkResignation signatures user votingUsers voting'
         RotateHot ->
-          checkOutput
-            && checkMultiSigWithDelegators addedVoting
-            && checkNoVotes
-          where
-            ownAddress = txOutAddress ownInput
-            (checkOutput, newVoting) = case ownOutputs ownAddress outputs of
-              [TxOut address value' (OutputDatum (Datum datum')) _] ->
-                let HotLockDatum voting' =
-                      unsafeFromBuiltinData datum'
-                 in ( (address == txOutAddress ownInput)
-                        && not (null voting')
-                        && (value' == txOutValue ownInput)
-                    , voting'
-                    )
-              _ -> (False, [])
-            addedVoting = added votingUsers newVoting
+          checkContinuingTx ownInput outputs \case
+            HotLockDatum voting' ->
+              traceIfFalse "Tx casts votes" checkNoVotes
+                && signedByDelegators ()
+                && checkRotation signatures votingUsers voting'
         BurnHot ->
-          checkMultiSigWithDelegators []
-            && checkOutputs
-            && checkNoVotes
-          where
-            checkOutputs = not $ any outputContainsNFT $ txInfoOutputs txInfo
+          signedByDelegators ()
+            && checkBurn hotNFT outputs
+            && traceIfFalse "Tx casts votes" checkNoVotes
         UpgradeHot destination ->
-          checkMultiSigWithDelegators []
-            && checkOutputs
-            && checkNoVotes
-          where
-            checkOutputs = any checkOutput $ txInfoOutputs txInfo
-            checkOutput TxOut{..} =
-              addressMatches
-                && (assetClassValueOf txOutValue hotNFT == 1)
-              where
-                addressMatches = case addressCredential txOutAddress of
-                  ScriptCredential scriptHash -> destination == scriptHash
-                  _ -> False
+          signedByDelegators ()
+            && checkUpgrade hotNFT destination outputs
+            && traceIfFalse "Tx casts votes" checkNoVotes
     _ -> False
   where
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
-    checkMultiSigWithDelegators extraSigners =
+    signedByDelegators _ =
       case findTxInByNFTInRefUTxO coldNFT txInfo of
-        Nothing -> False
+        Nothing -> trace "Cold NFT reference input not found" False
         Just (TxInInfo _ refInput) -> case txOutDatum refInput of
           OutputDatum datum -> case fromBuiltinData $ getDatum datum of
             Just ColdLockDatum{..} ->
-              checkMultiSig (delegationUsers ++ extraSigners) signatures
-            _ -> False
-          _ -> False
-    outputContainsNFT TxOut{..} = assetClassValueOf txOutValue coldNFT == 0
+              checkMultiSig delegationUsers signatures
+            _ -> trace "Invalid cold NFT datum" False
+          _ -> trace "Missing cold NFT datum" False
     checkNoVotes = Map.null $ txInfoVotes txInfo
 
 PlutusTx.makeLift ''ScriptPurpose

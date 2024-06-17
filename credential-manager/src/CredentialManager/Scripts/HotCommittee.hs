@@ -77,8 +77,9 @@ data TxInInfo = TxInInfo
 {-# INLINEABLE hotCommitteeScript #-}
 hotCommitteeScript :: AssetClass -> BuiltinData -> ScriptContext -> Bool
 hotCommitteeScript nft _ ctx = case scriptContextPurpose ctx of
-  Voting _ -> any inputSpendsToken txInputs
-  _ -> False
+  Voting _ ->
+    traceIfFalse "Hot NFT not found in any input" $ any inputSpendsToken txInputs
+  _ -> trace "Invalid script purpose" False
   where
     -- Checks if an input spends the correct token
     inputSpendsToken TxInInfo{txInInfoResolved = TxOut{..}} =

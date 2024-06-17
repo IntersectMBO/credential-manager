@@ -77,8 +77,9 @@ data TxInInfo = TxInInfo
 {-# INLINEABLE coldCommitteeScript #-}
 coldCommitteeScript :: AssetClass -> BuiltinData -> ScriptContext -> Bool
 coldCommitteeScript nft _ ctx = case scriptContextPurpose ctx of
-  Certifying _ _ -> any inputSpendsToken txInputs
-  _ -> False
+  Certifying _ _ ->
+    traceIfFalse "Cold NFT not found in any input" $ any inputSpendsToken txInputs
+  _ -> trace "Invalid script purpose" False
   where
     -- Checks if an input spends the correct token
     inputSpendsToken TxInInfo{txInInfoResolved = TxOut{..}} =
