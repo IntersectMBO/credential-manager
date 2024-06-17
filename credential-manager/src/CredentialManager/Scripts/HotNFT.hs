@@ -159,26 +159,29 @@ hotNFTScript coldNFT hotNFT hotCred (HotLockDatum votingUsers) red ctx =
               _ -> False
         RotateHot ->
           checkOutput
-            && signedByDelegators
+            && checkMultiSigWithDelegators addedVoting
             && checkNoVotes
           where
             ownAddress = txOutAddress ownInput
-            checkOutput = case ownOutputs ownAddress outputs of
+            (checkOutput, newVoting) = case ownOutputs ownAddress outputs of
               [TxOut address value' (OutputDatum (Datum datum')) _] ->
                 let HotLockDatum voting' =
                       unsafeFromBuiltinData datum'
-                 in (address == txOutAddress ownInput)
-                      && not (null voting')
-                      && (value' == txOutValue ownInput)
-              _ -> False
+                 in ( (address == txOutAddress ownInput)
+                        && not (null voting')
+                        && (value' == txOutValue ownInput)
+                    , voting'
+                    )
+              _ -> (False, [])
+            addedVoting = added votingUsers newVoting
         BurnHot ->
-          signedByDelegators
+          checkMultiSigWithDelegators []
             && checkOutputs
             && checkNoVotes
           where
             checkOutputs = not $ any outputContainsNFT $ txInfoOutputs txInfo
         UpgradeHot destination ->
-          signedByDelegators
+          checkMultiSigWithDelegators []
             && checkOutputs
             && checkNoVotes
           where
@@ -195,12 +198,13 @@ hotNFTScript coldNFT hotNFT hotCred (HotLockDatum votingUsers) red ctx =
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
-    signedByDelegators =
+    checkMultiSigWithDelegators extraSigners =
       case findTxInByNFTInRefUTxO coldNFT txInfo of
         Nothing -> False
         Just (TxInInfo _ refInput) -> case txOutDatum refInput of
           OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-            Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
+            Just ColdLockDatum{..} ->
+              checkMultiSig (delegationUsers ++ extraSigners) signatures
             _ -> False
           _ -> False
     outputContainsNFT TxOut{..} = assetClassValueOf txOutValue coldNFT == 0

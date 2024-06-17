@@ -150,20 +150,26 @@ coldNFTScript coldNFT coldCred (ColdLockDatum ca membershipUsers delegationUsers
               txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
         RotateCold ->
           checkOutput
-            && checkMultiSig membershipUsers signatures
+            && checkMultiSig (membershipUsers ++ addedUsers) signatures
             && checkNoCerts
           where
             ownAddress = txOutAddress ownInput
-            checkOutput = case ownOutputs ownAddress outputs of
+            (checkOutput, newMembership, newDelegation) = case ownOutputs ownAddress outputs of
               [TxOut address value' (OutputDatum (Datum datum')) _] ->
                 let ColdLockDatum ca' membership' delegation' =
                       unsafeFromBuiltinData datum'
-                 in (address == ownAddress)
-                      && (ca' == ca)
-                      && not (null membership')
-                      && not (null delegation')
-                      && (value' == txOutValue ownInput)
-              _ -> False
+                 in ( (address == ownAddress)
+                        && (ca' == ca)
+                        && not (null membership')
+                        && not (null delegation')
+                        && (value' == txOutValue ownInput)
+                    , membership'
+                    , delegation'
+                    )
+              _ -> (False, [], [])
+            addedMembership = added membershipUsers newMembership
+            addedDelegation = added delegationUsers newDelegation
+            addedUsers = addedMembership ++ addedDelegation
         BurnCold ->
           checkMultiSig membershipUsers signatures
             && checkOutputs

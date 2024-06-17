@@ -36,3 +36,10 @@ checkTxOutPreservation (TxOut addrIn valueIn datumIn _) outputs =
     [TxOut addrOut valueOut datumOut _] ->
       addrIn == addrOut && valueIn == valueOut && datumIn == datumOut
     _ -> False
+
+{-# INLINEABLE added #-}
+added :: [Identity] -> [Identity] -> [Identity]
+added _ [] = []
+added old (i@(Identity pkh _) : new)
+  | any (\(Identity pkh' _) -> pkh == pkh') old = added old new
+  | otherwise = i : added old new
