@@ -22,7 +22,7 @@ The purpose of querying the committee state includes the following:
 - **Validating changes.** After performing certain actions, like authorizing a hot credential or submitting a resignation, querying the state helps confirm that these changes have taken effect on-chain.
 - **Monitoring expiration.** The query can show you the expiration of credentials, which is crucial for maintaining active participation in the committee's activities.
 
-Typically done by the Orchestrator role
+Typically done by the orchestrator role
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Typically, someone in the orchestrator role would be querying the current committee state. 
