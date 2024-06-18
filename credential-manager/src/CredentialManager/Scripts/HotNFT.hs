@@ -29,9 +29,9 @@ import PlutusLedgerApi.V3 (
   Map,
   OutputDatum (..),
   PubKeyHash,
+  ScriptPurpose,
   TxInInfo (..),
   TxOut (..),
-  TxOutRef,
   Voter (..),
  )
 import qualified PlutusLedgerApi.V3 as PV3
@@ -48,17 +48,6 @@ data ScriptContext = ScriptContext
   { scriptContextTxInfo :: TxInfo
   , scriptContextPurpose :: ScriptPurpose
   }
-  deriving stock (Haskell.Eq, Haskell.Show, Generic)
-
--- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
--- cold NFT script needs.
-data ScriptPurpose
-  = Minting BuiltinData
-  | Spending TxOutRef
-  | Rewarding BuiltinData
-  | Certifying BuiltinData BuiltinData
-  | Voting BuiltinData
-  | Proposing BuiltinData BuiltinData
   deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
@@ -83,25 +72,6 @@ data TxInfo = TxInfo
   }
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
--- | Given a UTXO reference and a transaction (`TxInfo`), resolve it to one of the
--- transaction's inputs (`TxInInfo`).
---
--- Note: this only searches the true transaction inputs and not the referenced transaction inputs.
-{-# INLINEABLE findTxInByTxOutRef #-}
-findTxInByTxOutRef :: TxOutRef -> TxInfo -> Maybe TxInInfo
-findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
-  find
-    (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == outRef)
-    txInfoInputs
-
--- | Find the reference input that contains 1 of a certain token.
-{-# INLINEABLE findTxInByNFTInRefUTxO #-}
-findTxInByNFTInRefUTxO :: AssetClass -> TxInfo -> Maybe TxInInfo
-findTxInByNFTInRefUTxO token txInfo =
-  find
-    (\txIn -> assetClassValueOf (txOutValue $ txInInfoResolved txIn) token == 1)
-    (txInfoReferenceInputs txInfo)
-
 -- | This script validates voting group actions as well as its rotation through delagators action.
 {-# INLINEABLE hotNFTScript #-}
 hotNFTScript
@@ -113,66 +83,53 @@ hotNFTScript
   -> ScriptContext
   -> Bool
 hotNFTScript coldNFT hotNFT hotCred datumIn@HotLockDatum{..} red ctx =
-  case scriptContextPurpose ctx of
-    Spending txOurRef -> case findTxInByTxOutRef txOurRef txInfo of
-      Nothing -> trace "Own input not found" False
-      Just (TxInInfo _ ownInput) -> case red of
-        Vote ->
-          checkContinuingTx ownInput outputs \datumOut ->
-            traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-              && checkMultiSig votingUsers signatures
-              && checkVote
-          where
-            checkVote = case Map.toList $ txInfoVotes txInfo of
-              [(voter, voterVotes)] ->
-                traceIfFalse "Unexpected voter" (voter == CommitteeVoter hotCred)
-                  && traceIfFalse "No votes" (not $ Map.null voterVotes)
-              _ -> trace "Invalid number of voters" False
-        ResignVoting user ->
-          checkContinuingTx ownInput outputs \case
-            HotLockDatum voting' ->
-              traceIfFalse "Tx casts votes" checkNoVotes
-                && checkResignation signatures user votingUsers voting'
-        RotateHot ->
-          checkContinuingTx ownInput outputs \case
-            HotLockDatum voting' ->
-              traceIfFalse "Tx casts votes" checkNoVotes
-                && signedByDelegators ()
-                && checkRotation signatures votingUsers voting'
-        BurnHot ->
-          signedByDelegators ()
-            && checkBurn hotNFT outputs
-            && traceIfFalse "Tx casts votes" checkNoVotes
-        UpgradeHot destination ->
-          signedByDelegators ()
-            && checkUpgrade hotNFT destination outputs
-            && traceIfFalse "Tx casts votes" checkNoVotes
-    _ -> False
+  checkSpendingTx purpose inputs \_ ownInput -> case red of
+    Vote ->
+      checkContinuingTx ownInput outputs \datumOut ->
+        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+          && checkMultiSig votingUsers signatures
+          && checkVote
+      where
+        checkVote = case Map.toList $ txInfoVotes txInfo of
+          [(voter, voterVotes)] ->
+            traceIfFalse "Unexpected voter" (voter == CommitteeVoter hotCred)
+              && traceIfFalse "No votes" (not $ Map.null voterVotes)
+          _ -> trace "Invalid number of voters" False
+    ResignVoting user ->
+      checkContinuingTx ownInput outputs \case
+        HotLockDatum voting' ->
+          traceIfFalse "Tx casts votes" checkNoVotes
+            && checkResignation signatures user votingUsers voting'
+    RotateHot ->
+      checkContinuingTx ownInput outputs \case
+        HotLockDatum voting' ->
+          traceIfFalse "Tx casts votes" checkNoVotes
+            && signedByDelegators refInputs
+            && checkRotation signatures votingUsers voting'
+    BurnHot ->
+      signedByDelegators refInputs
+        && checkBurn hotNFT outputs
+        && traceIfFalse "Tx casts votes" checkNoVotes
+    UpgradeHot destination ->
+      signedByDelegators refInputs
+        && checkUpgrade hotNFT destination outputs
+        && traceIfFalse "Tx casts votes" checkNoVotes
   where
+    checkNoVotes = Map.null $ txInfoVotes txInfo
+    purpose = scriptContextPurpose ctx
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
-    signedByDelegators _ =
-      case findTxInByNFTInRefUTxO coldNFT txInfo of
-        Nothing -> trace "Cold NFT reference input not found" False
-        Just (TxInInfo _ refInput) -> case txOutDatum refInput of
+    inputs = txInfoInputs txInfo
+    refInputs = txInfoReferenceInputs txInfo
+    signedByDelegators [] = trace "Cold NFT reference input not found" False
+    signedByDelegators (TxInInfo _ TxOut{..} : refInputs')
+      | assetClassValueOf txOutValue coldNFT > 0 = case txOutDatum of
           OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-            Just ColdLockDatum{..} ->
-              checkMultiSig delegationUsers signatures
+            Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
             _ -> trace "Invalid cold NFT datum" False
           _ -> trace "Missing cold NFT datum" False
-    checkNoVotes = Map.null $ txInfoVotes txInfo
-
-PlutusTx.makeLift ''ScriptPurpose
-PlutusTx.makeIsDataIndexed
-  ''ScriptPurpose
-  [ ('Minting, 0)
-  , ('Spending, 1)
-  , ('Rewarding, 2)
-  , ('Certifying, 3)
-  , ('Voting, 4)
-  , ('Proposing, 5)
-  ]
+      | otherwise = signedByDelegators refInputs'
 
 PlutusTx.makeLift ''TxInfo
 PlutusTx.makeIsDataIndexed ''TxInfo [('TxInfo, 0)]

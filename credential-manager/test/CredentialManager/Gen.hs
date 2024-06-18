@@ -20,6 +20,7 @@ import Data.Monoid (Sum (..))
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3
 import qualified PlutusTx.AssocMap as AMap
 import Test.QuickCheck
@@ -173,6 +174,10 @@ instance Arbitrary Data where
 instance Arbitrary ByteString where
   arbitrary = BS.pack <$> arbitrary
   shrink = fmap BS.pack . shrink . BS.unpack
+
+instance Arbitrary AssetClass where
+  arbitrary = uncurry AssetClass <$> arbitrary <*> chooseIntegerHyperbolic
+  shrink = genericShrink
 
 instance Arbitrary TxOutRef where
   arbitrary = TxOutRef <$> arbitrary <*> chooseIntegerHyperbolic

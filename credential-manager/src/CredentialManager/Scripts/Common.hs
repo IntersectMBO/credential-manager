@@ -20,7 +20,10 @@ import PlutusLedgerApi.V3 (
   OutputDatum (..),
   PubKeyHash,
   ScriptHash,
+  ScriptPurpose (..),
+  TxInInfo (..),
   TxOut (..),
+  TxOutRef,
   fromBuiltinData,
  )
 import PlutusTx.Prelude
@@ -59,6 +62,17 @@ checkResignation signatories resignee oldGroup newGroup =
     expectedNewGroup = filter (/= resignee) oldGroup
     checkNonEmptyOutputGroup = not $ null expectedNewGroup
     checkOutputGroup = newGroup == expectedNewGroup
+
+{-# INLINEABLE checkSpendingTx #-}
+checkSpendingTx
+  :: ScriptPurpose -> [TxInInfo] -> (TxOutRef -> TxOut -> Bool) -> Bool
+checkSpendingTx (Spending ownRef) inputs checkSpend = go inputs
+  where
+    go [] = trace "Input from script purpose not found" False
+    go (TxInInfo ref input : inputs')
+      | ref == ownRef = checkSpend ref input
+      | otherwise = go inputs'
+checkSpendingTx _ _ _ = trace "Not a spending script" False
 
 {-# INLINEABLE checkContinuingTx #-}
 checkContinuingTx :: (FromData a) => TxOut -> [TxOut] -> (a -> Bool) -> Bool

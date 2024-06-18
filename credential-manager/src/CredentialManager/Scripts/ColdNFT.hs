@@ -23,10 +23,10 @@ import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   PubKeyHash,
+  ScriptPurpose (..),
   TxCert (..),
   TxInInfo (..),
   TxOut (..),
-  TxOutRef,
  )
 import PlutusLedgerApi.V3.Contexts (ColdCommitteeCredential)
 import qualified PlutusTx.IsData as PlutusTx
@@ -40,17 +40,6 @@ data ScriptContext = ScriptContext
   { scriptContextTxInfo :: TxInfo
   , scriptContextPurpose :: ScriptPurpose
   }
-  deriving stock (Haskell.Eq, Haskell.Show, Generic)
-
--- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
--- cold NFT script needs.
-data ScriptPurpose
-  = Minting BuiltinData
-  | Spending TxOutRef
-  | Rewarding BuiltinData
-  | Certifying BuiltinData BuiltinData
-  | Voting BuiltinData
-  | Proposing BuiltinData BuiltinData
   deriving stock (Haskell.Eq, Haskell.Show, Generic)
 
 -- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
@@ -75,17 +64,6 @@ data TxInfo = TxInfo
   }
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
--- | Given a UTXO reference and a transaction (`TxInfo`), resolve it to one of the
--- transaction's inputs (`TxInInfo`).
---
--- Note: this only searches the true transaction inputs and not the referenced transaction inputs.
-{-# INLINEABLE findTxInByTxOutRef #-}
-findTxInByTxOutRef :: TxOutRef -> TxInfo -> Maybe TxInInfo
-findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
-  find
-    (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == outRef)
-    txInfoInputs
-
 -- | This script validates:
 -- * delegators group actions beside voting group management
 -- * members group actions
@@ -98,74 +76,60 @@ coldNFTScript
   -> ScriptContext
   -> Bool
 coldNFTScript coldNFT coldCred datumIn@ColdLockDatum{..} red ctx =
-  case scriptContextPurpose ctx of
-    Spending txOurRef -> case txInInfoResolved <$> findTxInByTxOutRef txOurRef txInfo of
-      Nothing -> False
-      Just ownInput -> case red of
-        AuthorizeHot hotCred ->
-          checkContinuingTx ownInput outputs \datumOut ->
-            traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-              && checkMultiSig delegationUsers signatures
-              && traceIfFalse "Unexpected certificates" checkAuthHotCert
-          where
-            checkAuthHotCert =
-              txInfoTxCerts txInfo == [TxCertAuthHotCommittee coldCred hotCred]
-        ResignDelegation user ->
-          checkContinuingTx ownInput outputs \case
-            ColdLockDatum ca' delegation' membership' ->
-              traceIfFalse "CA not conserved" (certificateAuthority == ca')
-                && traceIfFalse "Membership not conserved" (membershipUsers == membership')
-                && traceIfFalse "Tx publishes certificates" checkNoCerts
-                && checkResignation signatures user delegationUsers delegation'
-        ResignMembership user ->
-          checkContinuingTx ownInput outputs \case
-            ColdLockDatum ca' delegation' membership' ->
-              traceIfFalse "CA not conserved" (certificateAuthority == ca')
-                && traceIfFalse "Delegation not conserved" (delegationUsers == delegation')
-                && traceIfFalse "Tx publishes certificates" checkNoCerts
-                && checkResignation signatures user membershipUsers membership'
-        ResignCold ->
-          checkContinuingTx ownInput outputs \datumOut ->
-            traceIfFalse "own datum not conserved" (datumIn == datumOut)
-              && checkMultiSig membershipUsers signatures
-              && traceIfFalse "Unexpected certificates" checkAuthHotCert
-          where
-            checkAuthHotCert =
-              txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
-        RotateCold ->
-          checkContinuingTx ownInput outputs \case
-            ColdLockDatum ca' delegation' membership' ->
-              traceIfFalse "CA not conserved" (certificateAuthority == ca')
-                && traceIfFalse "Membership not conserved" (membershipUsers == membership')
-                && traceIfFalse "Tx publishes certificates" checkNoCerts
-                && checkMultiSig membershipUsers signatures
-                && checkRotation signatures membershipUsers membership'
-                && checkRotation signatures delegationUsers delegation'
-        BurnCold ->
-          checkMultiSig membershipUsers signatures
-            && checkBurn coldNFT outputs
+  checkSpendingTx purpose inputs \_ ownInput -> case red of
+    AuthorizeHot hotCred ->
+      checkContinuingTx ownInput outputs \datumOut ->
+        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+          && checkMultiSig delegationUsers signatures
+          && traceIfFalse "Unexpected certificates" checkAuthHotCert
+      where
+        checkAuthHotCert =
+          txInfoTxCerts txInfo == [TxCertAuthHotCommittee coldCred hotCred]
+    ResignDelegation user ->
+      checkContinuingTx ownInput outputs \case
+        ColdLockDatum ca' delegation' membership' ->
+          traceIfFalse "CA not conserved" (certificateAuthority == ca')
+            && traceIfFalse "Membership not conserved" (membershipUsers == membership')
             && traceIfFalse "Tx publishes certificates" checkNoCerts
-        UpgradeCold destination ->
-          checkMultiSig membershipUsers signatures
-            && checkUpgrade coldNFT destination outputs
+            && checkResignation signatures user delegationUsers delegation'
+    ResignMembership user ->
+      checkContinuingTx ownInput outputs \case
+        ColdLockDatum ca' delegation' membership' ->
+          traceIfFalse "CA not conserved" (certificateAuthority == ca')
+            && traceIfFalse "Delegation not conserved" (delegationUsers == delegation')
             && traceIfFalse "Tx publishes certificates" checkNoCerts
-    _ -> False
+            && checkResignation signatures user membershipUsers membership'
+    ResignCold ->
+      checkContinuingTx ownInput outputs \datumOut ->
+        traceIfFalse "own datum not conserved" (datumIn == datumOut)
+          && checkMultiSig membershipUsers signatures
+          && traceIfFalse "Unexpected certificates" checkAuthHotCert
+      where
+        checkAuthHotCert =
+          txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
+    RotateCold ->
+      checkContinuingTx ownInput outputs \case
+        ColdLockDatum ca' delegation' membership' ->
+          traceIfFalse "CA not conserved" (certificateAuthority == ca')
+            && traceIfFalse "Tx publishes certificates" checkNoCerts
+            && checkMultiSig membershipUsers signatures
+            && checkRotation signatures membershipUsers membership'
+            && checkRotation signatures delegationUsers delegation'
+    BurnCold ->
+      checkMultiSig membershipUsers signatures
+        && checkBurn coldNFT outputs
+        && traceIfFalse "Tx publishes certificates" checkNoCerts
+    UpgradeCold destination ->
+      checkMultiSig membershipUsers signatures
+        && checkUpgrade coldNFT destination outputs
+        && traceIfFalse "Tx publishes certificates" checkNoCerts
   where
     checkNoCerts = null $ txInfoTxCerts txInfo
+    purpose = scriptContextPurpose ctx
     txInfo = scriptContextTxInfo ctx
     signatures = txInfoSignatories txInfo
     outputs = txInfoOutputs txInfo
-
-PlutusTx.makeLift ''ScriptPurpose
-PlutusTx.makeIsDataIndexed
-  ''ScriptPurpose
-  [ ('Minting, 0)
-  , ('Spending, 1)
-  , ('Rewarding, 2)
-  , ('Certifying, 3)
-  , ('Voting, 4)
-  , ('Proposing, 5)
-  ]
+    inputs = txInfoInputs txInfo
 
 PlutusTx.makeLift ''TxInfo
 PlutusTx.makeIsDataIndexed ''TxInfo [('TxInfo, 0)]

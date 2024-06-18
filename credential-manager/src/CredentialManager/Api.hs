@@ -9,7 +9,6 @@
 {-# OPTIONS_GHC -fno-unbox-strict-fields #-}
 
 module CredentialManager.Api (
-  CheckDatum (..),
   MintingRedeemer (..),
   CertificateHash (..),
   Identity (..),
@@ -45,16 +44,12 @@ import Data.X509 (
  )
 import GHC.Generics (Generic)
 import qualified PlutusLedgerApi.V2 as PV2
-import PlutusLedgerApi.V3 (FromData)
 import qualified PlutusLedgerApi.V3 as PV3
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
 import qualified PlutusTx.Prelude as PlutusTx
 import qualified PlutusTx.Show as PlutusTx
 import Prettyprinter (Pretty)
-
-class (FromData a) => CheckDatum a where
-  checkDatum :: a -> Bool
 
 -- | Redeemer type for the minting validator
 data MintingRedeemer
