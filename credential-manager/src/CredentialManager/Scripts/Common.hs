@@ -11,6 +11,7 @@
 module CredentialManager.Scripts.Common where
 
 import CredentialManager.Api (Identity (..))
+import qualified Debug.Trace as D
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Address (..),
@@ -26,7 +27,15 @@ import PlutusLedgerApi.V3 (
   TxOutRef,
   fromBuiltinData,
  )
-import PlutusTx.Prelude
+import PlutusTx.Prelude hiding (trace, traceIfFalse)
+import qualified Prelude as H
+
+trace :: H.String -> a -> a
+trace = D.trace
+
+traceIfFalse :: H.String -> Bool -> Bool
+traceIfFalse str False = trace str False
+traceIfFalse _ True = True
 
 {-# INLINEABLE checkMultiSig #-}
 checkMultiSig :: [Identity] -> [PubKeyHash] -> Bool

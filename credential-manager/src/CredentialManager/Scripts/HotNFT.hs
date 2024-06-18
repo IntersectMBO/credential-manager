@@ -39,7 +39,7 @@ import PlutusLedgerApi.V3.Contexts (HotCommitteeCredential)
 import qualified PlutusTx.AssocMap as Map
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
-import PlutusTx.Prelude
+import PlutusTx.Prelude hiding (trace, traceIfFalse)
 import qualified Prelude as Haskell
 
 -- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the

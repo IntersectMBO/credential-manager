@@ -1,24 +1,24 @@
 module CredentialManager.Scripts.HotNFTSpec where
 
-import Control.Exception (evaluate)
 import CredentialManager.Api
-import CredentialManager.Gen (mkValue)
 import CredentialManager.Scripts.ColdNFTSpec (
   genNonSpending,
   importanceSampleArbitrary,
   importanceSampleExtraOutputs,
   importanceSampleMembership,
+  importanceSampleScriptValue,
+  importanceSampleUpgradeDestinationOutput,
   sampleSignersGroup,
  )
 import CredentialManager.Scripts.HotNFT
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
-import qualified Data.Map as Map
 import GHC.Generics (Generic)
-import GHC.IO (catchAny, unsafePerformIO)
 import PlutusLedgerApi.V1.Value (AssetClass (..), assetClassValueOf)
 import PlutusLedgerApi.V3 (
+  Address (..),
+  Credential (..),
   Datum (..),
   FromData (..),
   GovernanceActionId,
@@ -45,7 +45,7 @@ spec = do
     prop "onlyValid => valid" $
       forAll (importanceSampleScriptArgs True) \args@ScriptArgs{..} ->
         forAllScriptContexts True args $
-          wrapHotNFTScript coldNFT hotNFT hotCredential datum redeemer
+          hotNFTScript coldNFT hotNFT hotCredential datum redeemer
   prop "Invariant 1: Fails if not spending" invariant1BadPurpose
   prop
     "Invariant 2: Valid transitions preserve address"
@@ -59,7 +59,7 @@ invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
   forAllScriptContexts False args \ctx ->
     classify
-      (wrapHotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx)
+      (hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx)
       "Valid"
       . label case redeemer of
         Vote -> "Vote"
@@ -69,7 +69,7 @@ invariant1BadPurpose args@ScriptArgs{..} =
         UpgradeHot _ -> "BurnHot"
       $ forAllShrink genNonSpending shrink \purpose ->
         let ctx' = ctx{scriptContextPurpose = purpose}
-         in wrapHotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx' === False
+         in hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx' === False
 
 invariant2AddressPreservation :: ScriptArgs -> Property
 invariant2AddressPreservation args@ScriptArgs{..} =
@@ -90,7 +90,7 @@ forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> HotLockDatum -> prop) -> Property
 forAllValidTransitions args@ScriptArgs{..} f =
   forAllScriptContexts False args \ctx ->
-    wrapHotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx ==>
+    hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx ==>
       case redeemer of
         BurnHot -> discard -- unlock is not a transition - it is a terminus
         _ -> case scriptOutput of
@@ -101,18 +101,6 @@ forAllValidTransitions args@ScriptArgs{..} f =
                 Just outDatum' -> property $ f output outDatum'
                 Nothing -> property failed
               _ -> property failed
-
-wrapHotNFTScript
-  :: AssetClass
-  -> AssetClass
-  -> HotCommitteeCredential
-  -> HotLockDatum
-  -> HotLockRedeemer
-  -> ScriptContext
-  -> Bool
-wrapHotNFTScript coldNFT hotNFT c d r ctx =
-  unsafePerformIO $
-    evaluate (hotNFTScript coldNFT hotNFT c d r ctx) `catchAny` const (pure False)
 
 nonVotingSigners :: HotLockDatum -> Gen [PubKeyHash]
 nonVotingSigners HotLockDatum{..} =
@@ -146,7 +134,7 @@ importanceSampleScriptArgs onlyValid = do
   coldDatum <- importanceSampleColdDatum onlyValid redeemer
   (inDatum, mOutDatum) <- importanceSampleData onlyValid redeemer
   scriptInput <-
-    TxInInfo <$> arbitrary <*> importanceSampleScriptInput onlyValid inDatum
+    TxInInfo <$> arbitrary <*> importanceSampleScriptInput onlyValid hotNFT inDatum
   scriptOutput <-
     traverse
       (importanceSampleScriptOutput onlyValid (txInInfoResolved scriptInput))
@@ -154,7 +142,7 @@ importanceSampleScriptArgs onlyValid = do
   votes <- importanceSampleVotes onlyValid hotCredential redeemer
   delegationUsers <- pure $ foldMap delegationUsers coldDatum
   signatories <-
-    importanceSampleSigners onlyValid delegationUsers inDatum redeemer
+    importanceSampleSigners onlyValid delegationUsers inDatum mOutDatum redeemer
   coldScriptInput <-
     traverse (importanceSampleColdScriptInput onlyValid coldNFT) coldDatum
   let datum = inDatum
@@ -167,20 +155,12 @@ importanceSampleColdScriptInput onlyValid coldNFT datum =
     <$> arbitrary
     <*> ( TxOut
             <$> arbitrary
-            <*> importanceSampleColdScriptInputValue onlyValid coldNFT
+            <*> importanceSampleScriptValue onlyValid coldNFT
             <*> importanceSampleArbitrary
               onlyValid
               (pure $ OutputDatum $ Datum $ toBuiltinData datum)
             <*> arbitrary
         )
-
-importanceSampleColdScriptInputValue :: Bool -> AssetClass -> Gen PV3.Value
-importanceSampleColdScriptInputValue onlyValid (AssetClass (policy, name)) =
-  mkValue
-    <$> arbitrary
-    <*> importanceSampleArbitrary
-      onlyValid
-      (Map.insert policy (Map.singleton name 1) <$> arbitrary)
 
 importanceSampleColdDatum
   :: Bool -> HotLockRedeemer -> Gen (Maybe ColdLockDatum)
@@ -251,6 +231,7 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
   where
     gen = do
       let scriptInputRef = txInInfoOutRef scriptInput
+      let scriptCredential = addressCredential $ txOutAddress $ txInInfoResolved scriptInput
       extraInputs <-
         nubBy (on (==) txInInfoOutRef)
           <$> listOf (arbitrary `suchThat` ((/= scriptInputRef) . txInInfoOutRef))
@@ -260,7 +241,22 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
       inputs <- shuffle $ scriptInput : extraInputs
       refInputs <- maybe pure (fmap shuffle . (:)) coldScriptInput extraRefInputs
       outputs <- case scriptOutput of
-        Nothing -> arbitrary
+        Nothing -> case redeemer of
+          BurnHot ->
+            listOf $
+              arbitrary `suchThat` \TxOut{..} ->
+                addressCredential txOutAddress /= scriptCredential
+                  && assetClassValueOf txOutValue hotNFT == 0
+          UpgradeHot destination -> do
+            upgradeOut <-
+              importanceSampleUpgradeDestinationOutput onlyValid destination hotNFT
+            extraOutputs <-
+              listOf $
+                arbitrary `suchThat` \TxOut{..} ->
+                  addressCredential txOutAddress /= scriptCredential
+                    && assetClassValueOf txOutValue hotNFT == 0
+            shuffle $ upgradeOut : extraOutputs
+          _ -> pure []
         Just output -> do
           extraOutputs <- importanceSampleExtraOutputs onlyValid output
           shuffle $ output : extraOutputs
@@ -340,20 +336,31 @@ importanceSampleVotes onlyValid hotCred =
     _ -> pure AMap.empty
 
 importanceSampleSigners
-  :: Bool -> [Identity] -> HotLockDatum -> HotLockRedeemer -> Gen [PubKeyHash]
-importanceSampleSigners onlyValid delegationUsers HotLockDatum{..} =
+  :: Bool
+  -> [Identity]
+  -> HotLockDatum
+  -> Maybe HotLockDatum
+  -> HotLockRedeemer
+  -> Gen [PubKeyHash]
+importanceSampleSigners onlyValid delegationUsers HotLockDatum{..} outDatum =
   importanceSampleArbitrary onlyValid . \case
     Vote -> sampleSignersGroup votingUsers
     ResignVoting Identity{..} -> pure [pubKeyHash]
-    RotateHot -> sampleSignersGroup delegationUsers
+    RotateHot -> do
+      multisigSigners <- sampleSignersGroup delegationUsers
+      pure $
+        multisigSigners <> case outDatum of
+          Nothing -> []
+          Just (HotLockDatum outVoters) ->
+            pubKeyHash <$> filter (not . (`elem` votingUsers)) outVoters
     BurnHot -> sampleSignersGroup delegationUsers
     UpgradeHot _ -> sampleSignersGroup delegationUsers
 
-importanceSampleScriptInput :: Bool -> HotLockDatum -> Gen TxOut
-importanceSampleScriptInput onlyValid inDatum =
+importanceSampleScriptInput :: Bool -> AssetClass -> HotLockDatum -> Gen TxOut
+importanceSampleScriptInput onlyValid hotNFT inDatum =
   TxOut
-    <$> arbitrary
-    <*> arbitrary
+    <$> (Address . ScriptCredential <$> arbitrary <*> arbitrary)
+    <*> importanceSampleScriptValue onlyValid hotNFT
     <*> importanceSampleArbitrary
       onlyValid
       (pure $ OutputDatum $ Datum $ toBuiltinData inDatum)

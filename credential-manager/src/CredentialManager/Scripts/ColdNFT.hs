@@ -31,7 +31,7 @@ import PlutusLedgerApi.V3 (
 import PlutusLedgerApi.V3.Contexts (ColdCommitteeCredential)
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
-import PlutusTx.Prelude
+import PlutusTx.Prelude hiding (traceIfFalse)
 import qualified Prelude as Haskell
 
 -- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the
@@ -87,14 +87,14 @@ coldNFTScript coldNFT coldCred datumIn@ColdLockDatum{..} red ctx =
           txInfoTxCerts txInfo == [TxCertAuthHotCommittee coldCred hotCred]
     ResignDelegation user ->
       checkContinuingTx ownInput outputs \case
-        ColdLockDatum ca' delegation' membership' ->
+        ColdLockDatum ca' membership' delegation' ->
           traceIfFalse "CA not conserved" (certificateAuthority == ca')
             && traceIfFalse "Membership not conserved" (membershipUsers == membership')
             && traceIfFalse "Tx publishes certificates" checkNoCerts
             && checkResignation signatures user delegationUsers delegation'
     ResignMembership user ->
       checkContinuingTx ownInput outputs \case
-        ColdLockDatum ca' delegation' membership' ->
+        ColdLockDatum ca' membership' delegation' ->
           traceIfFalse "CA not conserved" (certificateAuthority == ca')
             && traceIfFalse "Delegation not conserved" (delegationUsers == delegation')
             && traceIfFalse "Tx publishes certificates" checkNoCerts
@@ -109,7 +109,7 @@ coldNFTScript coldNFT coldCred datumIn@ColdLockDatum{..} red ctx =
           txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
     RotateCold ->
       checkContinuingTx ownInput outputs \case
-        ColdLockDatum ca' delegation' membership' ->
+        ColdLockDatum ca' membership' delegation' ->
           traceIfFalse "CA not conserved" (certificateAuthority == ca')
             && traceIfFalse "Tx publishes certificates" checkNoCerts
             && checkMultiSig membershipUsers signatures
