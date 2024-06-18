@@ -358,25 +358,27 @@ importanceSampleExtraOutputs onlyValid TxOut{..} =
         <$> arbitrary `suchThat` on (/=) addressCredential txOutAddress
         <*> arbitrary
         <*> arbitrary
-        <*> importanceSampleArbitrary onlyValid (pure Nothing)
+        <*> arbitrary
 
 importanceSampleScriptInput :: Bool -> ColdLockDatum -> Gen TxOut
 importanceSampleScriptInput onlyValid inDatum =
   TxOut
     <$> arbitrary
     <*> arbitrary
-    <*> pure (OutputDatum $ Datum $ toBuiltinData inDatum)
-    <*> importanceSampleArbitrary onlyValid (pure Nothing)
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure $ OutputDatum $ Datum $ toBuiltinData inDatum)
+    <*> arbitrary
 
 importanceSampleScriptOutput :: Bool -> TxOut -> ColdLockDatum -> Gen TxOut
 importanceSampleScriptOutput onlyValid TxOut{..} outDatum =
   TxOut
     <$> importanceSampleArbitrary onlyValid (pure txOutAddress)
     <*> importanceSampleArbitrary onlyValid (pure txOutValue)
-    <*> ( OutputDatum . Datum . toBuiltinData
-            <$> importanceSampleArbitrary onlyValid (pure outDatum)
-        )
-    <*> importanceSampleArbitrary onlyValid (pure Nothing)
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure $ OutputDatum $ Datum $ toBuiltinData outDatum)
+    <*> arbitrary
 
 importanceSampleArbitrary :: (Arbitrary a) => Bool -> Gen a -> Gen a
 importanceSampleArbitrary True important = important

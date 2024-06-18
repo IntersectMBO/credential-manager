@@ -62,9 +62,6 @@ spec = do
   prop
     "Invariant A11: Authorize fails if datum not preserved"
     invariantA11AuthorizeDatumNotPreserved
-  prop
-    "Invariant A12: Authorize fails if self output contains reference script"
-    invariantA12AuthorizeReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
@@ -249,31 +246,6 @@ invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs =
                       map modifyDatum $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
-
-invariantA12AuthorizeReferenceScriptInOutput :: ValidArgs -> Property
-invariantA12AuthorizeReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == authorizeScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
                         txInfoOutputs $
                           scriptContextTxInfo ctx
                   }

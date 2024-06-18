@@ -58,9 +58,6 @@ spec = do
   prop
     "Invariant RC10: ResignCold fails if datum not preserved"
     invariantRC10ResignColdDatumNotPreserved
-  prop
-    "Invariant RC11: ResignCold fails if self output contains reference script"
-    invariantRC11ResignColdReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
@@ -229,31 +226,6 @@ invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs =
                       map modifyDatum $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
-
-invariantRC11ResignColdReferenceScriptInOutput :: ValidArgs -> Property
-invariantRC11ResignColdReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == resignColdScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
                         txInfoOutputs $
                           scriptContextTxInfo ctx
                   }

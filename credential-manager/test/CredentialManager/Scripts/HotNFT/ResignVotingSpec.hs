@@ -54,9 +54,6 @@ spec = do
   prop
     "Invariant RV9: ResignVoting fails if value not preserved"
     invariantRV9ValueNotPreserved
-  prop
-    "Invariant RV10: ResignVoting fails if self output contains reference script"
-    invariantRV10ReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx ->
@@ -234,32 +231,6 @@ invariantRV9ValueNotPreserved args@ValidArgs{..} =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs =
                       map modifyValue $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT resignVotingHotCredential datum redeemer ctx'
-          === False
-
-invariantRV10ReferenceScriptInOutput :: ValidArgs -> Property
-invariantRV10ReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == resignVotingScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
                         txInfoOutputs $
                           scriptContextTxInfo ctx
                   }

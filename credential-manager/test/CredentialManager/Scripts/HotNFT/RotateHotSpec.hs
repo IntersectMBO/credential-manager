@@ -56,9 +56,6 @@ spec = do
   prop
     "Invariant RTH9: RotateHot fails if voting empty in output"
     invariantRTH9EmptyVotingOutput
-  prop
-    "Invariant RTH10: RotateHot fails if self output contains reference script"
-    invariantRTH11ReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
@@ -258,31 +255,6 @@ invariantRTH9EmptyVotingOutput args@ValidArgs{..} =
             }
     counterexample ("Context: " <> show ctx') $
       hotNFTScript coldNFT hotNFT rotateHotCredential datum redeemer ctx' === False
-
-invariantRTH11ReferenceScriptInOutput :: ValidArgs -> Property
-invariantRTH11ReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == rotateScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT rotateHotCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)

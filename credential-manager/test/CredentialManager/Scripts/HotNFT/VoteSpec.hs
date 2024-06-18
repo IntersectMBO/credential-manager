@@ -60,9 +60,6 @@ spec = do
     "Invariant V9: Vote fails if datum not preserved"
     invariantV9VoteDatumNotPreserved
   prop
-    "Invariant V10: Vote fails if self output contains reference script"
-    invariantV10VoteReferenceScriptInOutput
-  prop
     "Invariant V11: Vote fails if extraneous votes are present"
     invariantV11ExtraneousVoters
   prop
@@ -221,31 +218,6 @@ invariantV9VoteDatumNotPreserved args@ValidArgs{..} =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs =
                       map modifyDatum $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
-
-invariantV10VoteReferenceScriptInOutput :: ValidArgs -> Property
-invariantV10VoteReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == voteScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
                         txInfoOutputs $
                           scriptContextTxInfo ctx
                   }

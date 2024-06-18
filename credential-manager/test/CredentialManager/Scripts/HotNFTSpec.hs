@@ -354,15 +354,17 @@ importanceSampleScriptInput onlyValid inDatum =
   TxOut
     <$> arbitrary
     <*> arbitrary
-    <*> pure (OutputDatum $ Datum $ toBuiltinData inDatum)
-    <*> importanceSampleArbitrary onlyValid (pure Nothing)
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure $ OutputDatum $ Datum $ toBuiltinData inDatum)
+    <*> arbitrary
 
 importanceSampleScriptOutput :: Bool -> TxOut -> HotLockDatum -> Gen TxOut
 importanceSampleScriptOutput onlyValid TxOut{..} outDatum =
   TxOut
     <$> importanceSampleArbitrary onlyValid (pure txOutAddress)
     <*> importanceSampleArbitrary onlyValid (pure txOutValue)
-    <*> ( OutputDatum . Datum . toBuiltinData
-            <$> importanceSampleArbitrary onlyValid (pure outDatum)
-        )
-    <*> importanceSampleArbitrary onlyValid (pure Nothing)
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure $ OutputDatum $ Datum $ toBuiltinData outDatum)
+    <*> arbitrary

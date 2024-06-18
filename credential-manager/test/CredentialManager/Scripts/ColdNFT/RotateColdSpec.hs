@@ -57,9 +57,6 @@ spec = do
   prop
     "Invariant RTC10: RotateCold fails if delegation empty in output"
     invariantRTC10EmptyDelegationOutput
-  prop
-    "Invariant RTC11: RotateCold fails if self output contains reference script"
-    invariantRTC11ReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
@@ -272,31 +269,6 @@ invariantRTC10EmptyDelegationOutput args@ValidArgs{..} =
             }
     counterexample ("Context: " <> show ctx') $
       coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
-
-invariantRTC11ReferenceScriptInOutput :: ValidArgs -> Property
-invariantRTC11ReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == rotateScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)

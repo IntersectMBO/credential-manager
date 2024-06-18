@@ -59,9 +59,6 @@ spec = do
   prop
     "Invariant RD11: ResignDelegation fails if CA is changed"
     invariantRD11CAChanged
-  prop
-    "Invariant RD12: ResignDelegation fails if self output contains reference script"
-    invariantRD12ReferenceScriptInOutput
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
@@ -306,32 +303,6 @@ invariantRD11CAChanged args@ValidArgs{..} =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs =
                       map modifyDatum $
-                        txInfoOutputs $
-                          scriptContextTxInfo ctx
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
-          === False
-
-invariantRD12ReferenceScriptInOutput :: ValidArgs -> Property
-invariantRD12ReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    referenceScript <- Just <$> arbitrary
-    let addReferenceScript TxOut{..}
-          | txOutAddress == resignDelegationScriptAddress =
-              TxOut
-                { txOutReferenceScript = referenceScript
-                , ..
-                }
-          | otherwise = TxOut{..}
-    let ctx' =
-          ctx
-            { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs =
-                      map addReferenceScript $
                         txInfoOutputs $
                           scriptContextTxInfo ctx
                   }
