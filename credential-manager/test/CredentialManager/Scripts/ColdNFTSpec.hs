@@ -9,6 +9,7 @@ import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import GHC.IO (catchAny, unsafePerformIO)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
@@ -16,6 +17,7 @@ import PlutusLedgerApi.V3 (
   FromData (..),
   OutputDatum (..),
   PubKeyHash,
+  ScriptPurpose (..),
   ToData (..),
   TxCert (TxCertAuthHotCommittee, TxCertResignColdCommittee),
   TxInInfo (..),
@@ -32,7 +34,7 @@ spec = do
     prop "onlyValid => valid" $
       forAll (importanceSampleScriptArgs True) \args@ScriptArgs{..} ->
         forAllScriptContexts True args $
-          wrapColdNFTScript coldCredential datum redeemer
+          wrapColdNFTScript coldNFT coldCredential datum redeemer
   prop "Invariant 1: Fails if not spending" invariant1BadPurpose
   prop
     "Invariant 2: Valid transitions preserve address"
@@ -51,16 +53,18 @@ spec = do
 invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
   forAllScriptContexts False args \ctx ->
-    classify (wrapColdNFTScript coldCredential datum redeemer ctx) "Valid"
+    classify (wrapColdNFTScript coldNFT coldCredential datum redeemer ctx) "Valid"
       . label case redeemer of
         AuthorizeHot _ -> "AuthorizeHot"
         ResignCold -> "ResignCold"
         ResignDelegation _ -> "ResignDelegation"
+        ResignMembership _ -> "ResignMembership"
         RotateCold -> "RotateCold"
-        UnlockCold -> "UnlockCold"
+        BurnCold -> "BurnCold"
+        UpgradeCold _ -> "UpgradeCold"
       $ forAllShrink genNonSpending shrink \purpose ->
         let ctx' = ctx{scriptContextPurpose = purpose}
-         in wrapColdNFTScript coldCredential datum redeemer ctx' === False
+         in wrapColdNFTScript coldNFT coldCredential datum redeemer ctx' === False
 
 invariant2AddressPreservation :: ScriptArgs -> Property
 invariant2AddressPreservation args@ScriptArgs{..} =
@@ -90,9 +94,10 @@ forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> ColdLockDatum -> prop) -> Property
 forAllValidTransitions args@ScriptArgs{..} f =
   forAllScriptContexts False args \ctx ->
-    wrapColdNFTScript coldCredential datum redeemer ctx ==>
+    wrapColdNFTScript coldNFT coldCredential datum redeemer ctx ==>
       case redeemer of
-        UnlockCold -> discard -- unlock is not a transition - it is a terminus
+        BurnCold -> discard -- burn is not a transition - it is a terminus
+        UpgradeCold _ -> discard -- upgrade is not a transition - it is a terminus
         _ -> case scriptOutput of
           Nothing -> property failed -- All other actions require an output
           Just output ->
@@ -103,14 +108,15 @@ forAllValidTransitions args@ScriptArgs{..} f =
               _ -> property failed
 
 wrapColdNFTScript
-  :: ColdCommitteeCredential
+  :: AssetClass
+  -> ColdCommitteeCredential
   -> ColdLockDatum
   -> ColdLockRedeemer
   -> ScriptContext
   -> Bool
-wrapColdNFTScript c d r ctx =
+wrapColdNFTScript nft c d r ctx =
   unsafePerformIO $
-    evaluate (coldNFTScript c d r ctx) `catchAny` const (pure False)
+    evaluate (coldNFTScript nft c d r ctx) `catchAny` const (pure False)
 
 genNonSpending :: Gen ScriptPurpose
 genNonSpending =
@@ -133,7 +139,8 @@ nonMembershipSigners ColdLockDatum{..} =
     arbitrary `suchThat` (not . any (`elem` fmap pubKeyHash membershipUsers))
 
 data ScriptArgs = ScriptArgs
-  { coldCredential :: ColdCommitteeCredential
+  { coldNFT :: AssetClass
+  , coldCredential :: ColdCommitteeCredential
   , datum :: ColdLockDatum
   , redeemer :: ColdLockRedeemer
   , scriptInput :: TxInInfo
@@ -149,6 +156,7 @@ instance Arbitrary ScriptArgs where
 
 importanceSampleScriptArgs :: Bool -> Gen ScriptArgs
 importanceSampleScriptArgs onlyValid = do
+  coldNFT <- arbitrary
   coldCredential <- arbitrary
   redeemer <- importanceSampleRedeemers
   (inDatum, mOutDatum) <- importanceSampleData onlyValid redeemer
@@ -170,7 +178,8 @@ importanceSampleRedeemers =
     , (2, pure ResignCold)
     , (5, ResignDelegation <$> arbitrary)
     , (2, pure RotateCold)
-    , (1, pure UnlockCold)
+    , (1, pure BurnCold)
+    , (1, UpgradeCold <$> arbitrary)
     ]
 
 importanceSampleData
@@ -200,7 +209,8 @@ importanceSampleOutputDatum
   :: Bool -> ColdLockRedeemer -> ColdLockDatum -> Gen (Maybe ColdLockDatum)
 importanceSampleOutputDatum onlyValid redeemer inDatum =
   importanceSampleArbitrary onlyValid case redeemer of
-    UnlockCold -> pure Nothing
+    BurnCold -> pure Nothing
+    UpgradeCold _ -> pure Nothing
     _ ->
       fmap Just $
         ColdLockDatum
@@ -219,8 +229,10 @@ importanceSampleOutputMembership onlyValid redeemer ColdLockDatum{..} =
     AuthorizeHot _ -> pure membershipUsers
     ResignCold -> pure membershipUsers
     ResignDelegation _ -> pure membershipUsers
+    ResignMembership user -> pure $ filter (/= user) membershipUsers
     RotateCold -> nubBy (on (==) pubKeyHash) <$> listOf1 arbitrary
-    UnlockCold -> arbitrary
+    BurnCold -> arbitrary
+    UpgradeCold _ -> arbitrary
 
 importanceSampleOutputDelegation
   :: Bool -> ColdLockRedeemer -> ColdLockDatum -> Gen [Identity]
@@ -229,8 +241,10 @@ importanceSampleOutputDelegation onlyValid redeemer ColdLockDatum{..} =
     AuthorizeHot _ -> pure delegationUsers
     ResignCold -> pure delegationUsers
     ResignDelegation user -> pure $ filter (/= user) delegationUsers
+    ResignMembership _ -> pure delegationUsers
     RotateCold -> nubBy (on (==) pubKeyHash) <$> listOf1 arbitrary
-    UnlockCold -> arbitrary
+    BurnCold -> arbitrary
+    UpgradeCold _ -> arbitrary
 
 forAllScriptContexts
   :: (Testable prop) => Bool -> ScriptArgs -> (ScriptContext -> prop) -> Property
@@ -324,8 +338,10 @@ importanceSampleSigners onlyValid ColdLockDatum{..} =
     AuthorizeHot _ -> sampleSignersGroup delegationUsers
     ResignCold -> sampleSignersGroup membershipUsers
     ResignDelegation Identity{..} -> pure [pubKeyHash]
+    ResignMembership Identity{..} -> pure [pubKeyHash]
     RotateCold -> sampleSignersGroup membershipUsers
-    UnlockCold -> sampleSignersGroup membershipUsers
+    BurnCold -> sampleSignersGroup membershipUsers
+    UpgradeCold _ -> sampleSignersGroup membershipUsers
 
 sampleSignersGroup :: [Identity] -> Gen [PubKeyHash]
 sampleSignersGroup group = do

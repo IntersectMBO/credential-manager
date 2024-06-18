@@ -8,12 +8,14 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxCert (..),
   TxInInfo (..),
@@ -66,7 +68,7 @@ spec = do
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript authorizeColdCredential datum redeemer ctx === True
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx === True
 
 invariantA1AuthorizeDelegatorMinority :: ValidArgs -> Property
 invariantA1AuthorizeDelegatorMinority args@ValidArgs{..} =
@@ -86,7 +88,7 @@ invariantA1AuthorizeDelegatorMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA2DuplicateDelegation :: ValidArgs -> Property
 invariantA2DuplicateDelegation args@ValidArgs{..} =
@@ -102,7 +104,7 @@ invariantA2DuplicateDelegation args@ValidArgs{..} =
     let datum' = datum{delegationUsers = delegationUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript authorizeColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT authorizeColdCredential datum' redeemer ctx === True
 
 invariantA3ColdCredentialMismatch :: ValidArgs -> Property
 invariantA3ColdCredentialMismatch args@ValidArgs{..} =
@@ -118,7 +120,7 @@ invariantA3ColdCredentialMismatch args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA4HotCredentialMismatch :: ValidArgs -> Property
 invariantA4HotCredentialMismatch args@ValidArgs{..} =
@@ -134,13 +136,13 @@ invariantA4HotCredentialMismatch args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA5EmptyDelegation :: ValidArgs -> Property
 invariantA5EmptyDelegation args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{delegationUsers = []}
-    coldNFTScript authorizeColdCredential datum' redeemer ctx === False
+    coldNFTScript coldNFT authorizeColdCredential datum' redeemer ctx === False
 
 invariantA6AuthorizeExtraCertificates :: ValidArgs -> Property
 invariantA6AuthorizeExtraCertificates args@ValidArgs{..} =
@@ -156,7 +158,7 @@ invariantA6AuthorizeExtraCertificates args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA7AuthorizeNoCertificates :: ValidArgs -> Property
 invariantA7AuthorizeNoCertificates args@ValidArgs{..} =
@@ -167,7 +169,7 @@ invariantA7AuthorizeNoCertificates args@ValidArgs{..} =
                 (scriptContextTxInfo ctx){txInfoTxCerts = []}
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA8AuthorizeNoSelfOutput :: ValidArgs -> Property
 invariantA8AuthorizeNoSelfOutput args@ValidArgs{..} =
@@ -188,7 +190,7 @@ invariantA8AuthorizeNoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA9AuthorizeMultipleSelfOutputs :: ValidArgs -> Property
 invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
@@ -203,7 +205,7 @@ invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA10AuthorizeValueNotPreserved :: ValidArgs -> Property
 invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
@@ -224,7 +226,7 @@ invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA11AuthorizeDatumNotPreserved :: ValidArgs -> Property
 invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
@@ -253,7 +255,7 @@ invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 invariantA12AuthorizeReferenceScriptInOutput :: ValidArgs -> Property
 invariantA12AuthorizeReferenceScriptInOutput args@ValidArgs{..} =
@@ -278,7 +280,7 @@ invariantA12AuthorizeReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript authorizeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -376,7 +378,8 @@ forAllValidScriptContexts ValidArgs{..} f =
     input = TxInInfo authorizeScriptRef output
 
 data ValidArgs = ValidArgs
-  { authorizeScriptRef :: TxOutRef
+  { coldNFT :: AssetClass
+  , authorizeScriptRef :: TxOutRef
   , authorizeScriptAddress :: Address
   , authorizeValue :: Value
   , authorizeExtraDelegation :: Identity
@@ -391,6 +394,7 @@ instance Arbitrary ValidArgs where
   arbitrary =
     ValidArgs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

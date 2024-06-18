@@ -7,11 +7,13 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),
@@ -63,7 +65,7 @@ spec = do
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx === True
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx === True
 
 invariantRD1ResignDelegationNotSigned :: ValidArgs -> Property
 invariantRD1ResignDelegationNotSigned args@ValidArgs{..} =
@@ -79,7 +81,8 @@ invariantRD1ResignDelegationNotSigned args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+        === False
 
 invariantRD2NonDelegation :: ValidArgs -> Property
 invariantRD2NonDelegation args@ValidArgs{..} =
@@ -87,7 +90,8 @@ invariantRD2NonDelegation args@ValidArgs{..} =
     let delegationGroup = delegationUsers datum
     let datum' = datum{delegationUsers = filter (/= resignDelegationResignee) delegationGroup}
     counterexample ("Datum: " <> show datum') $
-      coldNFTScript resignDelegationColdCredential datum' redeemer ctx === False
+      coldNFTScript coldNFT resignDelegationColdCredential datum' redeemer ctx
+        === False
 
 invariantRD3NotRemoved :: ValidArgs -> Property
 invariantRD3NotRemoved args@ValidArgs{..} =
@@ -117,7 +121,8 @@ invariantRD3NotRemoved args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+        === False
 
 invariantRD4ExtraDelegatorsRemoved :: ValidArgs -> Property
 invariantRD4ExtraDelegatorsRemoved args@ValidArgs{..} =
@@ -155,7 +160,8 @@ invariantRD4ExtraDelegatorsRemoved args@ValidArgs{..} =
         pure $
           counterexample ("ExtraRemoved: " <> show extraRemoved) $
             counterexample ("Context: " <> show ctx') $
-              coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+              coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+                === False
 
 invariantRD5ResignLastDelegator :: ValidArgs -> Property
 invariantRD5ResignLastDelegator ValidArgs{..} = do
@@ -166,7 +172,8 @@ invariantRD5ResignLastDelegator ValidArgs{..} = do
           , ..
           }
   forAllValidScriptContexts args \datum redeemer ctx -> do
-    coldNFTScript resignDelegationColdCredential datum redeemer ctx === False
+    coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx
+      === False
 
 invariantRD6ExtraneousCertificates :: ValidArgs -> Property
 invariantRD6ExtraneousCertificates args@ValidArgs{..} =
@@ -181,7 +188,8 @@ invariantRD6ExtraneousCertificates args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD7NoSelfOutput :: ValidArgs -> Property
 invariantRD7NoSelfOutput args@ValidArgs{..} =
@@ -203,7 +211,8 @@ invariantRD7NoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD8MultipleSelfOutputs :: ValidArgs -> Property
 invariantRD8MultipleSelfOutputs args@ValidArgs{..} =
@@ -218,7 +227,8 @@ invariantRD8MultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD9ValueNotPreserved :: ValidArgs -> Property
 invariantRD9ValueNotPreserved args@ValidArgs{..} =
@@ -240,7 +250,8 @@ invariantRD9ValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD10MembershipChanged :: ValidArgs -> Property
 invariantRD10MembershipChanged args@ValidArgs{..} =
@@ -270,7 +281,8 @@ invariantRD10MembershipChanged args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD11CAChanged :: ValidArgs -> Property
 invariantRD11CAChanged args@ValidArgs{..} =
@@ -300,7 +312,8 @@ invariantRD11CAChanged args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 invariantRD12ReferenceScriptInOutput :: ValidArgs -> Property
 invariantRD12ReferenceScriptInOutput args@ValidArgs{..} =
@@ -325,7 +338,8 @@ invariantRD12ReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignDelegationColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignDelegationColdCredential datum redeemer ctx'
+          === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -436,7 +450,8 @@ forAllValidScriptContexts ValidArgs{..} f =
           Nothing
 
 data ValidArgs = ValidArgs
-  { resignDelegationScriptRef :: TxOutRef
+  { coldNFT :: AssetClass
+  , resignDelegationScriptRef :: TxOutRef
   , resignDelegationScriptAddress :: Address
   , resignDelegationColdCredential :: ColdCommitteeCredential
   , resignDelegationValue :: Value
@@ -457,6 +472,7 @@ instance Arbitrary ValidArgs where
         ]
     ValidArgs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

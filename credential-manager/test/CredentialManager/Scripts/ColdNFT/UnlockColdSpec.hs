@@ -8,11 +8,13 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address,
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),
@@ -26,21 +28,21 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   prop
-    "Invariant UC1: UnlockCold fails if signed by minority of membership group"
-    invariantUC1UnlockColdMembershipMinority
+    "Invariant UC1: BurnCold fails if signed by minority of membership group"
+    invariantUC1BurnColdMembershipMinority
   prop
-    "Invariant UC2: UnlockCold ignores duplicate signers in membership group"
+    "Invariant UC2: BurnCold ignores duplicate signers in membership group"
     invariantUC2DuplicateMembership
   prop
-    "Invariant UC3: UnlockCold fails if membership list is empty"
+    "Invariant UC3: BurnCold fails if membership list is empty"
     invariantUC3EmptyMembership
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript unlockColdCredential datum redeemer ctx === True
+        coldNFTScript coldNFT unlockColdCredential datum redeemer ctx === True
 
-invariantUC1UnlockColdMembershipMinority :: ValidArgs -> Property
-invariantUC1UnlockColdMembershipMinority args@ValidArgs{..} =
+invariantUC1BurnColdMembershipMinority :: ValidArgs -> Property
+invariantUC1BurnColdMembershipMinority args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> membershipUsers datum
     let minSigners = succ (length allSigners) `div` 2
@@ -57,7 +59,7 @@ invariantUC1UnlockColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript unlockColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT unlockColdCredential datum redeemer ctx' === False
 
 invariantUC2DuplicateMembership :: ValidArgs -> Property
 invariantUC2DuplicateMembership args@ValidArgs{..} =
@@ -73,13 +75,13 @@ invariantUC2DuplicateMembership args@ValidArgs{..} =
     let datum' = datum{membershipUsers = membershipUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript unlockColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT unlockColdCredential datum' redeemer ctx === True
 
 invariantUC3EmptyMembership :: ValidArgs -> Property
 invariantUC3EmptyMembership args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript unlockColdCredential datum' redeemer ctx === False
+    coldNFTScript coldNFT unlockColdCredential datum' redeemer ctx === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -87,7 +89,7 @@ forAllValidScriptContexts
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f datum UnlockCold
+  forAllShrink gen shrink' $ f datum BurnCold
   where
     gen = do
       additionalInputs <-
@@ -169,7 +171,8 @@ forAllValidScriptContexts ValidArgs{..} f =
           Nothing
 
 data ValidArgs = ValidArgs
-  { unlockScriptRef :: TxOutRef
+  { coldNFT :: AssetClass
+  , unlockScriptRef :: TxOutRef
   , unlockScriptAddress :: Address
   , unlockValue :: Value
   , unlockCA :: Identity
@@ -186,6 +189,7 @@ instance Arbitrary ValidArgs where
   arbitrary =
     ValidArgs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

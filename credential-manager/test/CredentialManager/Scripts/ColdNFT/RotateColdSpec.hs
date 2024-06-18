@@ -8,11 +8,13 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),
@@ -61,7 +63,7 @@ spec = do
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript rotateColdCredential datum redeemer ctx === True
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx === True
 
 invariantRTC1RotateColdMembershipMinority :: ValidArgs -> Property
 invariantRTC1RotateColdMembershipMinority args@ValidArgs{..} =
@@ -81,7 +83,7 @@ invariantRTC1RotateColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript rotateColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC2DuplicateMembership :: ValidArgs -> Property
 invariantRTC2DuplicateMembership args@ValidArgs{..} =
@@ -97,13 +99,13 @@ invariantRTC2DuplicateMembership args@ValidArgs{..} =
     let datum' = datum{membershipUsers = membershipUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript rotateColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT rotateColdCredential datum' redeemer ctx === True
 
 invariantRTC3EmptyMembership :: ValidArgs -> Property
 invariantRTC3EmptyMembership args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript rotateColdCredential datum' redeemer ctx === False
+    coldNFTScript coldNFT rotateColdCredential datum' redeemer ctx === False
 
 invariantRTC4ExtraneousCerts :: ValidArgs -> Property
 invariantRTC4ExtraneousCerts args@ValidArgs{..} =
@@ -118,7 +120,7 @@ invariantRTC4ExtraneousCerts args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC5NoSelfOutput :: ValidArgs -> Property
 invariantRTC5NoSelfOutput args@ValidArgs{..} =
@@ -139,7 +141,7 @@ invariantRTC5NoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC6MultipleSelfOutputs :: ValidArgs -> Property
 invariantRTC6MultipleSelfOutputs args@ValidArgs{..} =
@@ -154,7 +156,7 @@ invariantRTC6MultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC7ValueNotPreserved :: ValidArgs -> Property
 invariantRTC7ValueNotPreserved args@ValidArgs{..} =
@@ -175,7 +177,7 @@ invariantRTC7ValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC8CaChanged :: ValidArgs -> Property
 invariantRTC8CaChanged args@ValidArgs{..} =
@@ -209,7 +211,7 @@ invariantRTC8CaChanged args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC9EmptyMembershipOutput :: ValidArgs -> Property
 invariantRTC9EmptyMembershipOutput args@ValidArgs{..} =
@@ -239,7 +241,7 @@ invariantRTC9EmptyMembershipOutput args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript rotateColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC10EmptyDelegationOutput :: ValidArgs -> Property
 invariantRTC10EmptyDelegationOutput args@ValidArgs{..} =
@@ -269,7 +271,7 @@ invariantRTC10EmptyDelegationOutput args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript rotateColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 invariantRTC11ReferenceScriptInOutput :: ValidArgs -> Property
 invariantRTC11ReferenceScriptInOutput args@ValidArgs{..} =
@@ -294,7 +296,7 @@ invariantRTC11ReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript rotateColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -412,7 +414,8 @@ forAllValidScriptContexts ValidArgs{..} f =
           Nothing
 
 data ValidArgs = ValidArgs
-  { rotateScriptRef :: TxOutRef
+  { coldNFT :: AssetClass
+  , rotateScriptRef :: TxOutRef
   , rotateScriptAddress :: Address
   , rotateValue :: Value
   , rotateCA :: Identity
@@ -435,6 +438,7 @@ instance Arbitrary ValidArgs where
   arbitrary =
     ValidArgs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

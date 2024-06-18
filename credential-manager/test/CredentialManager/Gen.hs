@@ -20,7 +20,7 @@ import Data.Monoid (Sum (..))
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
-import PlutusLedgerApi.V1.Value (AssetClass)
+import PlutusLedgerApi.V1.Value (AssetClass (AssetClass))
 import PlutusLedgerApi.V3
 import qualified PlutusTx.AssocMap as AMap
 import Test.QuickCheck
@@ -176,7 +176,7 @@ instance Arbitrary ByteString where
   shrink = fmap BS.pack . shrink . BS.unpack
 
 instance Arbitrary AssetClass where
-  arbitrary = uncurry AssetClass <$> arbitrary <*> chooseIntegerHyperbolic
+  arbitrary = curry AssetClass <$> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary TxOutRef where
@@ -339,7 +339,7 @@ instance Arbitrary CN.ScriptContext where
     purpose <- arbitrary
     CN.ScriptContext <$> genColdNFTTxInfo purpose <*> pure purpose
   shrink ctx@CN.ScriptContext{..} = case scriptContextPurpose of
-    CN.Spending ref ->
+    Spending ref ->
       fold
         [ shrinkColdSpendingRefPreservingInput ref scriptContextTxInfo
         , shrinkColdInfoPreservingRef ref scriptContextTxInfo
@@ -362,18 +362,18 @@ shrinkColdSpendingRefPreservingInput ref CN.TxInfo{..} = do
                     else inInfo
             , ..
             }
-      , scriptContextPurpose = CN.Spending ref'
+      , scriptContextPurpose = Spending ref'
       }
 
 shrinkColdInfoPreservingRef :: TxOutRef -> CN.TxInfo -> [CN.ScriptContext]
 shrinkColdInfoPreservingRef ref info = do
   info' <-
     filter (any ((== ref) . txInInfoOutRef) . CN.txInfoInputs) $ shrink info
-  pure $ CN.ScriptContext info' $ CN.Spending ref
+  pure $ CN.ScriptContext info' $ Spending ref
 
-genColdNFTTxInfo :: CN.ScriptPurpose -> Gen CN.TxInfo
+genColdNFTTxInfo :: ScriptPurpose -> Gen CN.TxInfo
 genColdNFTTxInfo = \case
-  CN.Spending ref -> do
+  Spending ref -> do
     info@CN.TxInfo{..} <- arbitrary
     if any ((== ref) . txInInfoOutRef) txInfoInputs
       then pure info
@@ -391,18 +391,6 @@ insertAt :: Int -> a -> [a] -> [a]
 insertAt _ a [] = [a]
 insertAt 0 a as = a : as
 insertAt n a (a' : as) = a' : insertAt (pred n) a as
-
-instance Arbitrary CN.ScriptPurpose where
-  arbitrary =
-    oneof
-      [ CN.Minting <$> arbitrary
-      , CN.Spending <$> arbitrary
-      , CN.Rewarding <$> arbitrary
-      , CN.Certifying <$> arbitrary <*> arbitrary
-      , CN.Voting <$> arbitrary
-      , CN.Proposing <$> arbitrary <*> arbitrary
-      ]
-  shrink = genericShrink
 
 instance Arbitrary CN.TxInfo where
   arbitrary = do
@@ -515,9 +503,9 @@ instance Arbitrary HN.ScriptContext where
     HN.ScriptContext <$> genHotNFTTxInfo purpose <*> pure purpose
   shrink = genericShrink
 
-genHotNFTTxInfo :: HN.ScriptPurpose -> Gen HN.TxInfo
+genHotNFTTxInfo :: ScriptPurpose -> Gen HN.TxInfo
 genHotNFTTxInfo = \case
-  HN.Spending ref -> do
+  Spending ref -> do
     info@HN.TxInfo{..} <- arbitrary
     if any ((== ref) . txInInfoOutRef) txInfoInputs
       then pure info
@@ -531,16 +519,24 @@ genHotNFTTxInfo = \case
             }
   _ -> arbitrary
 
-instance Arbitrary HN.ScriptPurpose where
+instance Arbitrary ScriptPurpose where
   arbitrary =
     oneof
-      [ HN.Minting <$> arbitrary
-      , HN.Spending <$> arbitrary
-      , HN.Rewarding <$> arbitrary
-      , HN.Certifying <$> arbitrary <*> arbitrary
-      , HN.Voting <$> arbitrary
-      , HN.Proposing <$> arbitrary <*> arbitrary
+      [ Minting <$> arbitrary
+      , Spending <$> arbitrary
+      , Rewarding <$> arbitrary
+      , Certifying <$> arbitrary <*> arbitrary
+      , Voting <$> arbitrary
+      , Proposing <$> arbitrary <*> arbitrary
       ]
+  shrink = genericShrink
+
+instance Arbitrary GovernanceAction where
+  arbitrary = pure InfoAction
+  shrink = const []
+
+instance Arbitrary ProposalProcedure where
+  arbitrary = ProposalProcedure <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary HN.TxInfo where

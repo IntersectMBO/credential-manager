@@ -8,10 +8,14 @@ import CredentialManager.Scripts.ColdCommittee (
   TxInfo (..),
   coldCommitteeScript,
  )
+import PlutusLedgerApi.V1.Value (
+  AssetClass (..),
+  assetClassValue,
+  assetClassValueOf,
+ )
 import PlutusLedgerApi.V3 (
   Address,
   BuiltinData,
-  CurrencySymbol,
   OutputDatum,
   ScriptHash,
   TokenName,
@@ -19,6 +23,7 @@ import PlutusLedgerApi.V3 (
   Value (Value, getValue),
  )
 import qualified PlutusTx.AssocMap as AMap
+import qualified PlutusTx.Prelude as P
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -27,18 +32,18 @@ spec :: Spec
 spec = do
   prop "Invariant 1: Fails if not certifying" invariant1BadPurpose
   prop "Invariant 2: Fails if NFT not spent" invariant2NFTMissing
-  prop "Invariant 2: Succeeds if NFT spent" invariant3NFTSpent
+  prop "Invariant 3: Succeeds if NFT spent" invariant3NFTSpent
 
 invariant1BadPurpose
-  :: CurrencySymbol -> BuiltinData -> ScriptContext -> Property
-invariant1BadPurpose policyId redeemer ctx = case scriptContextPurpose ctx of
+  :: AssetClass -> BuiltinData -> ScriptContext -> Property
+invariant1BadPurpose nft redeemer ctx = case scriptContextPurpose ctx of
   Certifying{} -> discard
-  _ -> coldCommitteeScript policyId redeemer ctx === False
+  _ -> coldCommitteeScript nft redeemer ctx === False
 
 invariant2NFTMissing
-  :: CurrencySymbol -> BuiltinData -> ScriptContext -> Property
-invariant2NFTMissing policyId redeemer ctx =
-  coldCommitteeScript policyId redeemer ctx' === False
+  :: AssetClass -> BuiltinData -> ScriptContext -> Property
+invariant2NFTMissing nft redeemer ctx =
+  coldCommitteeScript nft redeemer ctx' === False
   where
     ctx' =
       ctx
@@ -52,7 +57,9 @@ invariant2NFTMissing policyId redeemer ctx =
                       TxInInfo
                         { txInInfoResolved =
                             TxOut
-                              { txOutValue = Value $ AMap.delete policyId $ getValue txOutValue
+                              { txOutValue =
+                                  txOutValue
+                                    P.- assetClassValue nft (assetClassValueOf txOutValue nft)
                               , ..
                               }
                         , ..
@@ -61,10 +68,9 @@ invariant2NFTMissing policyId redeemer ctx =
         }
 
 invariant3NFTSpent
-  :: CurrencySymbol
+  :: AssetClass
   -> BuiltinData
   -> TxInfo
-  -> BuiltinData
   -> BuiltinData
   -> BuiltinData
   -> Address
@@ -72,30 +78,27 @@ invariant3NFTSpent
   -> Maybe ScriptHash
   -> Value
   -> AMap.Map TokenName Integer
-  -> TokenName
   -> Integer
   -> Property
 invariant3NFTSpent
-  policyId
+  nft@(AssetClass (policyId, name))
   redeemer
   txInfo
-  index
-  cert
+  voter
   ref
   address
   datum
   referenceScript
   baseValue
   baseTokens
-  token
   quantity =
     counterexample ("Context: " <> show ctx) $
-      coldCommitteeScript policyId redeemer ctx === True
+      coldCommitteeScript nft redeemer ctx === True
     where
-      tokens = AMap.insert token (max 1 quantity) baseTokens
+      tokens = AMap.insert name (max 1 quantity) baseTokens
       value = Value $ AMap.insert policyId tokens $ getValue baseValue
       txOut = TxOut address value datum referenceScript
       input = TxInInfo ref txOut
       txInfo' = txInfo{txInfoInputs = input : txInfoInputs txInfo}
-      purpose = Certifying index cert
+      purpose = Voting voter
       ctx = ScriptContext txInfo' purpose

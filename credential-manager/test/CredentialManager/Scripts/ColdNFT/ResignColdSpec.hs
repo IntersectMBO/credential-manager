@@ -8,11 +8,13 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxCert (..),
   TxInInfo (..),
@@ -62,7 +64,7 @@ spec = do
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript resignColdColdCredential datum redeemer ctx === True
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx === True
 
 invariantRC1ResignColdMembershipMinority :: ValidArgs -> Property
 invariantRC1ResignColdMembershipMinority args@ValidArgs{..} =
@@ -82,7 +84,7 @@ invariantRC1ResignColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC2DuplicateMembership :: ValidArgs -> Property
 invariantRC2DuplicateMembership args@ValidArgs{..} =
@@ -98,7 +100,7 @@ invariantRC2DuplicateMembership args@ValidArgs{..} =
     let datum' = datum{membershipUsers = membershipUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript resignColdColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT resignColdColdCredential datum' redeemer ctx === True
 
 invariantRC3ColdCredentialMismatch :: ValidArgs -> Property
 invariantRC3ColdCredentialMismatch args@ValidArgs{..} =
@@ -114,13 +116,13 @@ invariantRC3ColdCredentialMismatch args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC4EmptyMembership :: ValidArgs -> Property
 invariantRC4EmptyMembership args@ValidArgs{..} =
   forAllValidScriptContexts args \datum redeemer ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript resignColdColdCredential datum' redeemer ctx === False
+    coldNFTScript coldNFT resignColdColdCredential datum' redeemer ctx === False
 
 invariantRC5ResignColdExtraCertificates :: ValidArgs -> Property
 invariantRC5ResignColdExtraCertificates args@ValidArgs{..} =
@@ -136,7 +138,7 @@ invariantRC5ResignColdExtraCertificates args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC6ResignColdNoCertificates :: ValidArgs -> Property
 invariantRC6ResignColdNoCertificates args@ValidArgs{..} =
@@ -147,7 +149,7 @@ invariantRC6ResignColdNoCertificates args@ValidArgs{..} =
                 (scriptContextTxInfo ctx){txInfoTxCerts = []}
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC7ResignColdNoSelfOutput :: ValidArgs -> Property
 invariantRC7ResignColdNoSelfOutput args@ValidArgs{..} =
@@ -168,7 +170,7 @@ invariantRC7ResignColdNoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC8ResignColdMultipleSelfOutputs :: ValidArgs -> Property
 invariantRC8ResignColdMultipleSelfOutputs args@ValidArgs{..} =
@@ -183,7 +185,7 @@ invariantRC8ResignColdMultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC9ResignColdValueNotPreserved :: ValidArgs -> Property
 invariantRC9ResignColdValueNotPreserved args@ValidArgs{..} =
@@ -204,7 +206,7 @@ invariantRC9ResignColdValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC10ResignColdDatumNotPreserved :: ValidArgs -> Property
 invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
@@ -233,7 +235,7 @@ invariantRC10ResignColdDatumNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 invariantRC11ResignColdReferenceScriptInOutput :: ValidArgs -> Property
 invariantRC11ResignColdReferenceScriptInOutput args@ValidArgs{..} =
@@ -258,7 +260,7 @@ invariantRC11ResignColdReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript resignColdColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT resignColdColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -356,7 +358,8 @@ forAllValidScriptContexts ValidArgs{..} f =
     input = TxInInfo resignColdScriptRef output
 
 data ValidArgs = ValidArgs
-  { resignColdScriptRef :: TxOutRef
+  { coldNFT :: AssetClass
+  , resignColdScriptRef :: TxOutRef
   , resignColdScriptAddress :: Address
   , resignColdValue :: Value
   , resignColdExtraMembership :: Identity
@@ -370,6 +373,7 @@ instance Arbitrary ValidArgs where
   arbitrary =
     ValidArgs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

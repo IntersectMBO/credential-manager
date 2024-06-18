@@ -10,10 +10,10 @@ import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
-  CurrencySymbol,
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),

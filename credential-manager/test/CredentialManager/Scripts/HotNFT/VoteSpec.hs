@@ -8,13 +8,14 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   Address (..),
-  CurrencySymbol,
   Datum (..),
   GovernanceActionId,
   HotCommitteeCredential,
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),
@@ -69,12 +70,12 @@ spec = do
     invariantV12NoVotes
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \coldPolicy datum redeemer ctx ->
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx ->
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx === True
 
 invariantV1VoteVoterMinority :: ValidArgs -> Property
 invariantV1VoteVoterMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> votingUsers datum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -90,11 +91,11 @@ invariantV1VoteVoterMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+            hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV2DuplicateVoting :: ValidArgs -> Property
 invariantV2DuplicateVoting args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     let votingGroup = votingUsers datum
     let maybeChangeCertificateHash user =
           oneof
@@ -106,11 +107,11 @@ invariantV2DuplicateVoting args@ValidArgs{..} =
     let datum' = datum{votingUsers = votingUsers'}
     pure $
       counterexample ("Datum: " <> show datum') $
-        hotNFTScript coldPolicy voteHotCredential datum' redeemer ctx === True
+        hotNFTScript coldNFT hotNFT voteHotCredential datum' redeemer ctx === True
 
 invariantV3HotCredentialMissing :: ValidArgs -> Property
 invariantV3HotCredentialMissing args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     votes <-
       arbitrary
         `suchThat` (not . AMap.member (CommitteeVoter voteHotCredential))
@@ -123,28 +124,28 @@ invariantV3HotCredentialMissing args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV4EmptyVoting :: ValidArgs -> Property
 invariantV4EmptyVoting args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     let datum' = datum{votingUsers = []}
-    hotNFTScript coldPolicy voteHotCredential datum' redeemer ctx === False
+    hotNFTScript coldNFT hotNFT voteHotCredential datum' redeemer ctx === False
 
 invariantV5VoteNoVotes :: ValidArgs -> Property
 invariantV5VoteNoVotes args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx){txInfoVotes = AMap.empty}
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV6VoteNoSelfOutput :: ValidArgs -> Property
 invariantV6VoteNoSelfOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     newAddress <- arbitrary `suchThat` (/= voteScriptAddress)
     let modifyAddress TxOut{..}
           | txOutAddress == voteScriptAddress = TxOut{txOutAddress = newAddress, ..}
@@ -161,11 +162,11 @@ invariantV6VoteNoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV7VoteMultipleSelfOutputs :: ValidArgs -> Property
 invariantV7VoteMultipleSelfOutputs args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     let setAddress txOut = txOut{txOutAddress = voteScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
     outputs' <- shuffle $ txInfoOutputs (scriptContextTxInfo ctx) <> newOutputs
@@ -176,11 +177,11 @@ invariantV7VoteMultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV8VoteValueNotPreserved :: ValidArgs -> Property
 invariantV8VoteValueNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     newValue <- arbitrary `suchThat` (/= voteValue)
     let modifyValue TxOut{..}
           | txOutAddress == voteScriptAddress = TxOut{txOutValue = newValue, ..}
@@ -197,11 +198,11 @@ invariantV8VoteValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV9VoteDatumNotPreserved :: ValidArgs -> Property
 invariantV9VoteDatumNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     newDatum <-
       oneof
         [ arbitrary `suchThat` (/= toBuiltinData datum)
@@ -226,11 +227,11 @@ invariantV9VoteDatumNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV10VoteReferenceScriptInOutput :: ValidArgs -> Property
 invariantV10VoteReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     referenceScript <- Just <$> arbitrary
     let addReferenceScript TxOut{..}
           | txOutAddress == voteScriptAddress =
@@ -251,11 +252,11 @@ invariantV10VoteReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV11ExtraneousVoters :: ValidArgs -> Property
 invariantV11ExtraneousVoters args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     extraneousVotes <-
       arbitrary
         `suchThat` \votes ->
@@ -274,11 +275,11 @@ invariantV11ExtraneousVoters args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 invariantV12NoVotes :: ValidArgs -> Property
 invariantV12NoVotes args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT datum redeemer ctx -> do
     votes <-
       P.fmap (const AMap.empty)
         <$> oneof
@@ -294,16 +295,22 @@ invariantV12NoVotes args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy voteHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT voteHotCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
   => ValidArgs
-  -> (CurrencySymbol -> HotLockDatum -> HotLockRedeemer -> ScriptContext -> prop)
+  -> ( AssetClass
+       -> AssetClass
+       -> HotLockDatum
+       -> HotLockRedeemer
+       -> ScriptContext
+       -> prop
+     )
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $
-    f voteColdPolicy datum Vote -- voteActionId voteVote
+    f voteColdNFT voteHotNFT datum Vote
   where
     gen = do
       additionalInputs <-
@@ -400,14 +407,16 @@ data ValidArgs = ValidArgs
   , votePre :: [Identity]
   , voteExtra :: Identity
   , votePost :: [Identity]
-  , voteColdPolicy :: CurrencySymbol
+  , voteColdNFT :: AssetClass
+  , voteHotNFT :: AssetClass
   , voteHotCredential :: HotCommitteeCredential
   , voteExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
+  arbitrary = do
+    coldNFT <- arbitrary
     ValidArgs
       <$> arbitrary
       <*> arbitrary
@@ -415,7 +424,8 @@ instance Arbitrary ValidArgs where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> pure coldNFT
+      <*> arbitrary `suchThat` (/= coldNFT)
       <*> arbitrary
       <*> arbitrary
   shrink = genericShrink

@@ -4,18 +4,19 @@ import CredentialManager.Api
 import CredentialManager.Gen (Fraction (..))
 import CredentialManager.Scripts.ColdNFTSpec (nonDelegationSigners)
 import CredentialManager.Scripts.HotNFT
+import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass (..), assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Address,
-  CurrencySymbol,
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
+  ScriptPurpose (..),
   ToData (..),
-  TokenName,
   TxInInfo (..),
   TxOut (..),
   TxOutRef,
@@ -38,16 +39,16 @@ spec = do
     "Invariant UH3: UnlockHot fails if delegation list is empty"
     invariantUH3EmptyDelegation
   prop
-    "Invariant UH4: RotateHot fails if the cold script reference input is missing"
+    "Invariant UH4: UnlockHot fails if the cold script reference input is missing"
     invariantUH4ColdRefMissing
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx ->
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx === True
 
 invariantUH1UnlockHotDelegationMinority :: ValidArgs -> Property
 invariantUH1UnlockHotDelegationMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers coldDatum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -63,11 +64,11 @@ invariantUH1UnlockHotDelegationMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+            hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH2DuplicateDelegation :: ValidArgs -> Property
 invariantUH2DuplicateDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let delegationGroup = delegationUsers coldDatum
     let maybeChangeCertificateHash user =
           oneof
@@ -78,7 +79,7 @@ invariantUH2DuplicateDelegation args@ValidArgs{..} =
     delegationUsers' <- shuffle $ delegationGroup <> duplicate
     let newDatum = coldDatum{delegationUsers = delegationUsers'}
     let modifyDatum (TxInInfo ref TxOut{..})
-          | AMap.member coldPolicy $ getValue txOutValue =
+          | assetClassValueOf txOutValue coldNFT /= 0 =
               TxInInfo
                 ref
                 TxOut
@@ -98,14 +99,14 @@ invariantUH2DuplicateDelegation args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === True
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === True
 
 invariantUH3EmptyDelegation :: ValidArgs -> Property
 invariantUH3EmptyDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let newDatum = coldDatum{delegationUsers = []}
     let modifyDatum (TxInInfo ref TxOut{..})
-          | AMap.member coldPolicy $ getValue txOutValue =
+          | assetClassValueOf txOutValue coldNFT /= 0 =
               TxInInfo
                 ref
                 TxOut
@@ -124,33 +125,28 @@ invariantUH3EmptyDelegation args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH4ColdRefMissing :: ValidArgs -> Property
 invariantUH4ColdRefMissing args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoReferenceInputs =
                       filter
-                        ( not
-                            . AMap.member coldPolicy
-                            . getValue
-                            . txOutValue
-                            . txInInfoResolved
-                        )
+                        (not . hasToken coldNFT)
                         $ txInfoReferenceInputs
                         $ scriptContextTxInfo ctx
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH5ExtraneousVotes :: ValidArgs -> Property
 invariantUH5ExtraneousVotes args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
     votes <-
       arbitrary `suchThat` \votes ->
         not $ AMap.null votes || any AMap.null (AMap.elems votes)
@@ -163,14 +159,14 @@ invariantUH5ExtraneousVotes args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH6NoSelfOutput :: ValidArgs -> Property
 invariantUH6NoSelfOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
-    newAddress <- arbitrary `suchThat` (/= rotateScriptAddress)
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+    newAddress <- arbitrary `suchThat` (/= unlockScriptAddress)
     let modifyAddress TxOut{..}
-          | txOutAddress == rotateScriptAddress = TxOut{txOutAddress = newAddress, ..}
+          | txOutAddress == unlockScriptAddress = TxOut{txOutAddress = newAddress, ..}
           | otherwise = TxOut{..}
     let ctx' =
           ctx
@@ -184,12 +180,12 @@ invariantUH6NoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH7MultipleSelfOutputs :: ValidArgs -> Property
 invariantUH7MultipleSelfOutputs args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
-    let setAddress txOut = txOut{txOutAddress = rotateScriptAddress}
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+    let setAddress txOut = txOut{txOutAddress = unlockScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
     outputs' <- shuffle $ txInfoOutputs (scriptContextTxInfo ctx) <> newOutputs
     let ctx' =
@@ -199,14 +195,14 @@ invariantUH7MultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH8ValueNotPreserved :: ValidArgs -> Property
 invariantUH8ValueNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
-    newValue <- arbitrary `suchThat` (/= rotateValue)
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+    newValue <- arbitrary `suchThat` (/= unlockValue)
     let modifyValue TxOut{..}
-          | txOutAddress == rotateScriptAddress = TxOut{txOutValue = newValue, ..}
+          | txOutAddress == unlockScriptAddress = TxOut{txOutValue = newValue, ..}
           | otherwise = TxOut{..}
     let ctx' =
           ctx
@@ -220,14 +216,14 @@ invariantUH8ValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH9EmptyVotingOutput :: ValidArgs -> Property
 invariantUH9EmptyVotingOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
     let newDatum = HotLockDatum []
     let modifyDatum TxOut{..}
-          | txOutAddress == rotateScriptAddress =
+          | txOutAddress == unlockScriptAddress =
               TxOut
                 { txOutDatum = OutputDatum $ Datum $ toBuiltinData newDatum
                 , ..
@@ -244,14 +240,14 @@ invariantUH9EmptyVotingOutput args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 invariantUH11ReferenceScriptInOutput :: ValidArgs -> Property
 invariantUH11ReferenceScriptInOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldPolicy _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
     referenceScript <- Just <$> arbitrary
     let addReferenceScript TxOut{..}
-          | txOutAddress == rotateScriptAddress =
+          | txOutAddress == unlockScriptAddress =
               TxOut
                 { txOutReferenceScript = referenceScript
                 , ..
@@ -269,12 +265,13 @@ invariantUH11ReferenceScriptInOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldPolicy rotateHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT unlockHotCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
   => ValidArgs
-  -> ( CurrencySymbol
+  -> ( AssetClass
+       -> AssetClass
        -> ColdLockDatum
        -> HotLockDatum
        -> HotLockRedeemer
@@ -283,25 +280,20 @@ forAllValidScriptContexts
      )
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f rotateColdPolicy inColdDatum datum UnlockHot
+  forAllShrink gen shrink' $
+    f unlockColdNFT unlockHotNFT inColdDatum datum BurnHot
   where
     gen = do
       additionalInputs <-
-        listOf $ arbitrary `suchThat` ((/= rotateScriptRef) . txInInfoOutRef)
+        listOf $ arbitrary `suchThat` ((/= unlockScriptRef) . txInInfoOutRef)
       additionalRefInputs <-
-        listOf $
-          arbitrary
-            `suchThat` ( (not . AMap.member rotateColdPolicy)
-                          . getValue
-                          . txOutValue
-                          . txInInfoResolved
-                       )
+        listOf $ arbitrary `suchThat` (not . hasToken unlockColdNFT)
       outputs <- arbitrary
       inputs <- shuffle $ input : additionalInputs
       refInputs <- shuffle $ refInput : additionalRefInputs
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
-      let Fraction excessFraction = rotateExcessSignatureFraction
+      let Fraction excessFraction = unlockExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
       signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
@@ -320,7 +312,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending rotateScriptRef
+      pure $ ScriptContext info $ Spending unlockScriptRef
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
@@ -368,53 +360,55 @@ forAllValidScriptContexts ValidArgs{..} f =
     allSigners = nubBy (on (==) pubKeyHash) $ delegationUsers inColdDatum
     inColdDatum =
       ColdLockDatum
-        { certificateAuthority = rotateCA
-        , membershipUsers = rotateMembership
+        { certificateAuthority = unlockCA
+        , membershipUsers = unlockMembership
         , delegationUsers =
-            rotateDelegationPre
-              <> (rotateExtraDelegation : rotateDelegationPost)
+            unlockDelegationPre
+              <> (unlockExtraDelegation : unlockDelegationPost)
         }
-    datum = HotLockDatum rotateVoting
+    datum = HotLockDatum unlockVoting
     input =
-      TxInInfo rotateScriptRef $
+      TxInInfo unlockScriptRef $
         TxOut
-          rotateScriptAddress
-          rotateValue
+          unlockScriptAddress
+          unlockValue
           (OutputDatum $ Datum $ toBuiltinData datum)
           Nothing
+    AssetClass (coldPolicy, coldName) = unlockColdNFT
     refInput =
-      TxInInfo rotateColdScriptRef $
+      TxInInfo unlockColdScriptRef $
         TxOut
-          rotateColdScriptAddress
+          unlockColdScriptAddress
           ( Value $
-              AMap.insert rotateColdPolicy (AMap.singleton rotateColdToken 1) $
-                getValue rotateColdValue
+              AMap.insert coldPolicy (AMap.singleton coldName 1) $
+                getValue unlockColdValue
           )
           (OutputDatum $ Datum $ toBuiltinData inColdDatum)
           Nothing
 
 data ValidArgs = ValidArgs
-  { rotateScriptRef :: TxOutRef
-  , rotateScriptAddress :: Address
-  , rotateColdScriptRef :: TxOutRef
-  , rotateColdScriptAddress :: Address
-  , rotateValue :: Value
-  , rotateColdValue :: Value
-  , rotateCA :: Identity
-  , rotateMembership :: [Identity]
-  , rotateDelegationPre :: [Identity]
-  , rotateExtraDelegation :: Identity
-  , rotateDelegationPost :: [Identity]
-  , rotateVoting :: [Identity]
-  , rotateColdPolicy :: CurrencySymbol
-  , rotateColdToken :: TokenName
-  , rotateHotCredential :: HotCommitteeCredential
-  , rotateExcessSignatureFraction :: Fraction
+  { unlockScriptRef :: TxOutRef
+  , unlockScriptAddress :: Address
+  , unlockColdScriptRef :: TxOutRef
+  , unlockColdScriptAddress :: Address
+  , unlockValue :: Value
+  , unlockColdValue :: Value
+  , unlockCA :: Identity
+  , unlockMembership :: [Identity]
+  , unlockDelegationPre :: [Identity]
+  , unlockExtraDelegation :: Identity
+  , unlockDelegationPost :: [Identity]
+  , unlockVoting :: [Identity]
+  , unlockColdNFT :: AssetClass
+  , unlockHotNFT :: AssetClass
+  , unlockHotCredential :: HotCommitteeCredential
+  , unlockExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
+  arbitrary = do
+    coldNFT <- arbitrary
     ValidArgs
       <$> arbitrary
       <*> arbitrary
@@ -428,8 +422,10 @@ instance Arbitrary ValidArgs where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> pure coldNFT
+      <*> arbitrary `suchThat` (/= coldNFT)
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-  shrink = genericShrink
+  shrink = filter (not . invalid) . genericShrink
+    where
+      invalid ValidArgs{..} = unlockColdNFT == unlockHotNFT
