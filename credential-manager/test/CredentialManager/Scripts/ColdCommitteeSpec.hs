@@ -23,6 +23,7 @@ import PlutusLedgerApi.V3 (
   Value (Value, getValue),
  )
 import qualified PlutusTx.AssocMap as AMap
+import PlutusTx.Builtins (mkI)
 import qualified PlutusTx.Prelude as P
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -78,27 +79,25 @@ invariant3NFTSpent
   -> Maybe ScriptHash
   -> Value
   -> AMap.Map TokenName Integer
-  -> Integer
   -> Property
 invariant3NFTSpent
   nft@(AssetClass (policyId, name))
   redeemer
   txInfo
-  voter
+  cert
   ref
   address
   datum
   referenceScript
   baseValue
-  baseTokens
-  quantity =
+  baseTokens =
     counterexample ("Context: " <> show ctx) $
       coldCommitteeScript nft redeemer ctx === True
     where
-      tokens = AMap.insert name (max 1 quantity) baseTokens
+      tokens = AMap.insert name 1 baseTokens
       value = Value $ AMap.insert policyId tokens $ getValue baseValue
       txOut = TxOut address value datum referenceScript
       input = TxInInfo ref txOut
       txInfo' = txInfo{txInfoInputs = input : txInfoInputs txInfo}
-      purpose = Voting voter
+      purpose = Certifying (mkI 0) cert
       ctx = ScriptContext txInfo' purpose

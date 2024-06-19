@@ -15,12 +15,13 @@
 -- the payment credential holding the NFT.
 module CredentialManager.Scripts.HotCommittee where
 
+import CredentialManager.Scripts.Common (trace, traceIfFalse)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (TxOut (..))
 import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
-import PlutusTx.Prelude
+import PlutusTx.Prelude hiding (trace, traceIfFalse)
 import qualified Prelude as Haskell
 
 -- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the

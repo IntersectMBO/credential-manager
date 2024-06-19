@@ -11,6 +11,7 @@
 
 module CredentialManager.Scripts.Common where
 
+#define TRACE_GHC
 import CredentialManager.Api (Identity (..))
 #ifdef TRACE_GHC
 import qualified Debug.Trace as D
