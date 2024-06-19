@@ -1,4 +1,4 @@
-module CredentialManager.Scripts.HotNFT.BurnHotSpec where
+module CredentialManager.Scripts.HotNFT.UpgradeHotSpec where
 
 import CredentialManager.Api
 import CredentialManager.Gen (Fraction (..))
@@ -11,20 +11,23 @@ import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (
   AssetClass (..),
+  Value (..),
   assetClassValue,
   assetClassValueOf,
  )
 import PlutusLedgerApi.V3 (
-  Address,
+  Address (..),
+  ColdCommitteeCredential,
+  Credential (..),
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
+  ScriptHash,
   ScriptPurpose (..),
   ToData (..),
   TxInInfo (..),
   TxOut (..),
   TxOutRef,
-  Value (..),
  )
 import qualified PlutusTx.AssocMap as AMap
 import Test.Hspec
@@ -34,27 +37,30 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   prop
-    "Invariant BH1: BurnHot fails if signed by minority of delegation group"
-    invariantBH1BurnHotDelegationMinority
+    "Invariant UH1: UpgradeHot fails if signed by minority of delegation group"
+    invariantUH1UpgradeHotDelegationMinority
   prop
-    "Invariant BH2: BurnHot ignores duplicate signers in delegation group"
-    invariantBH2DuplicateDelegation
+    "Invariant UH2: UpgradeHot ignores duplicate signers in delegation group"
+    invariantUH2DuplicateDelegation
   prop
-    "Invariant BH3: BurnHot fails if delegation list is empty"
-    invariantBH3EmptyDelegation
+    "Invariant UH3: UpgradeHot fails if delegation list is empty"
+    invariantUH3EmptyDelegation
   prop
-    "Invariant BH4: BurnHot fails if the cold script reference input is missing"
-    invariantBH4ColdRefMissing
+    "Invariant UH4: UpgradeHot fails if the cold script reference input is missing"
+    invariantUH4ColdRefMissing
   prop
-    "Invariant BH5: BurnHot fails if token is not burned"
-    invariantBH5NotBurned
+    "Invariant UH5: UpgradeHot fails if token burned"
+    invariantUH5Burned
+  prop
+    "Invariant UH6: UpgradeHot fails if token sent to wrong address"
+    invariantUH6WrongAddress
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx === True
+        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx === True
 
-invariantBH1BurnHotDelegationMinority :: ValidArgs -> Property
-invariantBH1BurnHotDelegationMinority args@ValidArgs{..} =
+invariantUH1UpgradeHotDelegationMinority :: ValidArgs -> Property
+invariantUH1UpgradeHotDelegationMinority args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers coldDatum
     let minSigners = succ (length allSigners) `div` 2
@@ -71,10 +77,10 @@ invariantBH1BurnHotDelegationMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+            hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
 
-invariantBH2DuplicateDelegation :: ValidArgs -> Property
-invariantBH2DuplicateDelegation args@ValidArgs{..} =
+invariantUH2DuplicateDelegation :: ValidArgs -> Property
+invariantUH2DuplicateDelegation args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let delegationGroup = delegationUsers coldDatum
     let maybeChangeCertificateHash user =
@@ -106,10 +112,10 @@ invariantBH2DuplicateDelegation args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === True
+        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === True
 
-invariantBH3EmptyDelegation :: ValidArgs -> Property
-invariantBH3EmptyDelegation args@ValidArgs{..} =
+invariantUH3EmptyDelegation :: ValidArgs -> Property
+invariantUH3EmptyDelegation args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
     let newDatum = coldDatum{delegationUsers = []}
     let modifyDatum (TxInInfo ref TxOut{..})
@@ -132,10 +138,10 @@ invariantBH3EmptyDelegation args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
 
-invariantBH4ColdRefMissing :: ValidArgs -> Property
-invariantBH4ColdRefMissing args@ValidArgs{..} =
+invariantUH4ColdRefMissing :: ValidArgs -> Property
+invariantUH4ColdRefMissing args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
     let ctx' =
           ctx
@@ -148,20 +154,33 @@ invariantBH4ColdRefMissing args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
 
-invariantBH5NotBurned :: ValidArgs -> Property
-invariantBH5NotBurned args@ValidArgs{..} =
+invariantUH5Burned :: ValidArgs -> Property
+invariantUH5Burned args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
-    baseValue <- arbitrary
-    let value = baseValue <> assetClassValue hotNFT 1
-    output <-
-      TxOut
-        <$> arbitrary
-        <*> pure value
-        <*> arbitrary
-        <*> arbitrary
-    outputs' <- shuffle $ output : txInfoOutputs (scriptContextTxInfo ctx)
+    let outputs' = filter (not . hasToken hotNFT) $ txInfoOutputs $ scriptContextTxInfo ctx
+    let ctx' =
+          ctx
+            { scriptContextTxInfo =
+                (scriptContextTxInfo ctx)
+                  { txInfoOutputs = outputs'
+                  }
+            }
+    counterexample ("Context: " <> show ctx') $
+      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+
+invariantUH6WrongAddress :: ValidArgs -> Property
+invariantUH6WrongAddress args@ValidArgs{..} =
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+    let tweakAddress TxOut{..}
+          | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
+              address <-
+                arbitrary
+                  `suchThat` ((/= ScriptCredential upgradeDestination) . addressCredential)
+              pure TxOut{txOutAddress = address, ..}
+          | otherwise = pure TxOut{..}
+    outputs' <- traverse tweakAddress $ txInfoOutputs $ scriptContextTxInfo ctx
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -171,7 +190,7 @@ invariantBH5NotBurned args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -187,19 +206,29 @@ forAllValidScriptContexts
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $
-    f burnColdNFT burnHotNFT inColdDatum datum BurnHot
+    f upgradeColdNFT upgradeHotNFT inColdDatum datum $
+      UpgradeHot upgradeDestination
   where
     gen = do
       additionalInputs <-
-        listOf $ arbitrary `suchThat` ((/= burnScriptRef) . txInInfoOutRef)
-      additionalRefInputs <-
-        listOf $ arbitrary `suchThat` (not . hasToken burnColdNFT . txInInfoResolved)
-      outputs <- listOf $ arbitrary `suchThat` (not . hasToken burnHotNFT)
+        listOf $ arbitrary `suchThat` ((/= upgradeScriptRef) . txInInfoOutRef)
       inputs <- shuffle $ input : additionalInputs
+      destination <- Address (ScriptCredential upgradeDestination) <$> arbitrary
+      baseValue <- arbitrary `suchThat` \v -> assetClassValueOf v upgradeHotNFT == 0
+      let outputValue = baseValue <> assetClassValue upgradeHotNFT 1
+      output <- TxOut destination outputValue <$> arbitrary <*> arbitrary
+      extraOutputs <-
+        listOf $
+          arbitrary `suchThat` \out@TxOut{..} ->
+            not (hasToken upgradeHotNFT out)
+              && (addressCredential txOutAddress /= ScriptCredential upgradeDestination)
+      additionalRefInputs <-
+        listOf $ arbitrary `suchThat` (not . hasToken upgradeColdNFT . txInInfoResolved)
+      outputs <- shuffle $ output : extraOutputs
       refInputs <- shuffle $ refInput : additionalRefInputs
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
-      let Fraction excessFraction = burnExcessSignatureFraction
+      let Fraction excessFraction = upgradeExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
       signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
@@ -218,7 +247,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending burnScriptRef
+      pure $ ScriptContext info $ Spending upgradeScriptRef
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
@@ -226,9 +255,7 @@ forAllValidScriptContexts ValidArgs{..} f =
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]
-        , [ TxInfo{txInfoReferenceInputs = x, ..}
-          | x <- shrinkRefInputs txInfoReferenceInputs
-          ]
+        , [TxInfo{txInfoReferenceInputs = x, ..} | x <- shrink txInfoReferenceInputs]
         , [TxInfo{txInfoOutputs = x, ..} | x <- shrink txInfoOutputs]
         , [TxInfo{txInfoFee = x, ..} | x <- shrink txInfoFee]
         , [TxInfo{txInfoMint = x, ..} | x <- shrink txInfoMint]
@@ -238,6 +265,7 @@ forAllValidScriptContexts ValidArgs{..} f =
         , [TxInfo{txInfoData = x, ..} | x <- shrink txInfoData]
         , [TxInfo{txInfoId = x, ..} | x <- shrink txInfoId]
         , [TxInfo{txInfoVotes = x, ..} | x <- shrink txInfoVotes]
+        , [TxInfo{txInfoTxCerts = x, ..} | x <- shrink txInfoTxCerts]
         , [ TxInfo{txInfoProposalProcedures = x, ..} | x <- shrink txInfoProposalProcedures
           ]
         , [ TxInfo{txInfoCurrentTreasuryAmount = x, ..}
@@ -254,71 +282,72 @@ forAllValidScriptContexts ValidArgs{..} f =
             , (input' :) <$> shrink ins
             , pure ins
             ]
-    shrinkRefInputs [] = []
-    shrinkRefInputs (input' : ins)
-      | input' == refInput = (input' :) <$> shrink ins
-      | otherwise =
-          fold
-            [ (: ins) <$> shrink input'
-            , (input' :) <$> shrink ins
-            , pure ins
-            ]
     allSigners = nubBy (on (==) pubKeyHash) $ delegationUsers inColdDatum
     inColdDatum =
       ColdLockDatum
-        { certificateAuthority = burnCA
-        , membershipUsers = burnMembership
+        { certificateAuthority = upgradeCA
+        , membershipUsers = upgradeMembership
         , delegationUsers =
-            burnDelegationPre
-              <> (burnExtraDelegation : burnDelegationPost)
+            upgradeDelegationPre
+              <> (upgradeExtraDelegation : upgradeDelegationPost)
         }
-    datum = HotLockDatum burnVoting
+    datum =
+      HotLockDatum
+        { votingUsers = upgradeVoting
+        }
     input =
-      TxInInfo burnScriptRef $
+      TxInInfo upgradeScriptRef $
         TxOut
-          burnScriptAddress
-          burnValue
+          upgradeScriptAddress
+          upgradeValue
           (OutputDatum $ Datum $ toBuiltinData datum)
           Nothing
-    AssetClass (coldPolicy, coldName) = burnColdNFT
+    AssetClass (coldPolicy, coldName) = upgradeColdNFT
     refInput =
-      TxInInfo burnColdScriptRef $
+      TxInInfo upgradeColdScriptRef $
         TxOut
-          burnColdScriptAddress
+          upgradeColdScriptAddress
           ( Value $
               AMap.insert coldPolicy (AMap.singleton coldName 1) $
-                getValue burnColdValue
+                getValue upgradeColdValue
           )
           (OutputDatum $ Datum $ toBuiltinData inColdDatum)
           Nothing
 
 data ValidArgs = ValidArgs
-  { burnScriptRef :: TxOutRef
-  , burnScriptAddress :: Address
-  , burnColdScriptRef :: TxOutRef
-  , burnColdScriptAddress :: Address
-  , burnValue :: Value
-  , burnColdValue :: Value
-  , burnCA :: Identity
-  , burnMembership :: [Identity]
-  , burnDelegationPre :: [Identity]
-  , burnExtraDelegation :: Identity
-  , burnDelegationPost :: [Identity]
-  , burnVoting :: [Identity]
-  , burnColdNFT :: AssetClass
-  , burnHotNFT :: AssetClass
-  , burnHotCredential :: HotCommitteeCredential
-  , burnExcessSignatureFraction :: Fraction
+  { upgradeHotNFT :: AssetClass
+  , upgradeColdNFT :: AssetClass
+  , upgradeHotCredential :: HotCommitteeCredential
+  , upgradeDestination :: ScriptHash
+  , upgradeColdScriptRef :: TxOutRef
+  , upgradeColdScriptAddress :: Address
+  , upgradeScriptRef :: TxOutRef
+  , upgradeScriptAddress :: Address
+  , upgradeValue :: Value
+  , upgradeColdValue :: Value
+  , upgradeCA :: Identity
+  , upgradeDelegationPre :: [Identity]
+  , upgradeExtraDelegation :: Identity
+  , upgradeDelegationPost :: [Identity]
+  , upgradeMembership :: [Identity]
+  , upgradeVoting :: [Identity]
+  , upgradeColdCredential :: ColdCommitteeCredential
+  , upgradeExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
   arbitrary = do
-    coldNFT <- arbitrary
+    destination <- arbitrary
     ValidArgs
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> pure destination
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary `suchThat` ((/= ScriptCredential destination) . addressCredential)
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -328,10 +357,5 @@ instance Arbitrary ValidArgs where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> pure coldNFT
-      <*> arbitrary `suchThat` (/= coldNFT)
       <*> arbitrary
-      <*> arbitrary
-  shrink = filter (not . invalid) . genericShrink
-    where
-      invalid ValidArgs{..} = burnColdNFT == burnHotNFT
+  shrink = genericShrink
