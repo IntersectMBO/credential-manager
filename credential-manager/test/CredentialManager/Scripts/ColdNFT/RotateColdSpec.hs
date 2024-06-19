@@ -292,7 +292,10 @@ forAllValidScriptContexts ValidArgs{..} f =
       let Fraction excessFraction = rotateExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
-      signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
+      authSigners <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
+      let addedMembers = pubKeyHash <$> filter (not . (`elem` rotateMembership)) outMembers
+      let addedDelegates = pubKeyHash <$> filter (not . (`elem` rotateDelegation)) outDelegates
+      signers <- shuffle $ authSigners <> addedMembers <> addedDelegates
       info <-
         TxInfo inputs
           <$> arbitrary
@@ -353,7 +356,8 @@ forAllValidScriptContexts ValidArgs{..} f =
             , (output' :) <$> shrink ins
             , pure ins
             ]
-    allSigners = nubBy (on (==) pubKeyHash) $ membershipUsers inDatum
+    rotateMembership = membershipUsers inDatum
+    allSigners = nubBy (on (==) pubKeyHash) rotateMembership
     inDatum =
       ColdLockDatum
         { certificateAuthority = rotateCA
@@ -362,14 +366,14 @@ forAllValidScriptContexts ValidArgs{..} f =
               <> (rotateExtraMembership : rotateMembershipPost)
         , delegationUsers = rotateDelegation
         }
+    outMembers =
+      rotateNewMembershipPre <> (rotateNewExtraMembership : rotateNewMembershipPost)
+    outDelegates =
+      rotateNewDelegationPre <> (rotateNewExtraDelegation : rotateNewDelegationPost)
     outDatum =
       inDatum
-        { membershipUsers =
-            rotateNewMembershipPre
-              <> (rotateNewExtraMembership : rotateNewMembershipPost)
-        , delegationUsers =
-            rotateNewDelegationPre
-              <> (rotateNewExtraDelegation : rotateNewDelegationPost)
+        { membershipUsers = outMembers
+        , delegationUsers = outDelegates
         }
     output =
       TxOut

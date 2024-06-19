@@ -64,12 +64,12 @@ spec = do
     invariantA11AuthorizeDatumNotPreserved
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \datum redeemer ctx ->
+      forAllValidScriptContexts pure args \datum redeemer ctx ->
         coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx === True
 
 invariantA1AuthorizeDelegatorMinority :: ValidArgs -> Property
 invariantA1AuthorizeDelegatorMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers datum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -89,23 +89,23 @@ invariantA1AuthorizeDelegatorMinority args@ValidArgs{..} =
 
 invariantA2DuplicateDelegation :: ValidArgs -> Property
 invariantA2DuplicateDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    let delegationGroup = delegationUsers datum
-    let maybeChangeCertificateHash user =
-          oneof
-            [ pure user
-            , do x <- arbitrary; pure user{certificateHash = x}
-            ]
-    duplicate <- traverse maybeChangeCertificateHash =<< sublistOf delegationGroup
-    delegationUsers' <- shuffle $ delegationGroup <> duplicate
-    let datum' = datum{delegationUsers = delegationUsers'}
-    pure $
-      counterexample ("Datum: " <> show datum') $
-        coldNFTScript coldNFT authorizeColdCredential datum' redeemer ctx === True
+  forAllValidScriptContexts dupDelegate args \datum redeemer ctx -> do
+    coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx === True
+  where
+    dupDelegate datum = do
+      let delegationGroup = delegationUsers datum
+      let maybeChangeCertificateHash user =
+            oneof
+              [ pure user
+              , do x <- arbitrary; pure user{certificateHash = x}
+              ]
+      duplicate <- traverse maybeChangeCertificateHash =<< sublistOf delegationGroup
+      delegationUsers' <- shuffle $ delegationGroup <> duplicate
+      pure datum{delegationUsers = delegationUsers'}
 
 invariantA3ColdCredentialMismatch :: ValidArgs -> Property
 invariantA3ColdCredentialMismatch args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     coldCred <- arbitrary `suchThat` (/= authorizeColdCredential)
     let ctx' =
           ctx
@@ -121,7 +121,7 @@ invariantA3ColdCredentialMismatch args@ValidArgs{..} =
 
 invariantA4HotCredentialMismatch :: ValidArgs -> Property
 invariantA4HotCredentialMismatch args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     hotCred <- arbitrary `suchThat` (/= authorizeHotCredential)
     let ctx' =
           ctx
@@ -137,13 +137,14 @@ invariantA4HotCredentialMismatch args@ValidArgs{..} =
 
 invariantA5EmptyDelegation :: ValidArgs -> Property
 invariantA5EmptyDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    let datum' = datum{delegationUsers = []}
-    coldNFTScript coldNFT authorizeColdCredential datum' redeemer ctx === False
+  forAllValidScriptContexts clearDelegation args \datum redeemer ctx -> do
+    coldNFTScript coldNFT authorizeColdCredential datum redeemer ctx === False
+  where
+    clearDelegation datum = pure datum{delegationUsers = []}
 
 invariantA6AuthorizeExtraCertificates :: ValidArgs -> Property
 invariantA6AuthorizeExtraCertificates args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     extra <- listOf1 arbitrary
     certs <- shuffle $ extra <> txInfoTxCerts (scriptContextTxInfo ctx)
     let ctx' =
@@ -159,7 +160,7 @@ invariantA6AuthorizeExtraCertificates args@ValidArgs{..} =
 
 invariantA7AuthorizeNoCertificates :: ValidArgs -> Property
 invariantA7AuthorizeNoCertificates args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -170,7 +171,7 @@ invariantA7AuthorizeNoCertificates args@ValidArgs{..} =
 
 invariantA8AuthorizeNoSelfOutput :: ValidArgs -> Property
 invariantA8AuthorizeNoSelfOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     newAddress <- arbitrary `suchThat` (/= authorizeScriptAddress)
     let modifyAddress TxOut{..}
           | txOutAddress == authorizeScriptAddress = TxOut{txOutAddress = newAddress, ..}
@@ -191,7 +192,7 @@ invariantA8AuthorizeNoSelfOutput args@ValidArgs{..} =
 
 invariantA9AuthorizeMultipleSelfOutputs :: ValidArgs -> Property
 invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     let setAddress txOut = txOut{txOutAddress = authorizeScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
     outputs' <- shuffle $ txInfoOutputs (scriptContextTxInfo ctx) <> newOutputs
@@ -206,7 +207,7 @@ invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
 
 invariantA10AuthorizeValueNotPreserved :: ValidArgs -> Property
 invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     newValue <- arbitrary `suchThat` (/= authorizeValue)
     let modifyValue TxOut{..}
           | txOutAddress == authorizeScriptAddress = TxOut{txOutValue = newValue, ..}
@@ -227,7 +228,7 @@ invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
 
 invariantA11AuthorizeDatumNotPreserved :: ValidArgs -> Property
 invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts pure args \datum redeemer ctx -> do
     newDatum <-
       oneof
         [ arbitrary `suchThat` (/= toBuiltinData datum)
@@ -256,21 +257,24 @@ invariantA11AuthorizeDatumNotPreserved args@ValidArgs{..} =
 
 forAllValidScriptContexts
   :: (Testable prop)
-  => ValidArgs
+  => (ColdLockDatum -> Gen ColdLockDatum)
+  -> ValidArgs
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
-forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f datum' $ AuthorizeHot authorizeHotCredential
+forAllValidScriptContexts tweakDatum ValidArgs{..} f =
+  forAllShrink gen shrink' \(datum, ctx) ->
+    f datum (AuthorizeHot authorizeHotCredential) ctx
   where
     gen = do
+      datum <- tweakDatum authorizeDatum{delegationUsers = allSigners}
       additionalInputs <-
         listOf $ arbitrary `suchThat` ((/= authorizeScriptRef) . txInInfoOutRef)
       additionalOutputs <-
         listOf $
           arbitrary
             `suchThat` (on (/=) addressCredential authorizeScriptAddress . txOutAddress)
-      inputs <- shuffle $ input : additionalInputs
-      outputs <- shuffle $ output : additionalOutputs
+      inputs <- shuffle $ input datum : additionalInputs
+      outputs <- shuffle $ output datum : additionalOutputs
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
       let Fraction excessFraction = authorizeExcessSignatureFraction
@@ -294,16 +298,16 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending authorizeScriptRef
-    shrink' ScriptContext{..} =
-      ScriptContext
-        <$> shrinkInfo scriptContextTxInfo
+      pure (datum, ScriptContext info $ Spending authorizeScriptRef)
+    shrink' (datum, ScriptContext{..}) =
+      fmap (datum,) . ScriptContext
+        <$> shrinkInfo datum scriptContextTxInfo
         <*> pure scriptContextPurpose
-    shrinkInfo TxInfo{..} =
+    shrinkInfo datum TxInfo{..} =
       fold
-        [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]
+        [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs datum txInfoInputs]
         , [TxInfo{txInfoReferenceInputs = x, ..} | x <- shrink txInfoReferenceInputs]
-        , [TxInfo{txInfoOutputs = x, ..} | x <- shrinkOutputs txInfoOutputs]
+        , [TxInfo{txInfoOutputs = x, ..} | x <- shrinkOutputs datum txInfoOutputs]
         , [TxInfo{txInfoFee = x, ..} | x <- shrink txInfoFee]
         , [TxInfo{txInfoMint = x, ..} | x <- shrink txInfoMint]
         , [TxInfo{txInfoWdrl = x, ..} | x <- shrink txInfoWdrl]
@@ -319,18 +323,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           ]
         , [TxInfo{txInfoTreasuryDonation = x, ..} | x <- shrink txInfoTreasuryDonation]
         ]
-    shrinkInputs [] = []
-    shrinkInputs (input' : ins)
-      | input' == input = (input' :) <$> shrink ins
+    shrinkInputs _ [] = []
+    shrinkInputs datum (input' : ins)
+      | input' == input datum = (input' :) <$> shrink ins
       | otherwise =
           fold
             [ (: ins) <$> shrink input'
             , (input' :) <$> shrink ins
             , pure ins
             ]
-    shrinkOutputs [] = []
-    shrinkOutputs (output' : ins)
-      | output' == output = (output' :) <$> shrink ins
+    shrinkOutputs _ [] = []
+    shrinkOutputs datum (output' : ins)
+      | output' == output datum = (output' :) <$> shrink ins
       | otherwise =
           fold
             [ (: ins) <$> shrink output'
@@ -340,14 +344,13 @@ forAllValidScriptContexts ValidArgs{..} f =
     allSigners =
       nubBy (on (==) pubKeyHash) $
         authorizeExtraDelegation : delegationUsers authorizeDatum
-    datum' = authorizeDatum{delegationUsers = allSigners}
-    output =
+    output datum =
       TxOut
         authorizeScriptAddress
         authorizeValue
-        (OutputDatum $ Datum $ toBuiltinData datum')
+        (OutputDatum $ Datum $ toBuiltinData datum)
         Nothing
-    input = TxInInfo authorizeScriptRef output
+    input = TxInInfo authorizeScriptRef . output
 
 data ValidArgs = ValidArgs
   { coldNFT :: AssetClass
