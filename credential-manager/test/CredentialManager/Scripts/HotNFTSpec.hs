@@ -237,7 +237,7 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
           <$> listOf (arbitrary `suchThat` ((/= scriptInputRef) . txInInfoOutRef))
       extraRefInputs <-
         nubBy (on (==) txInInfoOutRef)
-          <$> listOf (arbitrary `suchThat` (not . hasToken coldNFT))
+          <$> listOf (arbitrary `suchThat` (not . hasToken coldNFT . txInInfoResolved))
       inputs <- shuffle $ scriptInput : extraInputs
       refInputs <- maybe pure (fmap shuffle . (:)) coldScriptInput extraRefInputs
       outputs <- case scriptOutput of
@@ -320,8 +320,8 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
             , pure ins
             ]
 
-hasToken :: AssetClass -> TxInInfo -> Bool
-hasToken ac (TxInInfo _ TxOut{..}) = assetClassValueOf txOutValue ac /= 0
+hasToken :: AssetClass -> TxOut -> Bool
+hasToken ac TxOut{..} = assetClassValueOf txOutValue ac /= 0
 
 importanceSampleVotes
   :: Bool

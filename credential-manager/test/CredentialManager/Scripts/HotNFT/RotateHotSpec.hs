@@ -150,7 +150,7 @@ invariantRTH4ColdRefMissing args@ValidArgs{..} =
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoReferenceInputs =
-                      filter (not . hasToken coldNFT) $
+                      filter (not . hasToken coldNFT . txInInfoResolved) $
                         txInfoReferenceInputs $
                           scriptContextTxInfo ctx
                   }
@@ -278,7 +278,7 @@ forAllValidScriptContexts ValidArgs{..} f =
       additionalRefInputs <-
         listOf $
           arbitrary
-            `suchThat` (not . hasToken rotateColdNFT)
+            `suchThat` (not . hasToken rotateColdNFT . txInInfoResolved)
       additionalOutputs <-
         listOf $
           arbitrary
