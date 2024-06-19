@@ -291,7 +291,9 @@ forAllValidScriptContexts ValidArgs{..} f =
       let Fraction excessFraction = rotateExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
-      signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
+      authSigners <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
+      let addedVoters = pubKeyHash <$> filter (not . (`elem` rotateVoting)) outVoters
+      signers <- shuffle $ authSigners <> addedVoters
       info <-
         TxInfo inputs refInputs outputs
           <$> arbitrary
@@ -371,10 +373,10 @@ forAllValidScriptContexts ValidArgs{..} f =
               <> (rotateExtraDelegation : rotateDelegationPost)
         }
     inDatum = HotLockDatum rotateVoting
+    outVoters = rotateNewVotingPre <> (rotateNewExtraVoting : rotateNewVotingPost)
     outDatum =
       inDatum
-        { votingUsers =
-            rotateNewVotingPre <> (rotateNewExtraVoting : rotateNewVotingPost)
+        { votingUsers = outVoters
         }
     output =
       TxOut
