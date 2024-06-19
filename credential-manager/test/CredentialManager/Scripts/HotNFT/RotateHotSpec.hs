@@ -56,6 +56,9 @@ spec = do
   prop
     "Invariant RTH9: RotateHot fails if voting empty in output"
     invariantRTH9EmptyVotingOutput
+  prop
+    "Invariant RTC10: RotateHot fails if not signed by added voter"
+    invariantRTC10AddedNotSigned
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
@@ -255,6 +258,29 @@ invariantRTH9EmptyVotingOutput args@ValidArgs{..} =
             }
     counterexample ("Context: " <> show ctx') $
       hotNFTScript coldNFT hotNFT rotateHotCredential datum redeemer ctx' === False
+
+invariantRTC10AddedNotSigned :: ValidArgs -> Property
+invariantRTC10AddedNotSigned args@ValidArgs{..} =
+  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+    let inVoting = rotateVoting
+    let outVoting = rotateNewVotingPre <> (rotateNewExtraVoting : rotateNewVotingPost)
+    let added = pubKeyHash <$> filter (not . (`elem` inVoting)) outVoting
+    if null added
+      then discard
+      else do
+        signersRemoved <- sublistOf added `suchThat` (not . null)
+        let ctx' =
+              ctx
+                { scriptContextTxInfo =
+                    (scriptContextTxInfo ctx)
+                      { txInfoSignatories =
+                          filter (not . (`elem` signersRemoved)) $
+                            txInfoSignatories $
+                              scriptContextTxInfo ctx
+                      }
+                }
+        pure $
+          hotNFTScript coldNFT hotNFT rotateHotCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)

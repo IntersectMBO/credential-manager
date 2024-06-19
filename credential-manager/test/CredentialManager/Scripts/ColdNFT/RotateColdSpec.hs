@@ -57,6 +57,12 @@ spec = do
   prop
     "Invariant RTC10: RotateCold fails if delegation empty in output"
     invariantRTC10EmptyDelegationOutput
+  prop
+    "Invariant RTC11: RotateCold fails if not signed by added member"
+    invariantRTC11AddedNotSignedMembership
+  prop
+    "Invariant RTC12: RotateCold fails if not signed by added delegate"
+    invariantRTC12AddedNotSignedDelegation
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \datum redeemer ctx ->
@@ -269,6 +275,54 @@ invariantRTC10EmptyDelegationOutput args@ValidArgs{..} =
             }
     counterexample ("Context: " <> show ctx') $
       coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
+
+invariantRTC11AddedNotSignedMembership :: ValidArgs -> Property
+invariantRTC11AddedNotSignedMembership args@ValidArgs{..} =
+  forAllValidScriptContexts args \datum redeemer ctx -> do
+    let inMembers = rotateMembershipPre <> (rotateExtraMembership : rotateMembershipPost)
+    let outMembers =
+          rotateNewMembershipPre <> (rotateNewExtraMembership : rotateNewMembershipPost)
+    let added = pubKeyHash <$> filter (not . (`elem` inMembers)) outMembers
+    if null added
+      then discard
+      else do
+        signersRemoved <- sublistOf added `suchThat` (not . null)
+        let ctx' =
+              ctx
+                { scriptContextTxInfo =
+                    (scriptContextTxInfo ctx)
+                      { txInfoSignatories =
+                          filter (not . (`elem` signersRemoved)) $
+                            txInfoSignatories $
+                              scriptContextTxInfo ctx
+                      }
+                }
+        pure $
+          coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
+
+invariantRTC12AddedNotSignedDelegation :: ValidArgs -> Property
+invariantRTC12AddedNotSignedDelegation args@ValidArgs{..} =
+  forAllValidScriptContexts args \datum redeemer ctx -> do
+    let inDelegation = rotateDelegation
+    let outDelegation =
+          rotateNewDelegationPre <> (rotateNewExtraDelegation : rotateNewDelegationPost)
+    let added = pubKeyHash <$> filter (not . (`elem` inDelegation)) outDelegation
+    if null added
+      then discard
+      else do
+        signersRemoved <- sublistOf added `suchThat` (not . null)
+        let ctx' =
+              ctx
+                { scriptContextTxInfo =
+                    (scriptContextTxInfo ctx)
+                      { txInfoSignatories =
+                          filter (not . (`elem` signersRemoved)) $
+                            txInfoSignatories $
+                              scriptContextTxInfo ctx
+                      }
+                }
+        pure $
+          coldNFTScript coldNFT rotateColdCredential datum redeemer ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
