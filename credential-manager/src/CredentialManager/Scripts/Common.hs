@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-full-laziness #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
@@ -11,7 +12,9 @@
 module CredentialManager.Scripts.Common where
 
 import CredentialManager.Api (Identity (..))
+#ifdef TRACE_GHC
 import qualified Debug.Trace as D
+#endif
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Address (..),
@@ -28,12 +31,23 @@ import PlutusLedgerApi.V3 (
   fromBuiltinData,
  )
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
+#ifdef TRACE_GHC
 import qualified Prelude as H
+#else
+import qualified PlutusTx.Prelude as H
+import qualified PlutusTx.Prelude as D
+#endif
 
-trace :: H.String -> a -> a
+#ifdef TRACE_GHC
+type String = H.String
+#else
+type String = H.BuiltinString
+#endif
+
+trace :: String -> a -> a
 trace = D.trace
 
-traceIfFalse :: H.String -> Bool -> Bool
+traceIfFalse :: String -> Bool -> Bool
 traceIfFalse str False = trace str False
 traceIfFalse _ True = True
 
