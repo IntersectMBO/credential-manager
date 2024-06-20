@@ -32,6 +32,7 @@ They are able to perform the following actions:
 They are also indirectly capable of authorizing any action the delegation and voting roles can authorize, because they can decide who is in the delegation role, which in turn has the power to decide who is in the voting role.
 
 As such, it is imperative that this responsibility be entrusted to individuals who are trusted by the organization, and who have the knowledge, skills, and equipment necessary to securely safeguard their keys. 
+
 If they lack these qualifications, they SHOULD entrust management of their keys to a qualified key custodian.
 
 Delegation role controls the hot credential 

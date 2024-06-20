@@ -14,7 +14,7 @@ At a high level, it works by coordinating four script credentials:
 * A :ref:`cold committee script credential <cold_credential_script>`
 * A :ref:`hot committee script credential <hot_credential_script>`
 * A :ref:`cold NFT payment script credential <cold_nft_locking_script>`
-* A :ref:`hot NFT payment script credential <hot_nft_locking_script>`
+* A :ref:`hot NFT payment script credential <hot_nft_locking_script>`.
 
 The two committee credential scripts are registered as the actual hot and cold committee credentials on-chain. 
 However they do not contain the majority of the system's logic for two reasons:

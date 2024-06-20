@@ -119,3 +119,4 @@ See :ref:`Note on UnlockCold <unlock_cold>` for comments also applicable to ``Un
 .. warning::
    The **delegation group** has full control over the hot NFT, and consequently the hot credential itself. 
    **delegation group** members should safeguard their keys as if they were keys for the hot credential itself.
+

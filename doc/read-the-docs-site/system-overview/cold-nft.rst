@@ -15,6 +15,7 @@ Rules
 The script enforces the following rules unconditionally:
 
 * The purpose of the script execution must be `Spending`.
+
 * The UTXO being spent must be in the transaction's inputs (this will always be the case when the script is invoked by a properly implemented ledger layer).
 
 The script enforces the following additional rules depending on the redeemer:
@@ -191,4 +192,5 @@ The only way to prevent the security flaw from being exploited would be to resig
 
 .. warning::
    As mentioned before, the **membership group** has full control over the cold NFT, and consequently the cold credential itself. 
+
    Refer to the warning in :ref:`system_overview` for guidelines on mitigating this risk.
