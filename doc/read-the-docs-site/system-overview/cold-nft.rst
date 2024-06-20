@@ -4,7 +4,7 @@ Cold NFT locking script
 =======================
 
 Cold committee credential parameters
-----------
+------------------------------------
 
 The cold NFT locking script requires a specific cold committee credential to function.
 This cold committee credential gets inlined as a parameter in the code of the cold NFT locking script directly when it is compiled and initialized. 
