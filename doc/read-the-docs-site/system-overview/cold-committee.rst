@@ -1,39 +1,31 @@
 .. _cold_credential_script:
 
-Cold Committee Credential Script
+Cold committee credential script
 ================================
 
-Parameters
-----------
+NFT minting policy ID parameter 
+-------------------------------
 
-A script parameter is a value which gets inlined into the code of the script
-directly when it is compiled / initialized.
-
-The cold committee credential script is parameterized by the minting policy ID
-of an NFT.
+The cold committee credential script requires a specific NFT minting policy ID to function.
+This minting policy ID gets inlined as a parameter into the code of the script directly when it is compiled and initialized. 
 
 Rules
 -----
 
-The script enforces two rules:
+The cold committee credential script enforces two rules:
 
-* The purpose of the script execution must be `Certifying`
-* The transaction must consume a UTxO which contains a token with the given NFT
-  minting policy ID.
+1. The purpose of the script execution must be `Certifying`.
+2. The transaction must consume a UTXO which contains a token with the given NFT minting policy ID.
 
 .. warning::
-  Note that it does not check:
+  Note that the cold committee credential script does *not* check:
 
-  * That the certificate being authorized is a valid certificate for a cold
-    committee credential to be authorized. This check is unnecessary, as the ledger
-    rules would not ask a cold committee credential to authorize any other type
-    of certificate.
-  * That the NFT is actually an NFT, as it doesn't have access to sufficient
-    information to determine this. For that matter, it doesn't check that only
-    one token is spent - in fact the minting policy ID could be the ADA minting
-    policy ID (though the tools we provide to build the credential would not
-    allow this, the script its self doesn't forbid it). It is the responsibility
-    of the credential creator to choose an appropriate NFT.
+  * That the certificate being authorized is a valid certificate for a cold committee credential to be authorized. 
+    This check is unnecessary, as the ledger rules would not ask a cold committee credential to authorize any other type of certificate.
+  * That the NFT is actually an NFT, as it doesn't have access to sufficient information to determine this. 
+    For that matter, it doesn't check that only one token is spent --- in fact, the minting policy ID could be the ada minting policy ID. 
+    Although the tools we provide to build the credential would not allow this, the script itself doesn't forbid it. 
+    It is the responsibility of the credential creator to choose an appropriate NFT.
 
 Datum
 -----
@@ -43,5 +35,5 @@ Committee script credentials do not have a datum.
 Redeemer
 --------
 
-Untyped, not used. The most efficient is to use the integer ``0`` for the
-redeemer.
+Untyped, not used. 
+The most efficient is to use the integer ``0`` for the redeemer.
