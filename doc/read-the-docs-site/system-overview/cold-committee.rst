@@ -4,7 +4,7 @@ Cold committee credential script
 ================================
 
 NFT minting policy ID parameter 
-----------
+-------------------------------
 
 The cold committee credential script requires a specific NFT minting policy ID to function.
 This minting policy ID gets inlined as a parameter into the code of the script directly when it is compiled and initialized. 
