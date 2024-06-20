@@ -3,6 +3,7 @@ module CredentialManager.Scripts.ColdNFT.BurnColdSpec where
 import CredentialManager.Api
 import CredentialManager.Gen (Fraction (..))
 import CredentialManager.Scripts.ColdNFT
+import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
 import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
@@ -15,9 +16,12 @@ import PlutusLedgerApi.V3 (
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
-  ScriptPurpose (..),
+  Redeemer (..),
+  ScriptContext (..),
+  ScriptInfo (SpendingScript),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
   Value,
@@ -42,12 +46,12 @@ spec = do
     invariantBC4NotBurned
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript coldNFT unlockColdCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \_ _ ctx ->
+        coldNFTScript coldNFT burnColdCredential ctx === True
 
 invariantBC1BurnColdMembershipMinority :: ValidArgs -> Property
 invariantBC1BurnColdMembershipMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let allSigners = nub $ pubKeyHash <$> membershipUsers datum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -63,11 +67,11 @@ invariantBC1BurnColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript coldNFT unlockColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT burnColdCredential ctx' === False
 
 invariantBC2DuplicateMembership :: ValidArgs -> Property
 invariantBC2DuplicateMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let membershipGroup = membershipUsers datum
     let maybeChangeCertificateHash user =
           oneof
@@ -77,19 +81,21 @@ invariantBC2DuplicateMembership args@ValidArgs{..} =
     duplicate <- traverse maybeChangeCertificateHash =<< sublistOf membershipGroup
     membershipUsers' <- shuffle $ membershipGroup <> duplicate
     let datum' = datum{membershipUsers = membershipUsers'}
+    let ctx' = updateDatum datum' ctx
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript coldNFT unlockColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT burnColdCredential ctx' === True
 
 invariantBC3EmptyMembership :: ValidArgs -> Property
 invariantBC3EmptyMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript coldNFT unlockColdCredential datum' redeemer ctx === False
+    let ctx' = updateDatum datum' ctx
+    coldNFTScript coldNFT burnColdCredential ctx' === False
 
 invariantBC4NotBurned :: ValidArgs -> Property
 invariantBC4NotBurned args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     baseValue <- arbitrary
     let value = baseValue <> assetClassValue coldNFT 1
     output <-
@@ -108,7 +114,7 @@ invariantBC4NotBurned args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT unlockColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT burnColdCredential ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -118,14 +124,15 @@ forAllValidScriptContexts
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $ f datum BurnCold
   where
+    redeemer = BurnCold
     gen = do
       additionalInputs <-
-        listOf $ arbitrary `suchThat` ((/= unlockScriptRef) . txInInfoOutRef)
+        listOf $ arbitrary `suchThat` ((/= burnScriptRef) . txInInfoOutRef)
       inputs <- shuffle $ input : additionalInputs
       outputs <- listOf $ arbitrary `suchThat` (not . hasToken coldNFT)
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
-      let Fraction excessFraction = unlockExcessSignatureFraction
+      let Fraction excessFraction = burnExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
       signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
@@ -146,11 +153,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending unlockScriptRef
+      let redeemer' = Redeemer $ toBuiltinData redeemer
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript burnScriptRef $
+            Just $
+              Datum $
+                toBuiltinData datum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]
@@ -184,32 +198,32 @@ forAllValidScriptContexts ValidArgs{..} f =
     allSigners = nubBy (on (==) pubKeyHash) $ membershipUsers datum
     datum =
       ColdLockDatum
-        { certificateAuthority = unlockCA
+        { certificateAuthority = burnCA
         , membershipUsers =
-            unlockMembershipPre
-              <> (unlockExtraMembership : unlockMembershipPost)
-        , delegationUsers = unlockDelegation
+            burnMembershipPre
+              <> (burnExtraMembership : burnMembershipPost)
+        , delegationUsers = burnDelegation
         }
     input =
-      TxInInfo unlockScriptRef $
+      TxInInfo burnScriptRef $
         TxOut
-          unlockScriptAddress
-          unlockValue
+          burnScriptAddress
+          burnValue
           (OutputDatum $ Datum $ toBuiltinData datum)
           Nothing
 
 data ValidArgs = ValidArgs
   { coldNFT :: AssetClass
-  , unlockScriptRef :: TxOutRef
-  , unlockScriptAddress :: Address
-  , unlockValue :: Value
-  , unlockCA :: Identity
-  , unlockMembershipPre :: [Identity]
-  , unlockExtraMembership :: Identity
-  , unlockMembershipPost :: [Identity]
-  , unlockDelegation :: [Identity]
-  , unlockColdCredential :: ColdCommitteeCredential
-  , unlockExcessSignatureFraction :: Fraction
+  , burnScriptRef :: TxOutRef
+  , burnScriptAddress :: Address
+  , burnValue :: Value
+  , burnCA :: Identity
+  , burnMembershipPre :: [Identity]
+  , burnExtraMembership :: Identity
+  , burnMembershipPost :: [Identity]
+  , burnDelegation :: [Identity]
+  , burnColdCredential :: ColdCommitteeCredential
+  , burnExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 

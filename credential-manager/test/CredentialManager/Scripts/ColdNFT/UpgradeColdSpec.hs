@@ -3,6 +3,7 @@ module CredentialManager.Scripts.ColdNFT.UpgradeColdSpec where
 import CredentialManager.Api
 import CredentialManager.Gen (Fraction (..))
 import CredentialManager.Scripts.ColdNFT
+import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
 import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
@@ -16,10 +17,13 @@ import PlutusLedgerApi.V3 (
   Credential (..),
   Datum (..),
   OutputDatum (..),
+  Redeemer (..),
+  ScriptContext (..),
   ScriptHash,
-  ScriptPurpose (..),
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
   Value,
@@ -47,12 +51,12 @@ spec = do
     invariantUC5WrongAddress
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript coldNFT upgradeColdCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \_ _ ctx ->
+        coldNFTScript coldNFT upgradeColdCredential ctx === True
 
 invariantUC1UpgradeColdMembershipMinority :: ValidArgs -> Property
 invariantUC1UpgradeColdMembershipMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let allSigners = nub $ pubKeyHash <$> membershipUsers datum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -68,11 +72,11 @@ invariantUC1UpgradeColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript coldNFT upgradeColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 invariantUC2DuplicateMembership :: ValidArgs -> Property
 invariantUC2DuplicateMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let membershipGroup = membershipUsers datum
     let maybeChangeCertificateHash user =
           oneof
@@ -82,19 +86,21 @@ invariantUC2DuplicateMembership args@ValidArgs{..} =
     duplicate <- traverse maybeChangeCertificateHash =<< sublistOf membershipGroup
     membershipUsers' <- shuffle $ membershipGroup <> duplicate
     let datum' = datum{membershipUsers = membershipUsers'}
+    let ctx' = updateDatum datum' ctx
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript coldNFT upgradeColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT upgradeColdCredential ctx' === True
 
 invariantUC3EmptyMembership :: ValidArgs -> Property
 invariantUC3EmptyMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript coldNFT upgradeColdCredential datum' redeemer ctx === False
+    let ctx' = updateDatum datum' ctx
+    coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 invariantUC4Burned :: ValidArgs -> Property
 invariantUC4Burned args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let outputs' = filter (not . hasToken coldNFT) $ txInfoOutputs $ scriptContextTxInfo ctx
     let ctx' =
           ctx
@@ -104,11 +110,11 @@ invariantUC4Burned args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript coldNFT upgradeColdCredential datum redeemer ctx' === False
+      coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 invariantUC5WrongAddress :: ValidArgs -> Property
 invariantUC5WrongAddress args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let tweakAddress TxOut{..}
           | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
               address <-
@@ -126,7 +132,7 @@ invariantUC5WrongAddress args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT upgradeColdCredential datum redeemer ctx' === False
+        coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -134,8 +140,9 @@ forAllValidScriptContexts
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f datum $ UpgradeCold upgradeDestination
+  forAllShrink gen shrink' $ f datum redeemer
   where
+    redeemer = UpgradeCold upgradeDestination
     gen = do
       additionalInputs <-
         listOf $ arbitrary `suchThat` ((/= upgradeScriptRef) . txInInfoOutRef)
@@ -173,11 +180,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending upgradeScriptRef
+      let redeemer' = Redeemer $ toBuiltinData redeemer
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript upgradeScriptRef $
+            Just $
+              Datum $
+                toBuiltinData datum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

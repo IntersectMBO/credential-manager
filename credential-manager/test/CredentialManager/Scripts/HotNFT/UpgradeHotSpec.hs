@@ -22,10 +22,13 @@ import PlutusLedgerApi.V3 (
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
+  Redeemer (..),
+  ScriptContext (..),
   ScriptHash,
-  ScriptPurpose (..),
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
  )
@@ -56,12 +59,12 @@ spec = do
     invariantUH6WrongAddress
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
-        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx ->
+        hotNFTScript coldNFT hotNFT upgradeHotCredential ctx === True
 
 invariantUH1UpgradeHotDelegationMinority :: ValidArgs -> Property
 invariantUH1UpgradeHotDelegationMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum _ _ ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers coldDatum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -77,11 +80,11 @@ invariantUH1UpgradeHotDelegationMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+            hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
 
 invariantUH2DuplicateDelegation :: ValidArgs -> Property
 invariantUH2DuplicateDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum _ _ ctx -> do
     let delegationGroup = delegationUsers coldDatum
     let maybeChangeCertificateHash user =
           oneof
@@ -112,11 +115,11 @@ invariantUH2DuplicateDelegation args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === True
+        hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === True
 
 invariantUH3EmptyDelegation :: ValidArgs -> Property
 invariantUH3EmptyDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum _ _ ctx -> do
     let newDatum = coldDatum{delegationUsers = []}
     let modifyDatum (TxInInfo ref TxOut{..})
           | assetClassValueOf txOutValue coldNFT /= 0 =
@@ -138,11 +141,11 @@ invariantUH3EmptyDelegation args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
 
 invariantUH4ColdRefMissing :: ValidArgs -> Property
 invariantUH4ColdRefMissing args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -154,11 +157,11 @@ invariantUH4ColdRefMissing args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
 
 invariantUH5Burned :: ValidArgs -> Property
 invariantUH5Burned args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx -> do
     let outputs' = filter (not . hasToken hotNFT) $ txInfoOutputs $ scriptContextTxInfo ctx
     let ctx' =
           ctx
@@ -168,11 +171,11 @@ invariantUH5Burned args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
 
 invariantUH6WrongAddress :: ValidArgs -> Property
 invariantUH6WrongAddress args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx -> do
     let tweakAddress TxOut{..}
           | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
               address <-
@@ -190,7 +193,7 @@ invariantUH6WrongAddress args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT upgradeHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -206,9 +209,9 @@ forAllValidScriptContexts
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $
-    f upgradeColdNFT upgradeHotNFT inColdDatum datum $
-      UpgradeHot upgradeDestination
+    f upgradeColdNFT upgradeHotNFT inColdDatum datum redeemer
   where
+    redeemer = UpgradeHot upgradeDestination
     gen = do
       additionalInputs <-
         listOf $ arbitrary `suchThat` ((/= upgradeScriptRef) . txInInfoOutRef)
@@ -247,11 +250,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending upgradeScriptRef
+      let redeemer' = Redeemer $ toBuiltinData redeemer
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript upgradeScriptRef $
+            Just $
+              Datum $
+                toBuiltinData datum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

@@ -19,9 +19,12 @@ import PlutusLedgerApi.V3 (
   Datum (..),
   HotCommitteeCredential,
   OutputDatum (..),
-  ScriptPurpose (..),
+  Redeemer (..),
+  ScriptContext (..),
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
   Value (..),
@@ -50,12 +53,12 @@ spec = do
     invariantBH5NotBurned
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx ->
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \coldNFT hotNFT _ ctx ->
+        hotNFTScript coldNFT hotNFT burnHotCredential ctx === True
 
 invariantBH1BurnHotDelegationMinority :: ValidArgs -> Property
 invariantBH1BurnHotDelegationMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum ctx -> do
     let allSigners = nub $ pubKeyHash <$> delegationUsers coldDatum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -71,11 +74,11 @@ invariantBH1BurnHotDelegationMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+            hotNFTScript coldNFT hotNFT burnHotCredential ctx' === False
 
 invariantBH2DuplicateDelegation :: ValidArgs -> Property
 invariantBH2DuplicateDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum ctx -> do
     let delegationGroup = delegationUsers coldDatum
     let maybeChangeCertificateHash user =
           oneof
@@ -106,11 +109,11 @@ invariantBH2DuplicateDelegation args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === True
+        hotNFTScript coldNFT hotNFT burnHotCredential ctx' === True
 
 invariantBH3EmptyDelegation :: ValidArgs -> Property
 invariantBH3EmptyDelegation args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT coldDatum datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT coldDatum ctx -> do
     let newDatum = coldDatum{delegationUsers = []}
     let modifyDatum (TxInInfo ref TxOut{..})
           | assetClassValueOf txOutValue coldNFT /= 0 =
@@ -132,11 +135,11 @@ invariantBH3EmptyDelegation args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT burnHotCredential ctx' === False
 
 invariantBH4ColdRefMissing :: ValidArgs -> Property
 invariantBH4ColdRefMissing args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -148,11 +151,11 @@ invariantBH4ColdRefMissing args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+      hotNFTScript coldNFT hotNFT burnHotCredential ctx' === False
 
 invariantBH5NotBurned :: ValidArgs -> Property
 invariantBH5NotBurned args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ datum redeemer ctx -> do
+  forAllValidScriptContexts args \coldNFT hotNFT _ ctx -> do
     baseValue <- arbitrary
     let value = baseValue <> assetClassValue hotNFT 1
     output <-
@@ -171,23 +174,16 @@ invariantBH5NotBurned args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT burnHotCredential datum redeemer ctx' === False
+        hotNFTScript coldNFT hotNFT burnHotCredential ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
   => ValidArgs
-  -> ( AssetClass
-       -> AssetClass
-       -> ColdLockDatum
-       -> HotLockDatum
-       -> HotLockRedeemer
-       -> ScriptContext
-       -> prop
-     )
+  -> (AssetClass -> AssetClass -> ColdLockDatum -> ScriptContext -> prop)
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
   forAllShrink gen shrink' $
-    f burnColdNFT burnHotNFT inColdDatum datum BurnHot
+    f burnColdNFT burnHotNFT inColdDatum
   where
     gen = do
       additionalInputs <-
@@ -218,11 +214,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending burnScriptRef
+      let redeemer' = Redeemer $ toBuiltinData BurnHot
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript burnScriptRef $
+            Just $
+              Datum $
+                toBuiltinData datum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

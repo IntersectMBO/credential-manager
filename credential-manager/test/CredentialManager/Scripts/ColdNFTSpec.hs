@@ -19,11 +19,14 @@ import PlutusLedgerApi.V3 (
   FromData (..),
   OutputDatum (..),
   PubKeyHash,
+  Redeemer (..),
+  ScriptContext (..),
   ScriptHash,
-  ScriptPurpose (..),
+  ScriptInfo (..),
   ToData (..),
   TxCert (TxCertAuthHotCommittee, TxCertResignColdCommittee),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   Value,
  )
@@ -38,7 +41,7 @@ spec = do
     prop "onlyValid => valid" $
       forAll (importanceSampleScriptArgs True) \args@ScriptArgs{..} ->
         forAllScriptContexts True args $
-          wrapColdNFTScript coldNFT coldCredential datum redeemer
+          wrapColdNFTScript coldNFT coldCredential
   prop "Invariant 1: Fails if not spending" invariant1BadPurpose
   prop
     "Invariant 2: Valid transitions preserve address"
@@ -57,7 +60,7 @@ spec = do
 invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
   forAllScriptContexts False args \ctx ->
-    classify (wrapColdNFTScript coldNFT coldCredential datum redeemer ctx) "Valid"
+    classify (wrapColdNFTScript coldNFT coldCredential ctx) "Valid"
       . label case redeemer of
         AuthorizeHot _ -> "AuthorizeHot"
         ResignCold -> "ResignCold"
@@ -66,9 +69,9 @@ invariant1BadPurpose args@ScriptArgs{..} =
         RotateCold -> "RotateCold"
         BurnCold -> "BurnCold"
         UpgradeCold _ -> "UpgradeCold"
-      $ forAllShrink genNonSpending shrink \purpose ->
-        let ctx' = ctx{scriptContextPurpose = purpose}
-         in wrapColdNFTScript coldNFT coldCredential datum redeemer ctx' === False
+      $ forAllShrink genNonSpending shrink \scriptInfo ->
+        let ctx' = ctx{scriptContextScriptInfo = scriptInfo}
+         in wrapColdNFTScript coldNFT coldCredential ctx' === False
 
 invariant2AddressPreservation :: ScriptArgs -> Property
 invariant2AddressPreservation args@ScriptArgs{..} =
@@ -98,7 +101,7 @@ forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> ColdLockDatum -> prop) -> Property
 forAllValidTransitions args@ScriptArgs{..} f =
   forAllScriptContexts False args \ctx ->
-    wrapColdNFTScript coldNFT coldCredential datum redeemer ctx ==>
+    wrapColdNFTScript coldNFT coldCredential ctx ==>
       case redeemer of
         BurnCold -> discard -- burn is not a transition - it is a terminus
         UpgradeCold _ -> discard -- upgrade is not a transition - it is a terminus
@@ -114,22 +117,20 @@ forAllValidTransitions args@ScriptArgs{..} f =
 wrapColdNFTScript
   :: AssetClass
   -> ColdCommitteeCredential
-  -> ColdLockDatum
-  -> ColdLockRedeemer
   -> ScriptContext
   -> Bool
-wrapColdNFTScript nft c d r ctx =
+wrapColdNFTScript nft c ctx =
   unsafePerformIO $
-    evaluate (coldNFTScript nft c d r ctx) `catchAny` const (pure False)
+    evaluate (coldNFTScript nft c ctx) `catchAny` const (pure False)
 
-genNonSpending :: Gen ScriptPurpose
+genNonSpending :: Gen ScriptInfo
 genNonSpending =
   oneof
-    [ Minting <$> arbitrary
-    , Rewarding <$> arbitrary
-    , Certifying <$> arbitrary <*> arbitrary
-    , Voting <$> arbitrary
-    , Proposing <$> arbitrary <*> arbitrary
+    [ MintingScript <$> arbitrary
+    , RewardingScript <$> arbitrary
+    , CertifyingScript <$> arbitrary <*> arbitrary
+    , VotingScript <$> arbitrary
+    , ProposingScript <$> arbitrary <*> arbitrary
     ]
 
 nonDelegationSigners :: ColdLockDatum -> Gen [PubKeyHash]
@@ -298,12 +299,19 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      purpose <- importanceSampleArbitrary onlyValid $ pure $ Spending scriptInputRef
-      pure $ ScriptContext txInfo purpose
+      scriptInfo <-
+        importanceSampleArbitrary onlyValid $
+          pure $
+            SpendingScript scriptInputRef $
+              Just $
+                Datum $
+                  toBuiltinData datum
+      pure $ ScriptContext txInfo (Redeemer $ toBuiltinData redeemer) scriptInfo
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-full-laziness #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
@@ -18,9 +17,9 @@ import CredentialManager.Api (
   ColdLockDatum (..),
   HotLockDatum (..),
   HotLockRedeemer (..),
+  Identity,
  )
 import CredentialManager.Scripts.Common
-import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Datum (..),
@@ -29,48 +28,16 @@ import PlutusLedgerApi.V3 (
   Map,
   OutputDatum (..),
   PubKeyHash,
-  ScriptPurpose,
+  ScriptContext,
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   Voter (..),
  )
 import qualified PlutusLedgerApi.V3 as PV3
 import PlutusLedgerApi.V3.Contexts (HotCommitteeCredential)
 import qualified PlutusTx.AssocMap as Map
-import qualified PlutusTx.IsData as PlutusTx
-import qualified PlutusTx.Lift as PlutusTx
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
-import qualified Prelude as Haskell
-
--- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the
--- cold NFT script needs.
-data ScriptContext = ScriptContext
-  { scriptContextTxInfo :: TxInfo
-  , scriptContextPurpose :: ScriptPurpose
-  }
-  deriving stock (Haskell.Eq, Haskell.Show, Generic)
-
--- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
--- cold NFT script needs.
-data TxInfo = TxInfo
-  { txInfoInputs :: [TxInInfo]
-  , txInfoReferenceInputs :: [TxInInfo]
-  , txInfoOutputs :: [TxOut]
-  , txInfoFee :: BuiltinData
-  , txInfoMint :: BuiltinData
-  , txInfoTxCerts :: BuiltinData
-  , txInfoWdrl :: BuiltinData
-  , txInfoValidRange :: BuiltinData
-  , txInfoSignatories :: [PubKeyHash]
-  , txInfoRedeemers :: BuiltinData
-  , txInfoData :: BuiltinData
-  , txInfoId :: BuiltinData
-  , txInfoVotes :: Map Voter (Map GovernanceActionId PV3.Vote)
-  , txInfoProposalProcedures :: BuiltinData
-  , txInfoCurrentTreasuryAmount :: BuiltinData
-  , txInfoTreasuryDonation :: BuiltinData
-  }
-  deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
 -- | This script validates voting group actions as well as its rotation through delagators action.
 {-# INLINEABLE hotNFTScript #-}
@@ -78,61 +45,67 @@ hotNFTScript
   :: AssetClass
   -> AssetClass
   -> HotCommitteeCredential
-  -> HotLockDatum
-  -> HotLockRedeemer
   -> ScriptContext
   -> Bool
-hotNFTScript coldNFT hotNFT hotCred datumIn@HotLockDatum{..} red ctx =
-  checkSpendingTx purpose inputs \_ ownInput -> case red of
+hotNFTScript coldNFT hotNFT hotCred =
+  checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
     Vote ->
-      checkContinuingTx ownInput outputs \datumOut ->
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
         traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-          && checkMultiSig votingUsers signatures
+          && checkMultiSig (votingUsers datumIn) txInfoSignatories
           && checkVote
       where
-        checkVote = case Map.toList $ txInfoVotes txInfo of
+        checkVote = case Map.toList txInfoVotes of
           [(voter, voterVotes)] ->
             traceIfFalse "Unexpected voter" (voter == CommitteeVoter hotCred)
               && traceIfFalse "No votes" (not $ Map.null voterVotes)
           _ -> trace "Invalid number of voters" False
     ResignVoting user ->
-      checkContinuingTx ownInput outputs \case
-        HotLockDatum voting' ->
-          traceIfFalse "Tx casts votes" checkNoVotes
-            && checkResignation signatures user votingUsers voting'
+      checkContinuingTx inAddress inValue txInfoOutputs
+        $ checkDatumModificationTx txInfoVotes datumIn
+        $ checkResignation txInfoSignatories user
     RotateHot ->
-      checkContinuingTx ownInput outputs \case
-        HotLockDatum voting' ->
-          traceIfFalse "Tx casts votes" checkNoVotes
-            && signedByDelegators refInputs
-            && checkRotation signatures votingUsers voting'
+      checkContinuingTx inAddress inValue txInfoOutputs
+        $ checkDatumModificationTx txInfoVotes datumIn \voting voting' ->
+          signedByDelegators coldNFT txInfoSignatories txInfoReferenceInputs
+            && checkRotation txInfoSignatories voting voting'
     BurnHot ->
-      signedByDelegators refInputs
-        && checkBurn hotNFT outputs
-        && traceIfFalse "Tx casts votes" checkNoVotes
+      checkTerminalTx coldNFT txInfoVotes txInfoSignatories txInfoReferenceInputs
+        && checkBurn hotNFT txInfoOutputs
     UpgradeHot destination ->
-      signedByDelegators refInputs
-        && checkUpgrade hotNFT destination outputs
-        && traceIfFalse "Tx casts votes" checkNoVotes
+      checkTerminalTx coldNFT txInfoVotes txInfoSignatories txInfoReferenceInputs
+        && checkUpgrade hotNFT destination txInfoOutputs
+
+{-# INLINEABLE checkDatumModificationTx #-}
+checkDatumModificationTx
+  :: Map Voter (Map GovernanceActionId PV3.Vote)
+  -> HotLockDatum
+  -> ([Identity] -> [Identity] -> Bool)
+  -> HotLockDatum
+  -> Bool
+checkDatumModificationTx votes (HotLockDatum voting) checkDiff (HotLockDatum voting') =
+  traceIfFalse "Tx casts votes" (Map.null votes) && checkDiff voting voting'
+
+{-# INLINEABLE checkTerminalTx #-}
+checkTerminalTx
+  :: AssetClass
+  -> Map Voter (Map GovernanceActionId PV3.Vote)
+  -> [PubKeyHash]
+  -> [TxInInfo]
+  -> Bool
+checkTerminalTx coldNFT votes signatories refInputs =
+  signedByDelegators coldNFT signatories refInputs
+    && traceIfFalse "Tx publishes certificates" (Map.null votes)
+
+{-# INLINEABLE signedByDelegators #-}
+signedByDelegators :: AssetClass -> [PubKeyHash] -> [TxInInfo] -> Bool
+signedByDelegators coldNFT signatories = go
   where
-    checkNoVotes = Map.null $ txInfoVotes txInfo
-    purpose = scriptContextPurpose ctx
-    txInfo = scriptContextTxInfo ctx
-    signatures = txInfoSignatories txInfo
-    outputs = txInfoOutputs txInfo
-    inputs = txInfoInputs txInfo
-    refInputs = txInfoReferenceInputs txInfo
-    signedByDelegators [] = trace "Cold NFT reference input not found" False
-    signedByDelegators (TxInInfo _ TxOut{..} : refInputs')
+    go [] = trace "Cold NFT reference input not found" False
+    go (TxInInfo _ TxOut{..} : refInputs')
       | assetClassValueOf txOutValue coldNFT > 0 = case txOutDatum of
           OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-            Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatures
+            Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatories
             _ -> trace "Invalid cold NFT datum" False
           _ -> trace "Missing cold NFT datum" False
-      | otherwise = signedByDelegators refInputs'
-
-PlutusTx.makeLift ''TxInfo
-PlutusTx.makeIsDataIndexed ''TxInfo [('TxInfo, 0)]
-
-PlutusTx.makeLift ''ScriptContext
-PlutusTx.makeIsDataIndexed ''ScriptContext [('ScriptContext, 0)]
+      | otherwise = go refInputs'

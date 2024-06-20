@@ -4,10 +4,6 @@ module CredentialManager.Gen where
 
 import Control.Monad (guard, replicateM, (<=<))
 import CredentialManager.Api
-import qualified CredentialManager.Scripts.ColdCommittee as CC
-import qualified CredentialManager.Scripts.ColdNFT as CN
-import qualified CredentialManager.Scripts.HotCommittee as HC
-import qualified CredentialManager.Scripts.HotNFT as HN
 import Data.Bits (Bits (..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -15,7 +11,6 @@ import Data.Data (Proxy (..))
 import Data.Foldable (Foldable (..))
 import Data.List (iterate')
 import qualified Data.Map as Map
-import Data.Maybe (mapMaybe)
 import Data.Monoid (Sum (..))
 import Data.Word (Word8)
 import GHC.Generics (Generic)
@@ -52,7 +47,7 @@ shrinkHash hash = do
     seed = BS.head $ fromBuiltin hash
 
 deriving via (ArbitraryHash 32) instance Arbitrary CertificateHash
-deriving via (ArbitraryHash 32) instance Arbitrary PubKeyHash
+deriving via (ArbitraryHash 28) instance Arbitrary PubKeyHash
 deriving via (ArbitraryHash 32) instance Arbitrary TxId
 deriving via (ArbitraryHash 32) instance Arbitrary DatumHash
 deriving via (ArbitraryHash 28) instance Arbitrary ScriptHash
@@ -93,11 +88,6 @@ instance Arbitrary Voter where
       , CommitteeVoter <$> arbitrary
       ]
   shrink = genericShrink
-
-deriving instance Ord DRepCredential
-deriving instance Ord HotCommitteeCredential
-deriving instance Ord Voter
-deriving instance Ord GovernanceActionId
 
 chooseIntegerHyperbolic :: Gen Integer
 chooseIntegerHyperbolic = sized \size -> do
@@ -241,6 +231,7 @@ instance Arbitrary StakingCredential where
   shrink = genericShrink
 
 deriving newtype instance Arbitrary Datum
+deriving newtype instance Arbitrary Redeemer
 deriving newtype instance Arbitrary DRepCredential
 
 instance Arbitrary OutputDatum where
@@ -250,167 +241,6 @@ instance Arbitrary OutputDatum where
       , OutputDatumHash <$> arbitrary
       , pure NoOutputDatum
       ]
-  shrink = genericShrink
-
-instance Arbitrary CC.ScriptContext where
-  arbitrary = CC.ScriptContext <$> arbitrary <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary CC.ScriptPurpose where
-  arbitrary =
-    oneof
-      [ CC.Minting <$> arbitrary
-      , CC.Spending <$> arbitrary
-      , CC.Rewarding <$> arbitrary
-      , CC.Certifying <$> arbitrary <*> arbitrary
-      , CC.Voting <$> arbitrary
-      , CC.Proposing <$> arbitrary <*> arbitrary
-      ]
-  shrink = genericShrink
-
-instance Arbitrary CC.TxInfo where
-  arbitrary =
-    CC.TxInfo
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary CC.TxInInfo where
-  arbitrary = CC.TxInInfo <$> arbitrary <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary HC.ScriptContext where
-  arbitrary = HC.ScriptContext <$> arbitrary <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary HC.ScriptPurpose where
-  arbitrary =
-    oneof
-      [ HC.Minting <$> arbitrary
-      , HC.Spending <$> arbitrary
-      , HC.Rewarding <$> arbitrary
-      , HC.Certifying <$> arbitrary <*> arbitrary
-      , HC.Voting <$> arbitrary
-      , HC.Proposing <$> arbitrary <*> arbitrary
-      ]
-  shrink = genericShrink
-
-instance Arbitrary HC.TxInfo where
-  arbitrary =
-    HC.TxInfo
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary HC.TxInInfo where
-  arbitrary = HC.TxInInfo <$> arbitrary <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary CN.ScriptContext where
-  arbitrary = do
-    purpose <- arbitrary
-    CN.ScriptContext <$> genColdNFTTxInfo purpose <*> pure purpose
-  shrink ctx@CN.ScriptContext{..} = case scriptContextPurpose of
-    Spending ref ->
-      fold
-        [ shrinkColdSpendingRefPreservingInput ref scriptContextTxInfo
-        , shrinkColdInfoPreservingRef ref scriptContextTxInfo
-        ]
-    _ -> genericShrink ctx
-
-shrinkColdSpendingRefPreservingInput
-  :: TxOutRef -> CN.TxInfo -> [CN.ScriptContext]
-shrinkColdSpendingRefPreservingInput ref CN.TxInfo{..} = do
-  ref' <- shrink ref
-  pure
-    CN.ScriptContext
-      { scriptContextTxInfo =
-          CN.TxInfo
-            { txInfoInputs = do
-                inInfo@TxInInfo{..} <- txInfoInputs
-                pure
-                  if txInInfoOutRef == ref
-                    then TxInInfo ref' txInInfoResolved
-                    else inInfo
-            , ..
-            }
-      , scriptContextPurpose = Spending ref'
-      }
-
-shrinkColdInfoPreservingRef :: TxOutRef -> CN.TxInfo -> [CN.ScriptContext]
-shrinkColdInfoPreservingRef ref info = do
-  info' <-
-    filter (any ((== ref) . txInInfoOutRef) . CN.txInfoInputs) $ shrink info
-  pure $ CN.ScriptContext info' $ Spending ref
-
-genColdNFTTxInfo :: ScriptPurpose -> Gen CN.TxInfo
-genColdNFTTxInfo = \case
-  Spending ref -> do
-    info@CN.TxInfo{..} <- arbitrary
-    if any ((== ref) . txInInfoOutRef) txInfoInputs
-      then pure info
-      else do
-        input <- TxInInfo ref <$> arbitrary
-        index <- choose (0, length txInfoInputs)
-        pure
-          CN.TxInfo
-            { txInfoInputs = insertAt index input txInfoInputs
-            , ..
-            }
-  _ -> arbitrary
-
-insertAt :: Int -> a -> [a] -> [a]
-insertAt _ a [] = [a]
-insertAt 0 a as = a : as
-insertAt n a (a' : as) = a' : insertAt (pred n) a as
-
-instance Arbitrary CN.TxInfo where
-  arbitrary = do
-    CN.TxInfo
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
   shrink = genericShrink
 
 fromMap :: Map.Map k v -> AMap.Map k v
@@ -451,9 +281,8 @@ nonempty m
   | Map.null m = Nothing
   | otherwise = Just m
 
-instance Arbitrary Lovelace where
-  arbitrary = Lovelace . max 1 . abs <$> arbitrary
-  shrink = mapMaybe (fmap Lovelace . positive . getLovelace) . genericShrink
+deriving via (Positive Integer) instance Arbitrary Lovelace
+deriving via (NonNegative Integer) instance Arbitrary POSIXTime
 
 instance Arbitrary TxInInfo where
   arbitrary = TxInInfo <$> arbitrary <*> arbitrary
@@ -497,38 +326,25 @@ instance Arbitrary TxCert where
       ]
   shrink = genericShrink
 
-instance Arbitrary HN.ScriptContext where
-  arbitrary = do
-    purpose <- arbitrary
-    HN.ScriptContext <$> genHotNFTTxInfo purpose <*> pure purpose
-  shrink = genericShrink
-
-genHotNFTTxInfo :: ScriptPurpose -> Gen HN.TxInfo
-genHotNFTTxInfo = \case
-  Spending ref -> do
-    info@HN.TxInfo{..} <- arbitrary
-    if any ((== ref) . txInInfoOutRef) txInfoInputs
-      then pure info
-      else do
-        input <- TxInInfo ref <$> arbitrary
-        index <- choose (0, length txInfoInputs)
-        pure
-          HN.TxInfo
-            { txInfoInputs = insertAt index input txInfoInputs
-            , ..
-            }
-  _ -> arbitrary
-
-instance Arbitrary ScriptPurpose where
+instance (Arbitrary a) => Arbitrary (Extended a) where
   arbitrary =
     oneof
-      [ Minting <$> arbitrary
-      , Spending <$> arbitrary
-      , Rewarding <$> arbitrary
-      , Certifying <$> arbitrary <*> arbitrary
-      , Voting <$> arbitrary
-      , Proposing <$> arbitrary <*> arbitrary
+      [ pure NegInf
+      , Finite <$> arbitrary
+      , pure PosInf
       ]
+  shrink = genericShrink
+
+instance (Arbitrary a) => Arbitrary (LowerBound a) where
+  arbitrary = LowerBound <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance (Arbitrary a) => Arbitrary (UpperBound a) where
+  arbitrary = UpperBound <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary POSIXTimeRange where
+  arbitrary = Interval <$> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary GovernanceAction where
@@ -537,27 +353,6 @@ instance Arbitrary GovernanceAction where
 
 instance Arbitrary ProposalProcedure where
   arbitrary = ProposalProcedure <$> arbitrary <*> arbitrary <*> arbitrary
-  shrink = genericShrink
-
-instance Arbitrary HN.TxInfo where
-  arbitrary =
-    HN.TxInfo
-      <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
   shrink = genericShrink
 
 instance (Ord k, Arbitrary k, Arbitrary v) => Arbitrary (AMap.Map k v) where
@@ -585,4 +380,53 @@ newtype Fraction = Fraction Float
 
 instance Arbitrary Fraction where
   arbitrary = Fraction <$> choose (0, 1)
+  shrink = genericShrink
+
+instance Arbitrary ScriptPurpose where
+  arbitrary =
+    oneof
+      [ Minting <$> arbitrary
+      , Spending <$> arbitrary
+      , Rewarding <$> arbitrary
+      , Certifying <$> arbitrary <*> arbitrary
+      , Voting <$> arbitrary
+      , Proposing <$> arbitrary <*> arbitrary
+      ]
+  shrink = genericShrink
+
+instance Arbitrary ScriptInfo where
+  arbitrary =
+    oneof
+      [ MintingScript <$> arbitrary
+      , SpendingScript <$> arbitrary <*> arbitrary
+      , RewardingScript <$> arbitrary
+      , CertifyingScript <$> arbitrary <*> arbitrary
+      , VotingScript <$> arbitrary
+      , ProposingScript <$> arbitrary <*> arbitrary
+      ]
+  shrink = genericShrink
+
+instance Arbitrary TxInfo where
+  arbitrary =
+    TxInfo
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary ScriptContext where
+  arbitrary = ScriptContext <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink

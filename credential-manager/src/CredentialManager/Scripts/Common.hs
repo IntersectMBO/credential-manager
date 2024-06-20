@@ -11,6 +11,7 @@
 
 module CredentialManager.Scripts.Common where
 
+-- #define TRACE_GHC
 import CredentialManager.Api (Identity (..))
 #ifdef TRACE_GHC
 import qualified Debug.Trace as D
@@ -23,19 +24,27 @@ import PlutusLedgerApi.V3 (
   FromData,
   OutputDatum (..),
   PubKeyHash,
+  Redeemer (..),
+  ScriptContext (..),
   ScriptHash,
-  ScriptPurpose (..),
+  ScriptInfo (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
+  UnsafeFromData,
+  Value,
   fromBuiltinData,
+  unsafeFromBuiltinData,
  )
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
 #ifdef TRACE_GHC
 import qualified Prelude as H
+import qualified PlutusLedgerApi.V2 as V2
 #else
 import qualified PlutusTx.Prelude as H
 import qualified PlutusTx.Prelude as D
+import qualified PlutusLedgerApi.V2 as V2
 #endif
 
 #ifdef TRACE_GHC
@@ -88,18 +97,37 @@ checkResignation signatories resignee oldGroup newGroup =
 
 {-# INLINEABLE checkSpendingTx #-}
 checkSpendingTx
-  :: ScriptPurpose -> [TxInInfo] -> (TxOutRef -> TxOut -> Bool) -> Bool
-checkSpendingTx (Spending ownRef) inputs checkSpend = go inputs
-  where
-    go [] = trace "Input from script purpose not found" False
-    go (TxInInfo ref input : inputs')
-      | ref == ownRef = checkSpend ref input
-      | otherwise = go inputs'
-checkSpendingTx _ _ _ = trace "Not a spending script" False
+  :: (FromData datum, FromData redeemer)
+  => (TxInfo -> TxOutRef -> Address -> Value -> datum -> redeemer -> Bool)
+  -> ScriptContext
+  -> Bool
+checkSpendingTx checkSpend ScriptContext{..} =
+  case scriptContextScriptInfo of
+    SpendingScript _ Nothing -> trace "No input datum" False
+    SpendingScript ownRef (Just inDatum) -> go txInfoInputs
+      where
+        TxInfo{..} = scriptContextTxInfo
+        go [] = trace "Input from script purpose not found" False
+        go (TxInInfo ref TxOut{..} : inputs')
+          | ref == ownRef = case fromBuiltinData $ getDatum inDatum of
+              Nothing -> trace "Invalid input datum" False
+              Just datum -> case fromBuiltinData $ getRedeemer scriptContextRedeemer of
+                Nothing -> trace "Invalid redeemer" False
+                Just redeemer ->
+                  checkSpend
+                    scriptContextTxInfo
+                    ownRef
+                    txOutAddress
+                    txOutValue
+                    datum
+                    redeemer
+          | otherwise = go inputs'
+    _ -> trace "Not a spending script" False
 
 {-# INLINEABLE checkContinuingTx #-}
-checkContinuingTx :: (FromData a) => TxOut -> [TxOut] -> (a -> Bool) -> Bool
-checkContinuingTx (TxOut addrIn valueIn _ _) outputs checkDatum =
+checkContinuingTx
+  :: (FromData a) => Address -> Value -> [TxOut] -> (a -> Bool) -> Bool
+checkContinuingTx addrIn valueIn outputs checkDatum =
   case findOutputsByCredential (addressCredential addrIn) outputs of
     [TxOut addrOut valueOut datumOut _] ->
       traceIfFalse "own address not preserved" (addrIn == addrOut)
@@ -145,3 +173,41 @@ checkUpgrade assetClass destination = go
               traceIfFalse "NFT sent to incorrect script" $ destination == scriptHash
             _ -> trace "NFT sent to key hash address" False
       | otherwise = go outputs
+
+{-# INLINEABLE wrapTwoArgsV2 #-}
+wrapTwoArgsV2
+  :: (UnsafeFromData a)
+  => (a -> V2.ScriptContext -> Bool)
+  -> BuiltinData
+  -> BuiltinData
+  -> BuiltinUnit
+wrapTwoArgsV2 f a ctx =
+  check
+    $ f (unsafeFromBuiltinData a) (unsafeFromBuiltinData ctx)
+
+{-# INLINEABLE wrapTwoArgs #-}
+wrapTwoArgs
+  :: (a -> ScriptContext -> Bool)
+  -> a
+  -> BuiltinData
+  -> BuiltinUnit
+wrapTwoArgs f a = check . f a . unsafeFromBuiltinData
+
+{-# INLINEABLE wrapThreeArgs #-}
+wrapThreeArgs
+  :: (a -> b -> ScriptContext -> Bool)
+  -> a
+  -> b
+  -> BuiltinData
+  -> BuiltinUnit
+wrapThreeArgs f a b = check . f a b . unsafeFromBuiltinData
+
+{-# INLINEABLE wrapFourArgs #-}
+wrapFourArgs
+  :: (a -> b -> c -> ScriptContext -> Bool)
+  -> a
+  -> b
+  -> c
+  -> BuiltinData
+  -> BuiltinUnit
+wrapFourArgs f a b c = check . f a b c . unsafeFromBuiltinData

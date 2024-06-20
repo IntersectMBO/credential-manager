@@ -3,6 +3,7 @@ module CredentialManager.Scripts.ColdNFT.ResignMembershipSpec where
 import CredentialManager.Api
 import CredentialManager.Gen ()
 import CredentialManager.Scripts.ColdNFT
+import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub)
@@ -13,9 +14,12 @@ import PlutusLedgerApi.V3 (
   ColdCommitteeCredential,
   Datum (..),
   OutputDatum (..),
-  ScriptPurpose (..),
+  Redeemer (..),
+  ScriptContext (..),
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
   Value,
@@ -61,12 +65,12 @@ spec = do
     invariantRM11CAChanged
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \_ _ ctx ->
+        coldNFTScript coldNFT resignMembershipColdCredential ctx === True
 
 invariantRM1ResignMembershipNotSigned :: ValidArgs -> Property
 invariantRM1ResignMembershipNotSigned args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let ctx' =
           ctx
             { scriptContextTxInfo =
@@ -78,21 +82,22 @@ invariantRM1ResignMembershipNotSigned args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+      coldNFTScript coldNFT resignMembershipColdCredential ctx'
         === False
 
 invariantRM2NonMembership :: ValidArgs -> Property
 invariantRM2NonMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let membershipGroup = membershipUsers datum
     let datum' = datum{membershipUsers = filter (/= resignMembershipResignee) membershipGroup}
+    let ctx' = updateDatum datum' ctx
     counterexample ("Datum: " <> show datum') $
-      coldNFTScript coldNFT resignMembershipColdCredential datum' redeemer ctx
+      coldNFTScript coldNFT resignMembershipColdCredential ctx'
         === False
 
 invariantRM3NotRemoved :: ValidArgs -> Property
 invariantRM3NotRemoved args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let newDatum =
           ColdLockDatum
             resignMembershipCA
@@ -118,12 +123,12 @@ invariantRM3NotRemoved args@ValidArgs{..} =
                   }
             }
     counterexample ("Context: " <> show ctx') $
-      coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+      coldNFTScript coldNFT resignMembershipColdCredential ctx'
         === False
 
 invariantRM4ExtraDelegatorsRemoved :: ValidArgs -> Property
 invariantRM4ExtraDelegatorsRemoved args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let otherDelegators = resignMembershipMembershipPre <> resignMembershipMembershipPost
     if null otherDelegators
       then pure discard
@@ -157,7 +162,7 @@ invariantRM4ExtraDelegatorsRemoved args@ValidArgs{..} =
         pure $
           counterexample ("ExtraRemoved: " <> show extraRemoved) $
             counterexample ("Context: " <> show ctx') $
-              coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+              coldNFTScript coldNFT resignMembershipColdCredential ctx'
                 === False
 
 invariantRM5ResignLastDelegator :: ValidArgs -> Property
@@ -168,13 +173,13 @@ invariantRM5ResignLastDelegator ValidArgs{..} = do
           , resignMembershipMembershipPost = []
           , ..
           }
-  forAllValidScriptContexts args \datum redeemer ctx -> do
-    coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx
+  forAllValidScriptContexts args \_ _ ctx -> do
+    coldNFTScript coldNFT resignMembershipColdCredential ctx
       === False
 
 invariantRM6ExtraneousCertificates :: ValidArgs -> Property
 invariantRM6ExtraneousCertificates args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     certs <- listOf1 arbitrary
     let ctx' =
           ctx
@@ -185,12 +190,12 @@ invariantRM6ExtraneousCertificates args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 invariantRM7NoSelfOutput :: ValidArgs -> Property
 invariantRM7NoSelfOutput args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     newAddress <- arbitrary `suchThat` (/= resignMembershipScriptAddress)
     let modifyAddress TxOut{..}
           | txOutAddress == resignMembershipScriptAddress =
@@ -208,12 +213,12 @@ invariantRM7NoSelfOutput args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 invariantRM8MultipleSelfOutputs :: ValidArgs -> Property
 invariantRM8MultipleSelfOutputs args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     let setAddress txOut = txOut{txOutAddress = resignMembershipScriptAddress}
     newOutputs <- listOf1 $ setAddress <$> arbitrary
     outputs' <- shuffle $ txInfoOutputs (scriptContextTxInfo ctx) <> newOutputs
@@ -224,12 +229,12 @@ invariantRM8MultipleSelfOutputs args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 invariantRM9ValueNotPreserved :: ValidArgs -> Property
 invariantRM9ValueNotPreserved args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     newValue <- arbitrary `suchThat` (/= resignMembershipValue)
     let modifyValue TxOut{..}
           | txOutAddress == resignMembershipScriptAddress =
@@ -247,12 +252,12 @@ invariantRM9ValueNotPreserved args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 invariantRM10MembershipChanged :: ValidArgs -> Property
 invariantRM10MembershipChanged args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     newDelegation <- arbitrary `suchThat` (/= resignMembershipDelegation)
     let newDatum =
           ColdLockDatum
@@ -278,12 +283,12 @@ invariantRM10MembershipChanged args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 invariantRM11CAChanged :: ValidArgs -> Property
 invariantRM11CAChanged args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \_ _ ctx -> do
     newCA <- arbitrary `suchThat` (/= resignMembershipCA)
     let newDatum =
           ColdLockDatum
@@ -309,7 +314,7 @@ invariantRM11CAChanged args@ValidArgs{..} =
             }
     pure $
       counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT resignMembershipColdCredential datum redeemer ctx'
+        coldNFTScript coldNFT resignMembershipColdCredential ctx'
           === False
 
 forAllValidScriptContexts
@@ -318,8 +323,9 @@ forAllValidScriptContexts
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f inDatum $ ResignMembership resignMembershipResignee
+  forAllShrink gen shrink' $ f inDatum redeemer
   where
+    redeemer = ResignMembership resignMembershipResignee
     gen = do
       additionalInputs <-
         listOf $ arbitrary `suchThat` ((/= resignMembershipScriptRef) . txInInfoOutRef)
@@ -349,11 +355,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending resignMembershipScriptRef
+      let redeemer' = Redeemer $ toBuiltinData redeemer
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript resignMembershipScriptRef $
+            Just $
+              Datum $
+                toBuiltinData inDatum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

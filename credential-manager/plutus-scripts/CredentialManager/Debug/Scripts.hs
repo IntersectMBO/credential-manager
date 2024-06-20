@@ -1,12 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+
+{-# HLINT ignore "Unused LANGUAGE pragma" #-}
 
 module CredentialManager.Debug.Scripts where
 
-import CredentialManager.Scripts (wrapFiveArgs, wrapSixArgs, wrapThreeArgs)
 import CredentialManager.Scripts.ColdCommittee (coldCommitteeScript)
 import CredentialManager.Scripts.ColdNFT (coldNFTScript)
+import CredentialManager.Scripts.Common
 import CredentialManager.Scripts.HotCommittee (hotCommitteeScript)
 import CredentialManager.Scripts.HotNFT (hotNFTScript)
 import PlutusLedgerApi.V1.Value (AssetClass)
@@ -16,7 +19,6 @@ import PlutusLedgerApi.V3 (
  )
 import PlutusTx (
   CompiledCode,
-  ToData (..),
   compile,
   liftCodeDef,
   unsafeApplyCode,
@@ -24,43 +26,41 @@ import PlutusTx (
 import PlutusTx.Prelude
 
 coldCommittee
-  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinUnit)
 coldCommittee =
-  unsafeApplyCode $$(compile [||wrapThreeArgs coldCommitteeScript||])
+  unsafeApplyCode $$(compile [||wrapTwoArgs coldCommitteeScript||])
     . liftCodeDef
-    . toBuiltinData
 
 hotCommittee
-  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinUnit)
 hotCommittee =
-  unsafeApplyCode $$(compile [||wrapThreeArgs hotCommitteeScript||])
+  unsafeApplyCode $$(compile [||wrapTwoArgs hotCommitteeScript||])
     . liftCodeDef
-    . toBuiltinData
 
 coldNFT
   :: AssetClass
   -> ColdCommitteeCredential
-  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+  -> CompiledCode (BuiltinData -> BuiltinUnit)
 coldNFT coldAssetClass coldCred =
   unsafeApplyCode
     ( unsafeApplyCode
-        $$(compile [||wrapFiveArgs coldNFTScript||])
-        (liftCodeDef (toBuiltinData coldAssetClass))
+        $$(compile [||wrapThreeArgs coldNFTScript||])
+        (liftCodeDef coldAssetClass)
     )
-    (liftCodeDef (toBuiltinData coldCred))
+    (liftCodeDef coldCred)
 
 hotNFT
   :: AssetClass
   -> AssetClass
   -> HotCommitteeCredential
-  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+  -> CompiledCode (BuiltinData -> BuiltinUnit)
 hotNFT coldAssetClass hotAssetClass hotCred =
   unsafeApplyCode
     ( unsafeApplyCode
         ( unsafeApplyCode
-            $$(compile [||wrapSixArgs hotNFTScript||])
-            (liftCodeDef (toBuiltinData coldAssetClass))
+            $$(compile [||wrapFourArgs hotNFTScript||])
+            (liftCodeDef coldAssetClass)
         )
-        (liftCodeDef (toBuiltinData hotAssetClass))
+        (liftCodeDef hotAssetClass)
     )
-    (liftCodeDef (toBuiltinData hotCred))
+    (liftCodeDef hotCred)

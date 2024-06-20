@@ -26,9 +26,12 @@ import PlutusLedgerApi.V3 (
   Map,
   OutputDatum (..),
   PubKeyHash,
-  ScriptPurpose (..),
+  Redeemer (..),
+  ScriptContext (..),
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   Voter (..),
  )
@@ -45,7 +48,7 @@ spec = do
     prop "onlyValid => valid" $
       forAll (importanceSampleScriptArgs True) \args@ScriptArgs{..} ->
         forAllScriptContexts True args $
-          hotNFTScript coldNFT hotNFT hotCredential datum redeemer
+          hotNFTScript coldNFT hotNFT hotCredential
   prop "Invariant 1: Fails if not spending" invariant1BadPurpose
   prop
     "Invariant 2: Valid transitions preserve address"
@@ -59,7 +62,7 @@ invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
   forAllScriptContexts False args \ctx ->
     classify
-      (hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx)
+      (hotNFTScript coldNFT hotNFT hotCredential ctx)
       "Valid"
       . label case redeemer of
         Vote -> "Vote"
@@ -67,9 +70,9 @@ invariant1BadPurpose args@ScriptArgs{..} =
         RotateHot -> "RotateHot"
         BurnHot -> "BurnHot"
         UpgradeHot _ -> "BurnHot"
-      $ forAllShrink genNonSpending shrink \purpose ->
-        let ctx' = ctx{scriptContextPurpose = purpose}
-         in hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx' === False
+      $ forAllShrink genNonSpending shrink \scriptInfo ->
+        let ctx' = ctx{scriptContextScriptInfo = scriptInfo}
+         in hotNFTScript coldNFT hotNFT hotCredential ctx' === False
 
 invariant2AddressPreservation :: ScriptArgs -> Property
 invariant2AddressPreservation args@ScriptArgs{..} =
@@ -90,7 +93,7 @@ forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> HotLockDatum -> prop) -> Property
 forAllValidTransitions args@ScriptArgs{..} f =
   forAllScriptContexts False args \ctx ->
-    hotNFTScript coldNFT hotNFT hotCredential datum redeemer ctx ==>
+    hotNFTScript coldNFT hotNFT hotCredential ctx ==>
       case redeemer of
         BurnHot -> discard -- unlock is not a transition - it is a terminus
         _ -> case scriptOutput of
@@ -275,12 +278,19 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      purpose <- importanceSampleArbitrary onlyValid $ pure $ Spending scriptInputRef
-      pure $ ScriptContext txInfo purpose
+      scriptInfo <-
+        importanceSampleArbitrary onlyValid $
+          pure $
+            SpendingScript scriptInputRef $
+              Just $
+                Datum $
+                  toBuiltinData datum
+      pure $ ScriptContext txInfo (Redeemer $ toBuiltinData redeemer) scriptInfo
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]

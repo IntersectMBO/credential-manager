@@ -85,18 +85,21 @@ burnScript
 burnScript input symbol mintedTokens TxInfo{..} =
   checkInputs txInfoInputs
   where
-    checkInputs [] = traceError "Burn input not found"
+    checkInputs [] = trace "Burn input not found" False
     checkInputs (TxInInfo ref TxOut{..} : inputs)
       | ref == input =
-          traceIfFalse
-            "Incorrect tokens burned"
-            (mintedTokens == fmap negate (extractTokens txOutValue))
+          traceIfFalse "Incorrect tokens burned" $ checkBurn txOutValue
       | otherwise = checkInputs inputs
 
-    extractTokens :: Value -> Map TokenName Integer
-    extractTokens (Value value) = case AMap.lookup symbol value of
-      Nothing -> traceError "Specified input does not contain a token to burn"
-      Just tokens -> tokens
+    checkBurn :: Value -> Bool
+    checkBurn (Value value) = case AMap.lookup symbol value of
+      Nothing -> trace "Specified input does not contain burned policy ID" False
+      Just tokens -> all (uncurry isBurned) $ AMap.toList tokens
+
+    isBurned :: TokenName -> Integer -> Bool
+    isBurned name q = case AMap.lookup name mintedTokens of
+      Nothing -> trace "Token not burned" False
+      Just q' -> traceIfFalse "Incorrect quantity burned" $ q == -q'
 
 {-# INLINEABLE mintScript #-}
 mintScript

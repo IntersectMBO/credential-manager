@@ -49,7 +49,6 @@ import qualified PlutusTx.IsData as PlutusTx
 import qualified PlutusTx.Lift as PlutusTx
 import qualified PlutusTx.Prelude as PlutusTx
 import qualified PlutusTx.Show as PlutusTx
-import Prettyprinter (Pretty)
 
 -- | Redeemer type for the minting validator
 data MintingRedeemer
@@ -70,7 +69,7 @@ newtype CertificateHash = CertificateHash {unCertificateHash :: PV3.BuiltinByteS
     , PlutusTx.FromData
     , PlutusTx.UnsafeFromData
     )
-  deriving (IsString, Show, Pretty) via PV3.LedgerBytes
+  deriving (IsString, Show) via PV3.LedgerBytes
 
 -- | Represents a commitment to an X.509 certificate. Associates the hash of a
 -- public key identified by the subject of a certificate with the hash of that

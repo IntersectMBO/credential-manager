@@ -1,25 +1,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+
+{-# HLINT ignore "Unused LANGUAGE pragma" #-}
 
 module CredentialManager.ScriptsV2 where
 
+import CredentialManager.Scripts.Common
 import CredentialManager.Scripts.Minting (coldMintingScript, hotMintingScript)
-import PlutusTx (CompiledCode, UnsafeFromData (..), compile)
+import PlutusTx (CompiledCode, compile)
 import PlutusTx.Prelude
 
-{-# INLINEABLE wrapTwoArgs #-}
-wrapTwoArgs
-  :: (UnsafeFromData a, UnsafeFromData b)
-  => (a -> b -> Bool)
-  -> BuiltinData
-  -> BuiltinData
-  -> ()
-wrapTwoArgs f a ctx =
-  check $ f (unsafeFromBuiltinData a) (unsafeFromBuiltinData ctx)
+coldMinting :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)
+coldMinting = $$(compile [||wrapTwoArgsV2 coldMintingScript||])
 
-coldMinting :: CompiledCode (BuiltinData -> BuiltinData -> ())
-coldMinting = $$(compile [||wrapTwoArgs coldMintingScript||])
-
-hotMinting :: CompiledCode (BuiltinData -> BuiltinData -> ())
-hotMinting = $$(compile [||wrapTwoArgs hotMintingScript||])
+hotMinting :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)
+hotMinting = $$(compile [||wrapTwoArgsV2 hotMintingScript||])
