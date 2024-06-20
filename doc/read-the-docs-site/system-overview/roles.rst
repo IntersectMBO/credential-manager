@@ -20,7 +20,7 @@ There are three types of user roles in the system, each with distinct responsibi
 * voting role.
 
 Membership role controls the cold credential 
----------------
+--------------------------------------------
 
 The membership role collectively controls the cold credential. 
 They are able to perform the following actions:
@@ -35,7 +35,7 @@ As such, it is imperative that this responsibility be entrusted to individuals w
 If they lack these qualifications, they SHOULD entrust management of their keys to a qualified key custodian.
 
 Delegation role controls the hot credential 
----------------
+-------------------------------------------
 
 The delegation role collectively controls the hot credential. 
 They are able to perform the following actions:
@@ -50,7 +50,7 @@ They are also indirectly capable of authorizing any action the voting roles can 
 The delegation role also has a significant responsibility to safeguard their credentials; however, they are supervised by the membership role, so there is more of a safety net in place for this role compared with the membership role.
 
 Voting role authorizes votes
------------
+----------------------------
 
 The voting role authorizes votes. 
 This is the main working group in the system --- they are the ones with the responsibility to deliberate and decide how to vote on governance actions, write and publish rationale documents, and coordinate with the orchestrator to publish votes. 
