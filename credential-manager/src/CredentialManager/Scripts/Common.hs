@@ -76,25 +76,6 @@ findOutputsByCredential ownCredential =
   filter \(TxOut (Address outCredential _) _ _ _) ->
     ownCredential == outCredential
 
-{-# INLINEABLE checkResignation #-}
-checkResignation
-  :: [PubKeyHash]
-  -> Identity
-  -> [Identity]
-  -> [Identity]
-  -> Bool
-checkResignation signatories resignee oldGroup newGroup =
-  traceIfFalse "resignee is not a group member" checkGroupMembership
-    && traceIfFalse "resignee has not signed transaction" checkSignature
-    && traceIfFalse "resignee is last member of the group" checkNonEmptyOutputGroup
-    && traceIfFalse "unexpected group in output" checkOutputGroup
-  where
-    checkGroupMembership = resignee `elem` oldGroup
-    checkSignature = pubKeyHash resignee `elem` signatories
-    expectedNewGroup = filter (/= resignee) oldGroup
-    checkNonEmptyOutputGroup = not $ null expectedNewGroup
-    checkOutputGroup = newGroup == expectedNewGroup
-
 {-# INLINEABLE checkSpendingTx #-}
 checkSpendingTx
   :: (FromData datum, FromData redeemer)
@@ -140,16 +121,41 @@ checkContinuingTx addrIn valueIn outputs checkDatum =
     [] -> trace "No continuing output found" False
     _ -> trace "Multiple continuing outputs found" False
 
+{-# INLINEABLE checkResignation #-}
+checkResignation
+  :: [PubKeyHash]
+  -> Identity
+  -> (a -> [Identity])
+  -> a
+  -> a
+  -> Bool
+checkResignation signatories resignee getGroup datumIn datumOut =
+  traceIfFalse "resignee is not a group member" checkGroupMembership
+    && traceIfFalse "resignee has not signed transaction" checkSignature
+    && traceIfFalse "resignee is last member of the group" checkNonEmptyOutputGroup
+    && traceIfFalse "unexpected group in output" checkOutputGroup
+  where
+    oldGroup = getGroup datumIn
+    newGroup = getGroup datumOut
+    checkGroupMembership = resignee `elem` oldGroup
+    checkSignature = pubKeyHash resignee `elem` signatories
+    expectedNewGroup = filter (/= resignee) oldGroup
+    checkNonEmptyOutputGroup = not $ null expectedNewGroup
+    checkOutputGroup = newGroup == expectedNewGroup
+
 {-# INLINEABLE checkRotation #-}
 checkRotation
   :: [PubKeyHash]
-  -> [Identity]
-  -> [Identity]
+  -> (a -> [Identity])
+  -> a
+  -> a
   -> Bool
-checkRotation signatories oldGroup newGroup =
+checkRotation signatories getGroup datumIn datumOut =
   traceIfFalse "New group empty" checkNonEmptyOutputGroup
     && traceIfFalse "Added user signatures missing" checkSignatures
   where
+    oldGroup = getGroup datumIn
+    newGroup = getGroup datumOut
     checkNonEmptyOutputGroup = not $ null newGroup
     checkSignatures = all signedIfNew newGroup
     signedIfNew i@Identity{..} =

@@ -16,12 +16,10 @@ module CredentialManager.Scripts.ColdNFT where
 import CredentialManager.Api (
   ColdLockDatum (..),
   ColdLockRedeemer (..),
-  Identity,
  )
 import CredentialManager.Scripts.Common
 import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
-  PubKeyHash,
   ScriptContext,
   TxCert (..),
   TxInfo (..),
@@ -41,85 +39,53 @@ coldNFTScript
 coldNFTScript coldNFT coldCred =
   checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
     AuthorizeHot hotCred ->
-      checkContinuingTx inAddress inValue txInfoOutputs
-        $ checkCertifyingTx
-          delegationUsers
-          (TxCertAuthHotCommittee coldCred hotCred)
-          txInfoTxCerts
-          txInfoSignatories
-          datumIn
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+          && checkMultiSig (delegationUsers datumIn) txInfoSignatories
+          && traceIfFalse "Unexpected certificates" (txInfoTxCerts == [expectedCert])
+      where
+        expectedCert = TxCertAuthHotCommittee coldCred hotCred
     ResignDelegation user ->
-      checkContinuingTx inAddress inValue txInfoOutputs
-        $ checkDatumModificationTx
-          txInfoTxCerts
-          datumIn
-          \membership membership' delegation delegation' ->
-            traceIfFalse "Membership not conserved" (membership == membership')
-              && checkResignation txInfoSignatories user delegation delegation'
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        traceIfFalse
+          "CA not conserved"
+          (certificateAuthority datumIn == certificateAuthority datumOut)
+          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+          && traceIfFalse
+            "Membership not conserved"
+            (membershipUsers datumIn == membershipUsers datumOut)
+          && checkResignation txInfoSignatories user delegationUsers datumIn datumOut
     ResignMembership user ->
-      checkContinuingTx inAddress inValue txInfoOutputs
-        $ checkDatumModificationTx
-          txInfoTxCerts
-          datumIn
-          \membership membership' delegation delegation' ->
-            traceIfFalse "Delegation not conserved" (delegation == delegation')
-              && checkResignation txInfoSignatories user membership membership'
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        traceIfFalse
+          "CA not conserved"
+          (certificateAuthority datumIn == certificateAuthority datumOut)
+          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+          && traceIfFalse
+            "Delegation not conserved"
+            (delegationUsers datumIn == delegationUsers datumOut)
+          && checkResignation txInfoSignatories user membershipUsers datumIn datumOut
     ResignCold ->
-      checkContinuingTx inAddress inValue txInfoOutputs
-        $ checkCertifyingTx
-          membershipUsers
-          (TxCertResignColdCommittee coldCred)
-          txInfoTxCerts
-          txInfoSignatories
-          datumIn
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+          && checkMultiSig (membershipUsers datumIn) txInfoSignatories
+          && traceIfFalse "Unexpected certificates" (txInfoTxCerts == [expectedCert])
+      where
+        expectedCert = TxCertResignColdCommittee coldCred
     RotateCold ->
-      checkContinuingTx inAddress inValue txInfoOutputs
-        $ checkDatumModificationTx
-          txInfoTxCerts
-          datumIn
-          \membership membership' delegation delegation' ->
-            checkMultiSig membership txInfoSignatories
-              && checkRotation txInfoSignatories membership membership'
-              && checkRotation txInfoSignatories delegation delegation'
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        traceIfFalse
+          "CA not conserved"
+          (certificateAuthority datumIn == certificateAuthority datumOut)
+          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+          && checkMultiSig (membershipUsers datumIn) txInfoSignatories
+          && checkRotation txInfoSignatories membershipUsers datumIn datumOut
+          && checkRotation txInfoSignatories delegationUsers datumIn datumOut
     BurnCold ->
-      checkTerminalTx txInfoTxCerts txInfoSignatories datumIn
+      checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
         && checkBurn coldNFT txInfoOutputs
     UpgradeCold destination ->
-      checkTerminalTx txInfoTxCerts txInfoSignatories datumIn
+      checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
         && checkUpgrade coldNFT destination txInfoOutputs
-
-{-# INLINEABLE checkCertifyingTx #-}
-checkCertifyingTx
-  :: (ColdLockDatum -> [Identity])
-  -> TxCert
-  -> [TxCert]
-  -> [PubKeyHash]
-  -> ColdLockDatum
-  -> ColdLockDatum
-  -> Bool
-checkCertifyingTx authGroup expectedCert certs signatories datumIn datumOut =
-  traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-    && checkMultiSig (authGroup datumIn) signatories
-    && traceIfFalse "Unexpected certificates" (certs == [expectedCert])
-
-{-# INLINEABLE checkDatumModificationTx #-}
-checkDatumModificationTx
-  :: [TxCert]
-  -> ColdLockDatum
-  -> ([Identity] -> [Identity] -> [Identity] -> [Identity] -> Bool)
-  -> ColdLockDatum
-  -> Bool
-checkDatumModificationTx
-  certs
-  (ColdLockDatum ca membership delegation)
-  checkDiff
-  (ColdLockDatum ca' membership' delegation') =
-    traceIfFalse "CA not conserved" (ca == ca')
-      && traceIfFalse "Tx publishes certificates" (null certs)
-      && checkDiff membership membership' delegation delegation'
-
-{-# INLINEABLE checkTerminalTx #-}
-checkTerminalTx :: [TxCert] -> [PubKeyHash] -> ColdLockDatum -> Bool
-checkTerminalTx certs signatories (ColdLockDatum _ membership _) =
-  checkMultiSig membership signatories
-    && traceIfFalse "Tx publishes certificates" (null certs)
