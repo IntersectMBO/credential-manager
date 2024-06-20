@@ -5,8 +5,8 @@ Roles
 
 The system recognizes and distinguishes between two types of roles: 
 
-1. User roles, which are part of the X.509 certificate hierarchy 
-2. Operational roles, which are not.
+1. user roles, which are part of the X.509 certificate hierarchy 
+2. operational roles, which are not.
 
 User roles
 ==========
@@ -23,7 +23,7 @@ Membership role controls the cold credential
 --------------------------------------------
 
 The membership role collectively controls the cold credential. 
-They can perform the following actions:
+They are able to perform the following actions:
 
 * Resign from the committee
 * Rotate the membership and delegation keys in the cold NFT datum
@@ -31,14 +31,15 @@ They can perform the following actions:
 
 They are also indirectly capable of authorizing any action the delegation and voting roles can authorize, because they can decide who is in the delegation role, which in turn has the power to decide who is in the voting role.
 
-As such, this responsibility must be entrusted to individuals who are trusted by the organization and who have the knowledge, skills, and equipment necessary to safeguard their keys securely. 
+As such, it is imperative that this responsibility be entrusted to individuals who are trusted by the organization, and who have the knowledge, skills, and equipment necessary to securely safeguard their keys. 
+
 If they lack these qualifications, they SHOULD entrust management of their keys to a qualified key custodian.
 
 Delegation role controls the hot credential 
 -------------------------------------------
 
 The delegation role collectively controls the hot credential. 
-They can perform the following actions:
+They are able to perform the following actions:
 
 * Authorize new hot credentials on behalf of the cold credential
 * Resign from the delegation role
@@ -53,8 +54,8 @@ Voting role authorizes votes
 ----------------------------
 
 The voting role authorizes votes. 
-This is the main working group in the system. They are responsible for deliberating and deciding how to vote on governance actions, writing and publishing rationale documents, and coordinating with the orchestrator to publish votes. 
-They can perform the following actions:
+This is the main working group in the system --- they are the ones with the responsibility to deliberate and decide how to vote on governance actions, write and publish rationale documents, and coordinate with the orchestrator to publish votes. 
+They are able to perform the following actions:
 
 * Vote on governance actions
 * Resign from the voting role.
@@ -63,7 +64,7 @@ Operational roles
 =================
 
 Operational roles are not explicitly included in the organization's certificate hierarchy. 
-They are implicit roles that describe tasks that the organization must manage, but the system does not explicitly keep track of them the way it does with the user roles.
+They are implicit roles that describe tasks which must be managed by the organization somehow, but the system does not explicitly keep track of them the way it does with the user roles.
 
 .. _head_of_security:
 
