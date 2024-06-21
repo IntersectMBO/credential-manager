@@ -367,11 +367,11 @@ PlutusTx.makeLift ''HotLockRedeemer
 
 PlutusTx.makeIsDataIndexed
   ''HotLockRedeemer
-  [ ('Vote, 0)
-  , ('ResignVoting, 1)
-  , ('RotateHot, 2)
-  , ('BurnHot, 3)
-  , ('UpgradeHot, 4)
+  [ ('Vote, 7)
+  , ('ResignVoting, 8)
+  , ('RotateHot, 9)
+  , ('BurnHot, 10)
+  , ('UpgradeHot, 11)
   ]
 
 PlutusTx.makeIsDataIndexed
