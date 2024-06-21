@@ -21,21 +21,29 @@ import PlutusLedgerApi.V2
 import qualified PlutusTx.AssocMap as AMap
 import PlutusTx.Prelude
 
+-- | A version of the minting script that performs no datum checks on the
+-- output.
 {-# INLINEABLE genericMintingScript #-}
 genericMintingScript :: MintingRedeemer -> ScriptContext -> Bool
-genericMintingScript = mintingScript $ const True
+genericMintingScript = mintingScript Nothing
 
+-- | A version of the minting script that looks for a cold NFT lock script
+-- datum in the output and validates it.
 {-# INLINEABLE coldMintingScript #-}
 coldMintingScript :: MintingRedeemer -> ScriptContext -> Bool
-coldMintingScript = mintingScript validateColdLockDatum
+coldMintingScript = mintingScript $ Just validateColdLockDatum
 
+-- | A version of the minting script that looks for a hot NFT lock script
+-- datum in the output and validates it.
 {-# INLINEABLE hotMintingScript #-}
 hotMintingScript :: MintingRedeemer -> ScriptContext -> Bool
-hotMintingScript = mintingScript validateHotLockDatum
+hotMintingScript = mintingScript $ Just validateHotLockDatum
 
+-- | A minting script that can mint one NFT with a unique token name and send
+-- it to a script, with an optional datum check function.
 {-# INLINEABLE mintingScript #-}
 mintingScript
-  :: (BuiltinData -> Bool) -> MintingRedeemer -> ScriptContext -> Bool
+  :: Maybe (BuiltinData -> Bool) -> MintingRedeemer -> ScriptContext -> Bool
 mintingScript validateDatum redeemer ScriptContext{..} = case scriptContextPurpose of
   Minting symbol -> case AMap.lookup symbol (getValue txInfoMint) of
     Nothing -> traceError "Transaction does not mint any tokens"
@@ -107,7 +115,7 @@ burnScript input symbol mintedTokens TxInfo{..} =
 
 {-# INLINEABLE mintScript #-}
 mintScript
-  :: (BuiltinData -> Bool)
+  :: Maybe (BuiltinData -> Bool)
   -> TxOutRef
   -> ScriptHash
   -> CurrencySymbol
@@ -126,7 +134,7 @@ mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
     checkOutputs (TxOut address value datum _ : outputs)
       | addressMatches address =
           checkOutputValue value
-            && checkOutputDatum datum
+            && maybe True (checkOutputDatum datum) validateDatum
             && not (any (addressMatches . txOutAddress) outputs)
       | otherwise = checkOutputs outputs
 
@@ -141,10 +149,9 @@ mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
         "Script output does not contain NFT"
         (valueOf value symbol tokenName == 1)
 
-    checkOutputDatum :: OutputDatum -> Bool
-    checkOutputDatum NoOutputDatum = traceError "Output datum missing"
-    checkOutputDatum OutputDatumHash{} = traceError "Output datum is a hash"
-    checkOutputDatum (OutputDatum (Datum datum)) = validateDatum datum
+    checkOutputDatum NoOutputDatum _ = traceError "Output datum missing"
+    checkOutputDatum OutputDatumHash{} _ = traceError "Output datum is a hash"
+    checkOutputDatum (OutputDatum (Datum datum)) f = f datum
 
     tokenName :: TokenName
     tokenName
