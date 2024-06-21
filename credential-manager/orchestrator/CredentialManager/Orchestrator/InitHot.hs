@@ -1,3 +1,5 @@
+{-# LANGUAGE RecursiveDo #-}
+
 module CredentialManager.Orchestrator.InitHot where
 
 import Cardano.Api (
@@ -8,18 +10,16 @@ import Cardano.Api (
   PlutusScriptV2,
   PlutusScriptV3,
   PlutusScriptVersion (..),
-  PolicyId,
+  PolicyId (PolicyId),
   Script,
   ScriptHash,
   SerialiseAsRawBytes (..),
   ShelleyAddr,
   StakeAddressReference,
   TxIn (..),
-  TxIx (..),
   makeShelleyAddress,
  )
 import Cardano.Api.Shelley (hashScript)
-import Control.Monad (when)
 import CredentialManager.Api (
   CertificateHash,
   HotLockDatum (..),
@@ -27,20 +27,22 @@ import CredentialManager.Api (
   MintingRedeemer (..),
  )
 import qualified CredentialManager.Debug.Scripts as Debug
-import qualified CredentialManager.Debug.ScriptsV2 as DebugV2
 import CredentialManager.Orchestrator.Common (serialiseScript, validateGroup)
+import CredentialManager.Orchestrator.InitMinting (
+  DatumCheck (..),
+  InitMintingInputs (..),
+  InitMintingOutputs (..),
+  initMinting,
+ )
+import qualified CredentialManager.Orchestrator.InitMinting as InitMinting
 import qualified CredentialManager.Scripts as Scripts
-import qualified CredentialManager.ScriptsV2 as ScriptsV2
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Internal as BS
+import Data.Bifunctor (Bifunctor (..))
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (
   AssetClass (..),
   CurrencySymbol (..),
   TokenName (..),
  )
-import PlutusLedgerApi.V2 (TxId (TxId), TxOutRef (..))
-import qualified PlutusLedgerApi.V2 as PV2
 import PlutusLedgerApi.V3 (
   Credential (..),
   HotCommitteeCredential (..),
@@ -82,35 +84,18 @@ data InitHotError
   deriving (Show, Eq, Generic)
 
 initHot :: InitHotInputs -> Either InitHotError InitHotOutputs
-initHot InitHotInputs{..} = do
-  validateGroup
-    VotingTooSmall
-    DuplicateVotingCertificates
-    DuplicateVotingPubKeyHash
-    votingUsers
-  let TxIn txId (TxIx txIx) = seedInput
-  let txIdBytes = serialiseToRawBytes txId
-  when (txIx >= 256) $ Left SeedTxIxTooLarge
-  let txIxByte = fromIntegral txIx
-  let tokenName = BS.drop 4 txIdBytes <> BS.pack [BS.c2w '#', txIxByte]
-  let hotNFTAssetName = AssetName tokenName
-  let mintingScript =
-        serialiseScript
-          PlutusScriptV2
-          if debug
-            then DebugV2.hotMinting
-            else ScriptsV2.hotMinting
-  let mintingScriptHash = hashScript mintingScript
-  let coldNFTAssetClass =
-        curry
-          AssetClass
-          (CurrencySymbol . toBuiltin $ serialiseToRawBytes coldNFTPolicyId)
-          (TokenName $ toBuiltin $ serialiseToRawBytes coldNFTAssetName)
+initHot InitHotInputs{..} = mdo
+  let destinationScript = nftScriptHash
+  let datumCheck = CheckHot
+  InitMintingOutputs{..} <-
+    first wrapMintError $ initMinting InitMintingInputs{..}
+  let nftPolicyId = PolicyId mintingScriptHash
+  let nftTokenName = assetName
   let hotAssetClass =
         curry
           AssetClass
-          (CurrencySymbol . toBuiltin $ serialiseToRawBytes mintingScriptHash)
-          (TokenName $ toBuiltin tokenName)
+          (CurrencySymbol . toBuiltin $ serialiseToRawBytes nftPolicyId)
+          (TokenName $ toBuiltin $ serialiseToRawBytes nftTokenName)
   let credentialScript =
         serialiseScript
           PlutusScriptV3
@@ -118,6 +103,16 @@ initHot InitHotInputs{..} = do
             then Debug.hotCommittee hotAssetClass
             else Scripts.hotCommittee hotAssetClass
   let credentialScriptHash = hashScript credentialScript
+  validateGroup
+    VotingTooSmall
+    DuplicateVotingCertificates
+    DuplicateVotingPubKeyHash
+    votingUsers
+  let coldNFTAssetClass =
+        curry
+          AssetClass
+          (CurrencySymbol . toBuiltin $ serialiseToRawBytes coldNFTPolicyId)
+          (TokenName $ toBuiltin $ serialiseToRawBytes coldNFTAssetName)
   let mkNFTScript
         | debug = Debug.hotNFT
         | otherwise = Scripts.hotNFT
@@ -135,9 +130,8 @@ initHot InitHotInputs{..} = do
   let paymentCredential = PaymentCredentialByScript nftScriptHash
   let nftScriptAddress = makeShelleyAddress networkId paymentCredential stakeAddress
   let nftDatum = HotLockDatum{..}
-  let txId' = TxId $ toBuiltin $ serialiseToRawBytes txId
-  let txIx' = fromIntegral txIx
-  let seedInput' = TxOutRef txId' txIx'
-  let nftScriptHash' = PV2.ScriptHash $ toBuiltin $ serialiseToRawBytes nftScriptHash
-  let mintingRedeemer = Mint seedInput' nftScriptHash'
+  let hotNFTAssetName = assetName
   pure InitHotOutputs{..}
+
+wrapMintError :: InitMinting.InitMintingError -> InitHotError
+wrapMintError InitMinting.SeedTxIxTooLarge = SeedTxIxTooLarge

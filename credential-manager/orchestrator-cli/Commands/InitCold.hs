@@ -4,15 +4,17 @@ module Commands.InitCold (
   runInitColdCommand,
 ) where
 
-import Cardano.Api (NetworkId, StakeAddressReference (..), TxIn)
+import Cardano.Api (AssetName, NetworkId, PolicyId, StakeAddressReference (..))
 import Commands.Common (
   StakeCredentialFile,
+  assetNameParser,
   checkGroupSize,
   debugParser,
   delegationCertParser,
   membershipCertParser,
   networkIdParser,
   outDirParser,
+  policyIdParser,
   readIdentityFromPEMFile',
   readStakeAddressFile,
   runCommand,
@@ -23,11 +25,14 @@ import Commands.Common (
   writePlutusDataToFile,
   writeScriptToFile,
  )
-import Control.Applicative (Alternative (..), optional)
+import Control.Applicative (Alternative (..), asum, optional)
 import CredentialManager.Orchestrator.InitCold
-import Data.Foldable (Foldable (..))
+import CredentialManager.Orchestrator.InitMinting (InitMintingOutputs (..))
+import Data.Foldable (Foldable (..), for_)
 import Options.Applicative (
   InfoMod,
+  Mod,
+  OptionFields,
   Parser,
   ParserInfo,
   action,
@@ -40,7 +45,7 @@ import Options.Applicative (
  )
 
 data InitColdCommand = InitColdCommand
-  { seedInput :: TxIn
+  { nftInfo :: NFTInfo
   , networkId :: NetworkId
   , caCertFile :: FilePath
   , membershipCertFiles :: [FilePath]
@@ -59,7 +64,7 @@ initColdCommandParser = info parser description
     parser :: Parser InitColdCommand
     parser =
       InitColdCommand
-        <$> seedInputParser
+        <$> nftInfoParser
         <*> networkIdParser
         <*> caCertFileParser
         <*> some membershipCertParser
@@ -67,6 +72,29 @@ initColdCommandParser = info parser description
         <*> optional stakeCredentialFileParser
         <*> debugParser
         <*> outDirParser
+
+nftInfoParser :: Parser NFTInfo
+nftInfoParser =
+  asum
+    [ NFTInfoMint <$> seedInputParser
+    , NFTInfoRaw
+        <$> policyIdParser policyIdInfo
+        <*> assetNameParser assetNameInfo
+    ]
+
+policyIdInfo :: Mod OptionFields PolicyId
+policyIdInfo =
+  fold
+    [ long "policy-id"
+    , help "The minting policy ID of the NFT to use."
+    ]
+
+assetNameInfo :: Mod OptionFields AssetName
+assetNameInfo =
+  fold
+    [ long "token-name"
+    , help "The token name of the NFT to use."
+    ]
 
 caCertFileParser :: Parser FilePath
 caCertFileParser =
@@ -93,6 +121,7 @@ runInitColdCommand InitColdCommand{..} = do
   let inputs = InitColdInputs{..}
   InitColdOutputs{..} <- runCommand initCold inputs \case
     SeedTxIxTooLarge -> "The seed input has too large of an index. It must be less than 256."
+    NonMintOnMainnet -> "Refusing to use arbitrary NFT on mainnet."
     MembershipTooSmall -> "At least 3 membership users are required"
     DuplicateMembershipCertificates cert ->
       "Multiple membership users have the same certificate hash " <> show cert
@@ -103,10 +132,11 @@ runInitColdCommand InitColdCommand{..} = do
       "Multiple delegation users have the same certificate hash " <> show cert
     DuplicateDelegationPubKeyHash key ->
       "Multiple delegation users have the same public key hash " <> show key
-  writeScriptToFile outDir "minting.plutus" mintingScript
-  writeHexBytesToFile outDir "minting.plutus.hash" mintingScriptHash
-  writePlutusDataToFile outDir "mint.redeemer.json" mintingRedeemer
-  writeHexBytesToFile outDir "nft-token-name" coldNFTAssetName
+  for_ mintingOutputs \InitMintingOutputs{..} -> do
+    writeScriptToFile outDir "minting.plutus" mintingScript
+    writeHexBytesToFile outDir "minting.plutus.hash" mintingScriptHash
+    writePlutusDataToFile outDir "mint.redeemer.json" mintingRedeemer
+    writeHexBytesToFile outDir "nft-token-name" assetName
   writeScriptToFile outDir "credential.plutus" credentialScript
   writeHexBytesToFile outDir "credential.plutus.hash" credentialScriptHash
   writeScriptToFile outDir "nft.plutus" nftScript
