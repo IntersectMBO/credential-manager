@@ -113,7 +113,7 @@ Check the balance with the command
    $ get-orchestrator-utxo
                            TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b     0        600000000000 lovelace + TxOutDatumNone
+   af00a0caf9924ae9d6a77727c914d8d370d4c0b5f888bd04221392a54094d363     0        600000000000 lovelace + TxOutDatumNone
 
 Or alternatively to have it output JSON:
 
@@ -121,8 +121,8 @@ Or alternatively to have it output JSON:
 
    $ get-orchestrator-utxo --output-json
    {
-       "256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b#0": {
-           "address": "addr_test1vpwg5qy3ku0dfhu0m72nmp79aklvm32gr73xzztnzr35tcgnn0m79",
+       "af00a0caf9924ae9d6a77727c914d8d370d4c0b5f888bd04221392a54094d363#0": {
+           "address": "addr_test1vpqlddqywf5vcypagugpgvp5x8lslgw8e0ngze7a69zuuasrm5utw",
            "datum": null,
            "datumhash": null,
            "inlineDatum": null,

@@ -3,8 +3,7 @@
 Resigning from the Voting Group
 ===================================
 
-Members of the voting group are able to voluntarily resign their group
-membership, just like delegation group members.
+Members of the voting group are able to voluntarily resign their group membership.
 
 Step 1: Creating the assets
 ---------------------------
@@ -15,10 +14,11 @@ transaction assets to remove them, you can use the following commands:
 .. code-block:: bash
 
    $ fetch-hot-nft-utxo
-   $ orchestrator-cli hot-nft resign-voting \
+   $ orchestrator-cli resign-voting \
      --utxo-file hot-nft.utxo \
      --voting-cert example-certificates/children/child-7/child-7-cert.pem \
      --out-dir resign-child-7
+   WARNING: delegation group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
 
 As before, let's see what assets were prepared:
 
@@ -33,7 +33,7 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
 .. code-block:: bash
 
-   $ diff <(jq '.inlineDatum' < hot-nft.utxo) <(jq '.' < resign-child-7/datum.json)
+   $ diff <(jq 'to_entries | .[0].value.inlineDatum' < hot-nft.utxo) <(jq '.' < resign-child-7/datum.json)
    7,17d6
    <           "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
    <         },
@@ -56,7 +56,7 @@ this user.
 
    $ cat resign-child-7/redeemer.json
    {
-       "constructor": 1,
+       "constructor": 8,
        "fields": [
            {
                "constructor": 0,
@@ -80,8 +80,8 @@ Step 2: Create the Transaction
    $ cardano-cli conway transaction build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
-      --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-script-file hot-nft/script.plutus \
+      --tx-in $(cardano-cli query utxo --address $(cat init-hot/nft.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in-script-file init-hot/nft.plutus \
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file resign-child-7/redeemer.json \
       --tx-out "$(cat resign-child-7/value)" \
@@ -89,7 +89,7 @@ Step 2: Create the Transaction
       --required-signer-hash $(cat example-certificates/children/child-7/child-7.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-7/body.json
-   Estimated transaction fee: Coin 410106
+   Estimated transaction fee: Coin 486785
 
 Step 3. Send the Transaction to The Resignee
 --------------------------------------------
@@ -125,10 +125,10 @@ Step 5. Verify the voting member is removed
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json
+   $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json
    {
-       "b98edd2dd6bc3d8cc8c3a73361bdcbda41a985a6b99f36a40a8e30e7303a29c5#0": {
-           "address": "addr_test1wqgvl76s9anu0hnnh07unfrzkrx27k4yu0vthn85w8agwxqteatvx",
+       "86cb189a24ba03931d3879e16172ec4ad6a14e9ac3c7a8d5b69c4bb272020af4#0": {
+           "address": "addr_test1wp62yszlxmqvy9xecnevt63sr4escyh55nz95s8zh2x6mdq8dx74g",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -159,8 +159,8 @@ Step 5. Verify the voting member is removed
            "inlineDatumhash": "20003d8b8a9526ab5daf6f9e31ef5f0ac8cfb97832d85492e49c8e1456424ade",
            "referenceScript": null,
            "value": {
-               "e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0": {
-                   "": 1
+               "76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3": {
+                   "5c94bfec2d9e8a0e0c536df3384e5001adf6d333216a2b546b6f043a2301": 1
                },
                "lovelace": 5000000
            }

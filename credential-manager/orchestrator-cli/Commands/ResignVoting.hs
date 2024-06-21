@@ -61,7 +61,7 @@ runResignVotingCommand ResignVotingCommand{..} = do
     EmptyUTxO -> "Script UTxO is empty"
     AmbiguousUTxO -> "Script UTxO has more than one output"
   let HotLockDatum{..} = outputDatum
-  checkGroupSize "delegation" votingUsers
+  checkGroupSize "voting" votingUsers
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

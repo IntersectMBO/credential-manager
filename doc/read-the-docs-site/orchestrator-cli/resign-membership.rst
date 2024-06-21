@@ -1,25 +1,24 @@
-.. _resign_delegation:
+.. _resign_membership:
 
-Resigning from the Delegation Group
+Resigning from the Membership Group
 ===================================
 
-Members of the delegation group are able to voluntarily resign their group
-membership.
+Members of the membership group are able to voluntarily resign their group membership.
 
 Step 1: Creating the assets
 ---------------------------
 
-Say ``child-6`` wants to resign from the delegation group. To build the
+Say ``child-1`` wants to resign from the membership group. To build the
 transaction assets to remove them, you can use the following commands:
 
 .. code-block:: bash
 
    $ fetch-cold-nft-utxo
-   $ orchestrator-cli resign-delegation \
+   $ orchestrator-cli resign-membership \
      --utxo-file cold-nft.utxo \
-     --delegation-cert example-certificates/children/child-6/child-6-cert.pem \
-     --out-dir resign-child-6
-   WARNING: delegation group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
+     --membership-cert example-certificates/children/child-1/child-1-cert.pem \
+     --out-dir resign-child-1
+   WARNING: membership group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
 
 We see the tool issue a warning that a 2-member group size allows one person to act unilaterally.
 In a real world situation, you would want to avoid these situations, but we can ignore it for now.
@@ -28,7 +27,7 @@ As before, let's see what assets were prepared:
 
 .. code-block:: bash
 
-   $ ls resign-child-6 -1
+   $ ls resign-child-1 -1
    datum.json
    redeemer.json
    value
@@ -37,38 +36,38 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
 .. code-block:: bash
 
-   $ diff <(jq 'to_entries | .[0].value.inlineDatum' < cold-nft.utxo) <(jq '.' < resign-child-6/datum.json)
-   75,85d74
+   $ diff <(jq 'to_entries | .[0].value.inlineDatum' < cold-nft.utxo) <(jq '.' < resign-child-1/datum.json)
+   21,31d20
+   <               "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+   <             },
+   <             {
+   <               "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+   <             }
+   <           ]
    <         },
    <         {
    <           "constructor": 0,
    <           "fields": [
    <             {
-   <               "bytes": "c530a8b72dd72e320e7f4883fcb98d0058e70efcf4e7e0871ce13eb7"
-   <             },
-   <             {
-   <               "bytes": "ce75748d37a55ef1faec7219708059479197965a5927a7f9901c6bc9707eeaa1"
-   <             }
-   <           ]
 
-In the datum, ``child-6`` has been removed, while the redeemer says to remove
+In the datum, ``child-1`` has been removed, while the redeemer says to remove
 this user.
 
 
 .. code-block:: bash
 
-   cat resign-child-6/redeemer.json
+   cat resign-child-1/redeemer.json
    {
-       "constructor": 2,
+       "constructor": 3,
        "fields": [
            {
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "c530a8b72dd72e320e7f4883fcb98d0058e70efcf4e7e0871ce13eb7"
+                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
                    },
                    {
-                       "bytes": "ce75748d37a55ef1faec7219708059479197965a5927a7f9901c6bc9707eeaa1"
+                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
                    }
                ]
            }
@@ -89,17 +88,13 @@ vote, the transaction is somewhat easier to build:
       --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
       --tx-in-script-file init-cold/nft.plutus \
       --tx-in-inline-datum-present \
-      --tx-in-redeemer-file resign-child-6/redeemer.json \
-      --tx-out "$(cat resign-child-6/value)" \
-      --tx-out-inline-datum-file resign-child-6/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-6/child-6.keyhash) \
+      --tx-in-redeemer-file resign-child-1/redeemer.json \
+      --tx-out "$(cat resign-child-1/value)" \
+      --tx-out-inline-datum-file resign-child-1/datum.json \
+      --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign-child-6/body.json
-   Estimated transaction fee: Coin 570455
-
-The only notable thing about this command compared with previous ones is that
-there is only one ``required-signer-hash``. The transaction must be signed by
-the resignee.
+      --out-file resign-child-1/body.json
+   Estimated transaction fee: Coin 562307
 
 Step 3. Send the Transaction to The Resignee
 --------------------------------------------
@@ -109,13 +104,13 @@ To build the transaction, we need to get a signature from the resignee.
 .. code-block:: bash
 
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-6/body.json \
-      --signing-key-file example-certificates/children/child-6/child-6.skey \
-      --out-file resign-child-6/child-6.witness
+      --tx-body-file resign-child-1/body.json \
+      --signing-key-file example-certificates/children/child-1/child-1.skey \
+      --out-file resign-child-1/child-1.witness
    $ cardano-cli conway transaction witness \
-      --tx-body-file resign-child-6/body.json \
+      --tx-body-file resign-child-1/body.json \
       --signing-key-file orchestrator.skey \
-      --out-file resign-child-6/orchestrator.witness
+      --out-file resign-child-1/orchestrator.witness
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -123,21 +118,21 @@ Step 4. Assemble and Submit the Transaction
 .. code-block:: bash
 
    $ cardano-cli conway transaction assemble \
-      --tx-body-file resign-child-6/body.json \
-      --witness-file resign-child-6/child-6.witness \
-      --witness-file resign-child-6/orchestrator.witness \
-      --out-file resign-child-6/tx.json
-   $ cardano-cli conway transaction submit --tx-file resign-child-6/tx.json
+      --tx-body-file resign-child-1/body.json \
+      --witness-file resign-child-1/child-1.witness \
+      --witness-file resign-child-1/orchestrator.witness \
+      --out-file resign-child-1/tx.json
+   $ cardano-cli conway transaction submit --tx-file resign-child-1/tx.json
    Transaction successfully submitted.
 
-Step 5. Verify the delegation member is removed
+Step 5. Verify the membership member is removed
 -----------------------------------------------
 
 .. code-block:: bash
 
    $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "05f65d7e59ac24ea7ac6dd5c3842d9155d985d4bbe712270acf0a9141c42d901#0": {
+       "880167c58ca05f2acab09bb3de42274380befe0eec6f6b20c52d3ae9ded18e5d#0": {
            "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
            "datum": null,
            "inlineDatum": {
@@ -156,17 +151,6 @@ Step 5. Verify the delegation member is removed
                    },
                    {
                        "list": [
-                           {
-                               "constructor": 0,
-                               "fields": [
-                                   {
-                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
-                                   },
-                                   {
-                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
-                                   }
-                               ]
-                           },
                            {
                                "constructor": 0,
                                "fields": [
@@ -219,7 +203,7 @@ Step 5. Verify the delegation member is removed
                    }
                ]
            },
-           "inlineDatumhash": "de77049711cf2b1401a6a5a75b8e92898dff36ad5d9089c79bb4b1f88328acac",
+           "inlineDatumhash": "d4635e4d07c21ca9caa709ce7338cdd6d6772928855dcb95f1aabc4e84e63bff",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {

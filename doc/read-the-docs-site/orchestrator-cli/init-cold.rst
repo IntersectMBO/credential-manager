@@ -5,16 +5,27 @@ Initializing the Cold Credential Scripts
 
 Before anything else can be done, the cold credential scripts need to be initialized.
 
-Step 1: Choosing a seed input
------------------------------
+Step 1: Choosing a seed input and obtain the X.509 certificate files
+--------------------------------------------------------------------
 
 .. note::
-   This step does not apply if you are following along with the local testnet setup.
-   This step only applies if you are minting the cold NFT using the minting script provided by the system.
+   Choosing a seed input does not apply if you are following along with the local testnet setup.
 
 This system ships with a minting script which will mint the tokens and verify they are sent to the correct address with the correct datum.
 The minting script requires a known transaction input to be spent to create a unique token name.
 To mint the token, you just need to pick any transaction output in your wallet as the seed input.
+
+You will also need to have access to PEM files containing the certificates in your organization's certificate hierarchy.
+At the very least, you will need:
+
+* The self-signed certificate of the root certificate authority
+* The signed certificates of the membership and delegation roles
+
+You will need to ask the :ref:`head_of_security` in your organization for these files.
+
+If you have been following along with this guide, you have access to a fake certificate tree in the folder ``example-certificates``.
+
+For the purposes of this guide, ``child-1`` through ``child-3`` will belong to the membership role, ``child-4`` through ``child-6`` will belong to the delegation role, and ``child-7`` through ``child-9`` will belong to the voting role.
 
 Step 2(a): Creating the assets
 ------------------------------
@@ -490,4 +501,114 @@ included in the conway genesis config):
        },
        "epoch": 38,
        "threshold": 0
+   }
+
+We can also query the script address to verify the UTxO is there:
+
+.. code-block:: bash
+
+   $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
+   {
+       "6b59eed85c94bfec2d9e8a0e0c536df3384e5001adf6d333216a2b546b6f043a#0": {
+           "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
+           "datum": null,
+           "inlineDatum": {
+               "constructor": 0,
+               "fields": [
+                   {
+                       "constructor": 0,
+                       "fields": [
+                           {
+                               "bytes": "09159adec41ce5d48dde24a275a5b2c2e79461c8693ef60af9fc3207"
+                           },
+                           {
+                               "bytes": "0ff1fd44947bcd4cdc6f06841d881ac2a0beb3f15ba5f5e3c08991d92e8ba643"
+                           }
+                       ]
+                   },
+                   {
+                       "list": [
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+                                   },
+                                   {
+                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+                                   }
+                               ]
+                           },
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "c2233827cca3a0cc2c49f91a66276c468be994db855d6b413005fa88"
+                                   },
+                                   {
+                                       "bytes": "3b8536a38eea871cc8b2775deb5861ac4348ef61a84b9e9c643480ae5b88ffc3"
+                                   }
+                               ]
+                           },
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "b23a02a308165c702ce00bf760a0eff33b27b12906e1805b7685125f"
+                                   },
+                                   {
+                                       "bytes": "fdf913abfdb8f00997cca5c14ca0b82f3d08781015a061e91444425d6f777ffa"
+                                   }
+                               ]
+                           }
+                       ]
+                   },
+                   {
+                       "list": [
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "fc6a114db76d31de585793749dcd6ad2d6c02a52ce9226820656bedd"
+                                   },
+                                   {
+                                       "bytes": "7c9d1c732c313066ded1568dc24b1230cc782d331cb65465bc65ad5df6fbe832"
+                                   }
+                               ]
+                           },
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "168ff0600f6245812192fb84c1d5a72129ae0445a272acc65dc88fb3"
+                                   },
+                                   {
+                                       "bytes": "c60e20be4ce0fa457a8c65ade01005475e71880e921c2ee40a6b51d42fd95e11"
+                                   }
+                               ]
+                           },
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "c530a8b72dd72e320e7f4883fcb98d0058e70efcf4e7e0871ce13eb7"
+                                   },
+                                   {
+                                       "bytes": "ce75748d37a55ef1faec7219708059479197965a5927a7f9901c6bc9707eeaa1"
+                                   }
+                               ]
+                           }
+                       ]
+                   }
+               ]
+           },
+           "inlineDatumhash": "7e002022f74e980b99812b2948879ef5ee205c036e9e94a6e8434c1da298b2f1",
+           "referenceScript": null,
+           "value": {
+               "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {
+                   "": 1
+               },
+               "lovelace": 5000000
+           }
+       }
    }

@@ -20,9 +20,10 @@ tools in a test environment provided by this repository's nix shell.
 
    setup
    init-cold
-   init-hot-committee
-   init-hot-nft
+   init-hot
+   authorize
    vote
+   resign-membership
    resign-delegation
    resign-voting
    rotate-cold
