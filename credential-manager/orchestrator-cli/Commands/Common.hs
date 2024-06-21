@@ -238,7 +238,7 @@ delegationCertParser :: Parser FilePath
 delegationCertParser = certParser "delegation"
 
 votingCertParser :: Parser FilePath
-votingCertParser = certParser "delegation"
+votingCertParser = certParser "voting"
 
 readPolicyId :: ReadM PolicyId
 readPolicyId = do

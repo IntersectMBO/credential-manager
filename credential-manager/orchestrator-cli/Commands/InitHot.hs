@@ -77,12 +77,12 @@ initHotCommandParser = info parser description
       InitHotCommand
         <$> seedInputParser
         <*> networkIdParser
-        <*> coldScriptArgsParser
+        <*> hotScriptArgsParser
         <*> debugParser
         <*> outDirParser
 
-coldScriptArgsParser :: Parser (Either ScriptHash HotScriptInfoArgs)
-coldScriptArgsParser =
+hotScriptArgsParser :: Parser (Either ScriptHash HotScriptInfoArgs)
+hotScriptArgsParser =
   asum
     [ fmap Left $
         strOption $
