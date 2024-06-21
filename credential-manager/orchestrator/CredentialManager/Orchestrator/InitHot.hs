@@ -37,6 +37,7 @@ import CredentialManager.Orchestrator.InitMinting (
 import qualified CredentialManager.Orchestrator.InitMinting as InitMinting
 import qualified CredentialManager.Scripts as Scripts
 import Data.Bifunctor (Bifunctor (..))
+import Data.Either (isRight)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (
   AssetClass (..),
@@ -51,14 +52,27 @@ import PlutusLedgerApi.V3 (
  )
 import qualified PlutusLedgerApi.V3 as PV3
 
+data HotScriptInfo = HotScriptInfo
+  { stakeAddress :: StakeAddressReference
+  , coldNFTPolicyId :: PolicyId
+  , coldNFTAssetName :: AssetName
+  , votingUsers :: [Identity]
+  }
+  deriving (Show, Eq, Generic)
+
 data InitHotInputs = InitHotInputs
   { seedInput :: TxIn
   , networkId :: NetworkId
-  , coldNFTPolicyId :: PolicyId
-  , coldNFTAssetName :: AssetName
-  , stakeAddress :: StakeAddressReference
-  , votingUsers :: [Identity]
+  , scriptInfo :: Either ScriptHash HotScriptInfo
   , debug :: Bool
+  }
+  deriving (Show, Eq, Generic)
+
+data HotNFTScriptOutputs = HotNFTScriptOutputs
+  { nftScript :: Script PlutusScriptV3
+  , nftScriptHash :: ScriptHash
+  , nftScriptAddress :: Address ShelleyAddr
+  , nftDatum :: HotLockDatum
   }
   deriving (Show, Eq, Generic)
 
@@ -69,10 +83,7 @@ data InitHotOutputs = InitHotOutputs
   , hotNFTAssetName :: AssetName
   , credentialScript :: Script PlutusScriptV3
   , credentialScriptHash :: ScriptHash
-  , nftScript :: Script PlutusScriptV3
-  , nftScriptHash :: ScriptHash
-  , nftScriptAddress :: Address ShelleyAddr
-  , nftDatum :: HotLockDatum
+  , nftScriptOutputs :: Maybe HotNFTScriptOutputs
   }
   deriving (Generic)
 
@@ -85,8 +96,7 @@ data InitHotError
 
 initHot :: InitHotInputs -> Either InitHotError InitHotOutputs
 initHot InitHotInputs{..} = mdo
-  let destinationScript = nftScriptHash
-  let datumCheck = CheckHot
+  let datumCheck = if isRight scriptInfo then CheckHot else CheckNothing
   InitMintingOutputs{..} <-
     first wrapMintError $ initMinting InitMintingInputs{..}
   let nftPolicyId = PolicyId mintingScriptHash
@@ -103,33 +113,37 @@ initHot InitHotInputs{..} = mdo
             then Debug.hotCommittee hotAssetClass
             else Scripts.hotCommittee hotAssetClass
   let credentialScriptHash = hashScript credentialScript
-  validateGroup
-    VotingTooSmall
-    DuplicateVotingCertificates
-    DuplicateVotingPubKeyHash
-    votingUsers
-  let coldNFTAssetClass =
-        curry
-          AssetClass
-          (CurrencySymbol . toBuiltin $ serialiseToRawBytes coldNFTPolicyId)
-          (TokenName $ toBuiltin $ serialiseToRawBytes coldNFTAssetName)
-  let mkNFTScript
-        | debug = Debug.hotNFT
-        | otherwise = Scripts.hotNFT
-  let hotCredential =
-        HotCommitteeCredential
-          . ScriptCredential
-          . PV3.ScriptHash
-          . toBuiltin
-          . serialiseToRawBytes
-          $ credentialScriptHash
-  let nftScript =
-        serialiseScript PlutusScriptV3 $
-          mkNFTScript coldNFTAssetClass hotAssetClass hotCredential
-  let nftScriptHash = hashScript nftScript
-  let paymentCredential = PaymentCredentialByScript nftScriptHash
-  let nftScriptAddress = makeShelleyAddress networkId paymentCredential stakeAddress
-  let nftDatum = HotLockDatum{..}
+  (nftScriptOutputs, destinationScript) <- case scriptInfo of
+    Left scriptHash -> pure (Nothing, scriptHash)
+    Right HotScriptInfo{..} -> do
+      validateGroup
+        VotingTooSmall
+        DuplicateVotingCertificates
+        DuplicateVotingPubKeyHash
+        votingUsers
+      let coldNFTAssetClass =
+            curry
+              AssetClass
+              (CurrencySymbol . toBuiltin $ serialiseToRawBytes coldNFTPolicyId)
+              (TokenName $ toBuiltin $ serialiseToRawBytes coldNFTAssetName)
+      let mkNFTScript
+            | debug = Debug.hotNFT
+            | otherwise = Scripts.hotNFT
+      let hotCredential =
+            HotCommitteeCredential
+              . ScriptCredential
+              . PV3.ScriptHash
+              . toBuiltin
+              . serialiseToRawBytes
+              $ credentialScriptHash
+      let nftScript =
+            serialiseScript PlutusScriptV3 $
+              mkNFTScript coldNFTAssetClass hotAssetClass hotCredential
+      let nftScriptHash = hashScript nftScript
+      let paymentCredential = PaymentCredentialByScript nftScriptHash
+      let nftScriptAddress = makeShelleyAddress networkId paymentCredential stakeAddress
+      let nftDatum = HotLockDatum{..}
+      pure (Just HotNFTScriptOutputs{..}, nftScriptHash)
   let hotNFTAssetName = assetName
   pure InitHotOutputs{..}
 

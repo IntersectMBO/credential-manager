@@ -21,6 +21,10 @@ import PlutusLedgerApi.V2
 import qualified PlutusTx.AssocMap as AMap
 import PlutusTx.Prelude
 
+{-# INLINEABLE genericMintingScript #-}
+genericMintingScript :: MintingRedeemer -> ScriptContext -> Bool
+genericMintingScript = mintingScript $ const True
+
 {-# INLINEABLE coldMintingScript #-}
 coldMintingScript :: MintingRedeemer -> ScriptContext -> Bool
 coldMintingScript = mintingScript validateColdLockDatum

@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 module Commands.InitHot (
   InitHotCommand (..),
   initHotCommandParser,
@@ -8,6 +10,7 @@ import Cardano.Api (
   AssetName,
   NetworkId,
   PolicyId,
+  ScriptHash,
   StakeAddressReference (..),
   TxIn,
  )
@@ -30,9 +33,10 @@ import Commands.Common (
   writePlutusDataToFile,
   writeScriptToFile,
  )
-import Control.Applicative (Alternative (..), optional)
+import Control.Applicative (Alternative (..), asum, optional)
 import CredentialManager.Orchestrator.InitHot
-import Data.Foldable (Foldable (..))
+import Data.Foldable (Foldable (..), for_)
+import Data.Traversable (for)
 import Options.Applicative (
   InfoMod,
   Mod,
@@ -42,16 +46,22 @@ import Options.Applicative (
   help,
   info,
   long,
+  metavar,
   progDesc,
+  strOption,
  )
+
+data HotScriptInfoArgs = HotScriptInfoArgs
+  { coldNFTPolicyId :: PolicyId
+  , coldNFTAssetName :: AssetName
+  , votingCertFiles :: [FilePath]
+  , stakeCredentialFile :: Maybe StakeCredentialFile
+  }
 
 data InitHotCommand = InitHotCommand
   { seedInput :: TxIn
   , networkId :: NetworkId
-  , coldNFTPolicyId :: PolicyId
-  , coldNFTAssetName :: AssetName
-  , votingCertFiles :: [FilePath]
-  , stakeCredentialFile :: Maybe StakeCredentialFile
+  , scriptInfoArgs :: Either ScriptHash HotScriptInfoArgs
   , debug :: Bool
   , outDir :: FilePath
   }
@@ -67,12 +77,27 @@ initHotCommandParser = info parser description
       InitHotCommand
         <$> seedInputParser
         <*> networkIdParser
-        <*> policyIdParser coldNFTPolicyIdInfo
-        <*> assetNameParser coldNFTAssetNameInfo
-        <*> some votingCertParser
-        <*> optional stakeCredentialFileParser
+        <*> coldScriptArgsParser
         <*> debugParser
         <*> outDirParser
+
+coldScriptArgsParser :: Parser (Either ScriptHash HotScriptInfoArgs)
+coldScriptArgsParser =
+  asum
+    [ fmap Left $
+        strOption $
+          fold
+            [ long "nft-lock-script-hash"
+            , metavar "HEX"
+            , help "The hash of script that will lock the NFT, as hex."
+            ]
+    , do
+        coldNFTPolicyId <- policyIdParser coldNFTPolicyIdInfo
+        coldNFTAssetName <- assetNameParser coldNFTAssetNameInfo
+        votingCertFiles <- some votingCertParser
+        stakeCredentialFile <- optional stakeCredentialFileParser
+        pure $ Right HotScriptInfoArgs{..}
+    ]
 
 coldNFTPolicyIdInfo :: Mod OptionFields PolicyId
 coldNFTPolicyIdInfo =
@@ -90,13 +115,15 @@ coldNFTAssetNameInfo =
 
 runInitHotCommand :: InitHotCommand -> IO ()
 runInitHotCommand InitHotCommand{..} = do
-  stakeAddress <-
-    maybe
-      (pure NoStakeAddress)
-      readStakeAddressFile
-      stakeCredentialFile
-  votingUsers <- traverse readIdentityFromPEMFile' votingCertFiles
-  checkGroupSize "voting" votingUsers
+  scriptInfo <- for scriptInfoArgs \HotScriptInfoArgs{..} -> do
+    stakeAddress <-
+      maybe
+        (pure NoStakeAddress)
+        readStakeAddressFile
+        stakeCredentialFile
+    votingUsers <- traverse readIdentityFromPEMFile' votingCertFiles
+    checkGroupSize "voting" votingUsers
+    pure HotScriptInfo{..}
   let inputs = InitHotInputs{..}
   InitHotOutputs{..} <- runCommand initHot inputs \case
     SeedTxIxTooLarge -> "The seed input has too large of an index. It must be less than 256."
@@ -111,7 +138,8 @@ runInitHotCommand InitHotCommand{..} = do
   writeHexBytesToFile outDir "nft-token-name" hotNFTAssetName
   writeScriptToFile outDir "credential.plutus" credentialScript
   writeHexBytesToFile outDir "credential.plutus.hash" credentialScriptHash
-  writeScriptToFile outDir "nft.plutus" nftScript
-  writeHexBytesToFile outDir "nft.plutus.hash" nftScriptHash
-  writeBech32ToFile outDir "nft.addr" nftScriptAddress
-  writePlutusDataToFile outDir "nft.datum.json" nftDatum
+  for_ nftScriptOutputs \HotNFTScriptOutputs{..} -> do
+    writeScriptToFile outDir "nft.plutus" nftScript
+    writeHexBytesToFile outDir "nft.plutus.hash" nftScriptHash
+    writeBech32ToFile outDir "nft.addr" nftScriptAddress
+    writePlutusDataToFile outDir "nft.datum.json" nftDatum

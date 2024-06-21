@@ -30,6 +30,7 @@ import PlutusLedgerApi.V3 (
 data DatumCheck
   = CheckCold
   | CheckHot
+  | CheckNothing
   deriving (Show, Eq, Generic)
 
 data InitMintingInputs = InitMintingInputs
@@ -67,9 +68,11 @@ initMinting InitMintingInputs{..} = do
             then case datumCheck of
               CheckCold -> DebugV2.coldMinting
               CheckHot -> DebugV2.hotMinting
+              CheckNothing -> DebugV2.genericMinting
             else case datumCheck of
               CheckCold -> ScriptsV2.coldMinting
               CheckHot -> ScriptsV2.hotMinting
+              CheckNothing -> ScriptsV2.genericMinting
   let mintingScriptHash = hashScript mintingScript
   let txId' = TxId $ toBuiltin $ serialiseToRawBytes txId
   let txIx' = fromIntegral txIx

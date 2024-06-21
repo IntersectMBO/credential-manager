@@ -9,9 +9,16 @@
 module CredentialManager.Debug.ScriptsV2 where
 
 import CredentialManager.Scripts.Common
-import CredentialManager.Scripts.Minting (coldMintingScript, hotMintingScript)
+import CredentialManager.Scripts.Minting (
+  coldMintingScript,
+  genericMintingScript,
+  hotMintingScript,
+ )
 import PlutusTx (CompiledCode, compile)
 import PlutusTx.Prelude
+
+genericMinting :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)
+genericMinting = $$(compile [||wrapTwoArgsV2 genericMintingScript||])
 
 coldMinting :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinUnit)
 coldMinting = $$(compile [||wrapTwoArgsV2 coldMintingScript||])

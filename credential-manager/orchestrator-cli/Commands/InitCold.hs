@@ -1,10 +1,18 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 module Commands.InitCold (
   InitColdCommand (..),
   initColdCommandParser,
   runInitColdCommand,
 ) where
 
-import Cardano.Api (AssetName, NetworkId, PolicyId, StakeAddressReference (..))
+import Cardano.Api (
+  AssetName,
+  NetworkId,
+  PolicyId,
+  ScriptHash,
+  StakeAddressReference (..),
+ )
 import Commands.Common (
   StakeCredentialFile,
   assetNameParser,
@@ -29,6 +37,7 @@ import Control.Applicative (Alternative (..), asum, optional)
 import CredentialManager.Orchestrator.InitCold
 import CredentialManager.Orchestrator.InitMinting (InitMintingOutputs (..))
 import Data.Foldable (Foldable (..), for_)
+import Data.Traversable (for)
 import Options.Applicative (
   InfoMod,
   Mod,
@@ -44,13 +53,17 @@ import Options.Applicative (
   strOption,
  )
 
-data InitColdCommand = InitColdCommand
-  { nftInfo :: NFTInfo
-  , networkId :: NetworkId
-  , caCertFile :: FilePath
+data ColdScriptInfoArgs = ColdScriptInfoArgs
+  { caCertFile :: FilePath
   , membershipCertFiles :: [FilePath]
   , delegationCertFiles :: [FilePath]
   , stakeCredentialFile :: Maybe StakeCredentialFile
+  }
+
+data InitColdCommand = InitColdCommand
+  { nftInfo :: NFTInfo
+  , networkId :: NetworkId
+  , scriptInfoArgs :: Either ScriptHash ColdScriptInfoArgs
   , debug :: Bool
   , outDir :: FilePath
   }
@@ -66,12 +79,27 @@ initColdCommandParser = info parser description
       InitColdCommand
         <$> nftInfoParser
         <*> networkIdParser
-        <*> caCertFileParser
-        <*> some membershipCertParser
-        <*> some delegationCertParser
-        <*> optional stakeCredentialFileParser
+        <*> coldScriptArgsParser
         <*> debugParser
         <*> outDirParser
+
+coldScriptArgsParser :: Parser (Either ScriptHash ColdScriptInfoArgs)
+coldScriptArgsParser =
+  asum
+    [ fmap Left $
+        strOption $
+          fold
+            [ long "nft-lock-script-hash"
+            , metavar "HEX"
+            , help "The hash of script that will lock the NFT, as hex."
+            ]
+    , do
+        caCertFile <- caCertFileParser
+        membershipCertFiles <- some membershipCertParser
+        delegationCertFiles <- some delegationCertParser
+        stakeCredentialFile <- optional stakeCredentialFileParser
+        pure $ Right ColdScriptInfoArgs{..}
+    ]
 
 nftInfoParser :: Parser NFTInfo
 nftInfoParser =
@@ -108,16 +136,18 @@ caCertFileParser =
 
 runInitColdCommand :: InitColdCommand -> IO ()
 runInitColdCommand InitColdCommand{..} = do
-  stakeAddress <-
-    maybe
-      (pure NoStakeAddress)
-      readStakeAddressFile
-      stakeCredentialFile
-  certificateAuthority <- readIdentityFromPEMFile' caCertFile
-  membershipUsers <- traverse readIdentityFromPEMFile' membershipCertFiles
-  delegationUsers <- traverse readIdentityFromPEMFile' delegationCertFiles
-  checkGroupSize "membership" membershipUsers
-  checkGroupSize "delegation" delegationUsers
+  scriptInfo <- for scriptInfoArgs \ColdScriptInfoArgs{..} -> do
+    stakeAddress <-
+      maybe
+        (pure NoStakeAddress)
+        readStakeAddressFile
+        stakeCredentialFile
+    certificateAuthority <- readIdentityFromPEMFile' caCertFile
+    membershipUsers <- traverse readIdentityFromPEMFile' membershipCertFiles
+    delegationUsers <- traverse readIdentityFromPEMFile' delegationCertFiles
+    checkGroupSize "membership" membershipUsers
+    checkGroupSize "delegation" delegationUsers
+    pure ColdScriptInfo{..}
   let inputs = InitColdInputs{..}
   InitColdOutputs{..} <- runCommand initCold inputs \case
     SeedTxIxTooLarge -> "The seed input has too large of an index. It must be less than 256."
@@ -139,7 +169,8 @@ runInitColdCommand InitColdCommand{..} = do
     writeHexBytesToFile outDir "nft-token-name" assetName
   writeScriptToFile outDir "credential.plutus" credentialScript
   writeHexBytesToFile outDir "credential.plutus.hash" credentialScriptHash
-  writeScriptToFile outDir "nft.plutus" nftScript
-  writeHexBytesToFile outDir "nft.plutus.hash" nftScriptHash
-  writeBech32ToFile outDir "nft.addr" nftScriptAddress
-  writePlutusDataToFile outDir "nft.datum.json" nftDatum
+  for_ nftScriptOutputs \ColdNFTScriptOutputs{..} -> do
+    writeScriptToFile outDir "nft.plutus" nftScript
+    writeHexBytesToFile outDir "nft.plutus.hash" nftScriptHash
+    writeBech32ToFile outDir "nft.addr" nftScriptAddress
+    writePlutusDataToFile outDir "nft.datum.json" nftDatum
