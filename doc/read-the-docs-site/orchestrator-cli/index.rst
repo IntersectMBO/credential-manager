@@ -19,8 +19,7 @@ tools in a test environment provided by this repository's nix shell.
    :titlesonly:
 
    setup
-   init-cold-committee
-   init-cold-nft
+   init-cold
    init-hot-committee
    init-hot-nft
    vote
