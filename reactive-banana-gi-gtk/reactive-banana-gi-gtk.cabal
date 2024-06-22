@@ -1,0 +1,22 @@
+cabal-version: 3.4
+name:          reactive-banana-gi-gtk
+version:       0.4.1.0
+synopsis:      Simple reactive programming with GTK GObject Introspection
+description:
+  Create Events and Behaviors from GTK signals and attributes. Also supports sinking to attributes.
+
+homepage:      https://github.com/mr/reactive-banana-gi-gtk
+build-type:    Simple
+
+library
+  hs-source-dirs:   src
+  exposed-modules:  Reactive.Banana.GI.Gtk
+  build-depends:
+    , base >=4.18 && <5
+    , gi-gtk
+    , haskell-gi-base
+    , reactive-banana
+    , text
+    , transformers
+
+  default-language: Haskell2010

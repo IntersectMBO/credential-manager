@@ -337,10 +337,12 @@ instance PlutusTx.Eq HotLockRedeemer where
 PlutusTx.makeLift ''HotLockDatum
 PlutusTx.makeLift ''HotLockRedeemer
 
+-- Using non-zero based indexes to easily differentiate cold and hot lock
+-- redeemers.
 PlutusTx.makeIsDataIndexed
   ''HotLockRedeemer
-  [ ('Vote, 0)
-  , ('ResignVoting, 1)
-  , ('RotateHot, 2)
-  , ('UnlockHot, 3)
+  [ ('Vote, 5)
+  , ('ResignVoting, 6)
+  , ('RotateHot, 7)
+  , ('UnlockHot, 8)
   ]
