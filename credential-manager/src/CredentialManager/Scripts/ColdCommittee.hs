@@ -25,7 +25,7 @@ import PlutusLedgerApi.V3 (
  )
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
 
--- | This script just checks that the hard-coded currency symbol of the NFT is
+-- | This script checks that the hard-coded cold NFT is
 -- in any spending input of the transaction.
 {-# INLINEABLE coldCommitteeScript #-}
 coldCommitteeScript :: AssetClass -> ScriptContext -> Bool
