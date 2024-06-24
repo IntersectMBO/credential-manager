@@ -106,12 +106,18 @@ burnScript input symbol mintedTokens TxInfo{..} =
     checkBurn :: Value -> Bool
     checkBurn (Value value) = case AMap.lookup symbol value of
       Nothing -> trace "Specified input does not contain burned policy ID" False
-      Just tokens -> all (uncurry isBurned) $ AMap.toList tokens
+      Just tokens ->
+        all (uncurry isBurned) (AMap.toList tokens)
+          && all (outputHasToken tokens) (AMap.keys mintedTokens)
 
     isBurned :: TokenName -> Integer -> Bool
     isBurned name q = case AMap.lookup name mintedTokens of
       Nothing -> trace "Token not burned" False
       Just q' -> traceIfFalse "Incorrect quantity burned" $ q == -q'
+
+    outputHasToken :: Map TokenName Integer -> TokenName -> Bool
+    outputHasToken tokens token =
+      traceIfFalse "Burned token not found in input" $ AMap.member token tokens
 
 {-# INLINEABLE mintScript #-}
 mintScript

@@ -24,7 +24,7 @@ Components
 ~~~~~~~~~~
 
 - Roles include user roles (membership, delegation, voting) and operational roles (head of security, orchestrator).
-- Scripts with parameters, rules, datum, and redeemers for committee credentials and NFT locking scripts.
+- Scripts with parameters, rules, datum, and redeemers for minting, committee credentials, and NFT locking scripts.
 - Processes for auditing, obtaining certificates, and verifying signatories and certificate authority hash.
 
 Operational process

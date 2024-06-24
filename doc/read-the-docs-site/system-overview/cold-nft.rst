@@ -3,6 +3,12 @@
 Cold NFT locking script
 =======================
 
+NFT asset class parameter
+-------------------------
+
+The cold NFT locking script requires a specific NFT asset class to function.
+This asset class gets inlined as a parameter into the code of the script directly when it is compiled and initialized. 
+
 Cold committee credential parameters
 ------------------------------------
 
@@ -34,6 +40,24 @@ If the redeemer is an ``AuthorizeHot`` action:
   * The hot credential contained in the certificate is the same credential provided in the redeemer.
 
 * The transaction does not contain any other certificates.
+
+Rules for ``ResignMembership`` actions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the redeemer is a ``ResignMembership`` action:
+
+* The transaction sends an output that meets the following criteria:
+
+  * The address matches the address of the input being authorized.
+  * The value of the output is the same as the value of the input being authorized.
+  * The datum is unchanged except that the resignee specified in the redeemer is removed from the **membership group**.
+  * The reference script in the output is the same if present, otherwise it is not set.
+
+* The transaction does not send any other outputs to an address with the script's own payment credential.
+* The transaction has been signed by the resignee.
+* The resignee is a member of the **membership group** defined by the datum.
+* The resignee is not the last member of the **membership group**, which would leave the group empty.
+* The transaction does not contain any certificates.
 
 Rules for ``ResignDelegation`` actions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,14 +107,28 @@ If the redeemer is a ``RotateCold`` action:
 
 * The transaction does not send any other outputs to an address with the script's own payment credential.
 * The transaction has been signed by a majority of users from the **membership group** defined in the input datum.
+* The transaction has been signed by all members of the **membership group** in the output datum that are not in the input datum.
+* The transaction has been signed by all members of the **delegation group** in the output datum that are not in the input datum.
 * The transaction does not contain any certificates.
 
-Rules for ``UnlockCold`` actions
+Rules for ``BurnCold`` actions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If the redeemer is an ``UnlockCold`` action:
+If the redeemer is an ``BurnCold`` action:
 
 * The transaction has been signed by a majority of users from the **membership group** defined in the input datum.
+* All outputs from the transaction do not contain the cold NFT.
+* The transaction does not contain any certificates.
+
+Rules for ``UpgradeCold`` actions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the redeemer is an ``UpgradeCold`` action:
+
+* The transaction has been signed by a majority of users from the **membership group** defined in the input datum.
+* 1 cold NFT is sent to the upgrade destination script.
+* No other outputs contain the cold NFT.
+* The transaction does not contain any certificates.
 
 Datum
 -----
@@ -149,48 +187,29 @@ Main schema
               * **Description**: The hot credential being authorized.
     1. * **Haskell Name**: ``ResignCold``
        * **Description**: Require the transaction to resign from the committee.
-    2. * **Haskell Name**: ``ResignDelegation``
+    2. * **Haskell Name**: ``ResignMembership``
+       * **Description**: Require the transaction to remove a user from the **membership group**.
+       * **Fields**:
+          * Field 1:
+              * **Type**: :ref:`Identity <identity_schema>`
+              * **Description**: The resignee.
+    3. * **Haskell Name**: ``ResignDelegation``
        * **Description**: Require the transaction to remove a user from the **delegation group**.
        * **Fields**:
           * Field 1:
               * **Type**: :ref:`Identity <identity_schema>`
               * **Description**: The resignee.
-    3. * **Haskell Name**: ``RotateCold``
+    4. * **Haskell Name**: ``RotateCold``
        * **Description**: Allow the transaction to change the members of the **membership group** and **delegation group**.
-    4. * **Haskell Name**: ``UnlockCold``
-       * **Description**: Allow the transaction to spend the NFT freely.
-
-.. _unlock_cold:
-
-Q&A about ``UnlockCold``
-------------------------
-
-Question
-~~~~~~~~
-
-If the membership group can spend the NFT without restriction, why is it necessary to include more specific actions such as ``RotateCold`` or ``ResignCold``? 
-
-Answer
-~~~~~~
-
-The unlock action is very dangerous, as it does not check anything beyond that the transaction is signed. 
-If a transaction does something unintended with the NFT while unlocking it, it could render the cold credential unusable or worse --- give that control to someone else. 
-The more restrictive actions are available to cover known use cases and to provide additional safety guarantees not provided by the unlock action.
-
-Question
-~~~~~~~~
-
-Why is the unlock action available if it is so dangerous? 
-
-Answer
-~~~~~~
-
-Not including the unlock action is also dangerous. 
-Consider what would happen if a security flaw was found in the cold NFT locking script.
-If the unlock action wasn't available, there would be no way to send the NFT to a patched version of the script, because all other actions require the NFT to be sent back to the address from which it originated. 
-The only way to prevent the security flaw from being exploited would be to resign from the committee, which is irrecoverable without an election, a process beyond the ability of the committee member to control.
+    5. * **Haskell Name**: ``BurnCold``
+       * **Description**: Require the transaction to burn the NFT.
+    6. * **Haskell Name**: ``UpgradeCold``
+       * **Description**: Require the transaction to send the NFT to a new script address.
+       * **Fields**:
+          * Field 1:
+              * **Type**: ScriptHash from Plutus V3.
+              * **Description**: The script that will receive the NFT.
 
 .. warning::
-   As mentioned before, the **membership group** has full control over the cold NFT, and consequently the cold credential itself. 
-
-   Refer to the warning in :ref:`system_overview` for guidelines on mitigating this risk.
+   The **membership group** has full control over the cold NFT, and consequently the cold credential itself. 
+   **membership group** members should safeguard their keys as if they were keys for the cold credential itself.

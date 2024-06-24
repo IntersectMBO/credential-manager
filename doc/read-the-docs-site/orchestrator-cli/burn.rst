@@ -125,7 +125,7 @@ Step 3. Verify the change on chain
    --------------------------------------------------------------------------------------
 
 Step 4: Burning the Cold NFT
----------------------------
+----------------------------
 
 Once more, we will use ``orchestrator-cli`` to prepare the transaction assets:
 
