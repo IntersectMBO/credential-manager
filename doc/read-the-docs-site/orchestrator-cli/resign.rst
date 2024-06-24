@@ -7,16 +7,15 @@ Resigning from the Committee
    Resigning from the constitutional committee is irreversible. The only way to
    get added back to the committee is via a governance action.
 
-It's time to remove ourselves from the committee. It's been a long road and
-we've learned a lot along the way, but our time has come.
+It's time to remove ourselves from the committee.
+It's been a long road and we've learned a lot along the way, but our time has come.
 
 Step 1: Creating the assets
 ---------------------------
 
-We can use ``orchestrator-cli`` to build our transaction assets. As before, we
-need an anchor that resolves to a metadata context document documenting our
-reason for resigning. For the purposes of demonstration, let's reuse the same
-one from :ref:`voting <vote>`.
+We can use ``orchestrator-cli`` to build our transaction assets.
+As before, we need an anchor that resolves to a metadata context document documenting our reason for resigning.
+For the purposes of demonstration, let's reuse the same one from :ref:`voting <vote>`.
 
 .. code-block:: bash
 
@@ -25,9 +24,9 @@ one from :ref:`voting <vote>`.
      --text "$(curl -s $ANCHOR | jsonld canonize)" \
      --out-file anchor.hash
    $ fetch-cold-nft-utxo
-   $ orchestrator-cli cold-nft resign \
+   $ orchestrator-cli resign-committee \
      --utxo-file cold-nft.utxo \
-     --cold-credential-script-file cold-credential/script.plutus \
+     --cold-credential-script-file init-cold/credential.plutus \
      --metadata-url $ANCHOR \
      --metadata-hash $(cat anchor.hash) \
      --out-dir resign
@@ -66,7 +65,7 @@ We also have a new certificate, `resign.cert`:
    {
        "type": "CertificateConway",
        "description": "Constitution committee member hot key resignation",
-       "cborHex": "830f8201581ce04f00fc3676b756fcebeaabeb5b297d9cb6f0589db0893f6d5beb8b82785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
+       "cborHex": "830f8201581c533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f2882785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
    }
 
 .. note::
@@ -93,8 +92,8 @@ The transaction must be signed by the membership group.
    $ cardano-cli conway transaction build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
-      --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-script-file cold-nft/script.plutus \
+      --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in-script-file init-cold/nft.plutus \
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file resign/redeemer.json \
       --tx-out "$(cat resign/value)" \
@@ -102,11 +101,11 @@ The transaction must be signed by the membership group.
       --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
       --certificate-file resign/resign.cert \
-      --certificate-script-file cold-credential/script.plutus \
+      --certificate-script-file init-cold/credential.plutus \
       --certificate-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
       --out-file resign/body.json
-   Estimated transaction fee: Coin 517587
+   Estimated transaction fee: Coin 755398
 
 Again, recall that we previously swapped the membership and delegation roles,
 so ``child-4`` and ``child-5`` are now in the membership group.
@@ -156,10 +155,10 @@ the node:
 
 .. code-block:: bash
 
-   $ cardano-cli conway query committee-state --cold-script-hash $(cat cold-credential/script.hash)
+   $ cardano-cli conway query committee-state --cold-script-hash $(cat init-cold/credential.plutus.hash)
    {
        "committee": {
-           "scriptHash-e04f00fc3676b756fcebeaabeb5b297d9cb6f0589db0893f6d5beb8b": {
+           "scriptHash-533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f28": {
                "expiration": 50000,
                "hotCredsAuthStatus": {
                    "contents": {
@@ -174,10 +173,8 @@ the node:
                "status": "Active"
            }
        },
-       "epoch": 210,
+       "epoch": 19,
        "threshold": 0
    }
 
-Although we are still in the committee, we can no longer authorize hot
-credentials nor vote - so we have effectively removed ourselves from the
-committee.
+Although we are still in the committee, we can no longer authorize hot credentials nor vote - so we have effectively removed ourselves from the committee.

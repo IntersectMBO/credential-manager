@@ -29,4 +29,5 @@ tools in a test environment provided by this repository's nix shell.
    rotate-cold
    rotate-hot
    resign
-   unlock
+   upgrade
+   burn

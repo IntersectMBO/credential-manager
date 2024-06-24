@@ -137,7 +137,7 @@ Step 5. Verify the delegation member is removed
 
    $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "05f65d7e59ac24ea7ac6dd5c3842d9155d985d4bbe712270acf0a9141c42d901#0": {
+       "fa3c88dce510bf291aed1b52a69c94d8af1ad7b058f2590fb0dbfcd7e3f55882#0": {
            "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
            "datum": null,
            "inlineDatum": {
@@ -156,17 +156,6 @@ Step 5. Verify the delegation member is removed
                    },
                    {
                        "list": [
-                           {
-                               "constructor": 0,
-                               "fields": [
-                                   {
-                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
-                                   },
-                                   {
-                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
-                                   }
-                               ]
-                           },
                            {
                                "constructor": 0,
                                "fields": [
@@ -219,7 +208,7 @@ Step 5. Verify the delegation member is removed
                    }
                ]
            },
-           "inlineDatumhash": "de77049711cf2b1401a6a5a75b8e92898dff36ad5d9089c79bb4b1f88328acac",
+           "inlineDatumhash": "d4635e4d07c21ca9caa709ce7338cdd6d6772928855dcb95f1aabc4e84e63bff",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {
