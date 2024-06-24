@@ -247,7 +247,7 @@ Step 7. Verify the change on chain
 
 
 Step 8. Send the NFT back to the cold lock script
-------------------------------------------------
+-------------------------------------------------
 
 To continue this guide, we need the NFT to be held in the original lock script, so let's build a transaction that sends it back.
 

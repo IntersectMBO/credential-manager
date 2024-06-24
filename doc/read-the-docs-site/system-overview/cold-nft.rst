@@ -121,7 +121,7 @@ If the redeemer is an ``BurnCold`` action:
 * The transaction does not contain any certificates.
 
 Rules for ``UpgradeCold`` actions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If the redeemer is an ``UpgradeCold`` action:
 

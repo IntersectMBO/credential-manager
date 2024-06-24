@@ -93,6 +93,19 @@ If the redeemer is an ``BurnHot`` action:
 * All outputs from the transaction do not contain the hot NFT.
 * The transaction does not contain any votes.
 
+
+Rules for ``UpgradeHot`` actions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the redeemer is an ``UpgradeHot`` action:
+
+* The transaction includes a reference input that holds the cold NFT.
+* The reference input contains a valid ``ColdLockDatum``.
+* The transaction has been signed by a majority of users from the **delegation group** defined in the reference input's datum.
+* 1 hot NFT is sent to the upgrade destination script.
+* No other outputs contain the hot NFT.
+* The transaction does not contain any certificates.
+
 Datum
 -----
 
