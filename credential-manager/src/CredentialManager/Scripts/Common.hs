@@ -105,6 +105,18 @@ checkSpendingTx checkSpend ScriptContext{..} =
           | otherwise = go inputs'
     _ -> trace "Not a spending script" False
 
+{-# INLINEABLE checkSelfPreservation #-}
+checkSelfPreservation
+  :: (FromData a, Eq a)
+  => Address
+  -> Value
+  -> [TxOut]
+  -> a
+  -> Bool
+checkSelfPreservation addrIn valueIn outputs datumIn =
+  checkContinuingTx addrIn valueIn outputs \datumOut ->
+    traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+
 {-# INLINEABLE checkContinuingTx #-}
 checkContinuingTx
   :: (FromData a) => Address -> Value -> [TxOut] -> (a -> Bool) -> Bool

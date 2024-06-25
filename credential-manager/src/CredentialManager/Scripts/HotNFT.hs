@@ -23,6 +23,8 @@ import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Datum (..),
   FromData (..),
+  GovernanceActionId,
+  Map,
   OutputDatum (..),
   ScriptContext,
   TxInInfo (..),
@@ -30,6 +32,7 @@ import PlutusLedgerApi.V3 (
   TxOut (..),
   Voter (..),
  )
+import qualified PlutusLedgerApi.V3 as PV3
 import PlutusLedgerApi.V3.Contexts (HotCommitteeCredential)
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
@@ -45,10 +48,9 @@ hotNFTScript
 hotNFTScript coldNFT hotNFT hotCred =
   checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
     Vote ->
-      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-          && checkMultiSig (votingUsers datumIn) txInfoSignatories
-          && checkVote
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+        && checkMultiSig (votingUsers datumIn) txInfoSignatories
+        && checkVote
       where
         checkVote = case Map.toList txInfoVotes of
           [(voter, voterVotes)] ->
@@ -57,20 +59,20 @@ hotNFTScript coldNFT hotNFT hotCred =
           _ -> trace "Invalid number of voters" False
     ResignVoting user ->
       checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse "Tx casts votes" (Map.null txInfoVotes)
+        checkNoVotes txInfoVotes
           && checkResignation txInfoSignatories user votingUsers datumIn datumOut
     RotateHot ->
       checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse "Tx casts votes" (Map.null txInfoVotes)
+        checkNoVotes txInfoVotes
           && signedByDelegators txInfoSignatories txInfoReferenceInputs
           && checkRotation txInfoSignatories votingUsers datumIn datumOut
     BurnHot ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
-        && traceIfFalse "Tx publishes certificates" (Map.null txInfoVotes)
+        && checkNoVotes txInfoVotes
         && checkBurn hotNFT txInfoOutputs
     UpgradeHot destination ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
-        && traceIfFalse "Tx publishes certificates" (Map.null txInfoVotes)
+        && checkNoVotes txInfoVotes
         && checkUpgrade hotNFT destination txInfoOutputs
   where
     signedByDelegators signatories = go
@@ -83,3 +85,7 @@ hotNFTScript coldNFT hotNFT hotCred =
                 _ -> trace "Invalid cold NFT datum" False
               _ -> trace "Missing cold NFT datum" False
           | otherwise = go refInputs'
+
+{-# INLINEABLE checkNoVotes #-}
+checkNoVotes :: Map Voter (Map GovernanceActionId PV3.Vote) -> Bool
+checkNoVotes = traceIfFalse "Tx casts votes" . Map.null

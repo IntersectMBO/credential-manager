@@ -39,53 +39,60 @@ coldNFTScript
 coldNFTScript coldNFT coldCred =
   checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
     AuthorizeHot hotCred ->
-      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-          && checkMultiSig (delegationUsers datumIn) txInfoSignatories
-          && traceIfFalse "Unexpected certificates" (txInfoTxCerts == [expectedCert])
-      where
-        expectedCert = TxCertAuthHotCommittee coldCred hotCred
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+        && checkMultiSig (delegationUsers datumIn) txInfoSignatories
+        && checkCertificate txInfoTxCerts (TxCertAuthHotCommittee coldCred hotCred)
+    ResignCold ->
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+        && checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && checkCertificate txInfoTxCerts (TxCertResignColdCommittee coldCred)
     ResignDelegation user ->
       checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse
-          "CA not conserved"
-          (certificateAuthority datumIn == certificateAuthority datumOut)
-          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
-          && traceIfFalse
-            "Membership not conserved"
-            (membershipUsers datumIn == membershipUsers datumOut)
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
+          && checkMembershipConserved datumIn datumOut
           && checkResignation txInfoSignatories user delegationUsers datumIn datumOut
     ResignMembership user ->
       checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse
-          "CA not conserved"
-          (certificateAuthority datumIn == certificateAuthority datumOut)
-          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
-          && traceIfFalse
-            "Delegation not conserved"
-            (delegationUsers datumIn == delegationUsers datumOut)
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
+          && checkDelegationConserved datumIn datumOut
           && checkResignation txInfoSignatories user membershipUsers datumIn datumOut
-    ResignCold ->
-      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-          && checkMultiSig (membershipUsers datumIn) txInfoSignatories
-          && traceIfFalse "Unexpected certificates" (txInfoTxCerts == [expectedCert])
-      where
-        expectedCert = TxCertResignColdCommittee coldCred
     RotateCold ->
       checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        traceIfFalse
-          "CA not conserved"
-          (certificateAuthority datumIn == certificateAuthority datumOut)
-          && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
           && checkMultiSig (membershipUsers datumIn) txInfoSignatories
           && checkRotation txInfoSignatories membershipUsers datumIn datumOut
           && checkRotation txInfoSignatories delegationUsers datumIn datumOut
     BurnCold ->
       checkMultiSig (membershipUsers datumIn) txInfoSignatories
-        && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+        && checkNoCertificates txInfoTxCerts
         && checkBurn coldNFT txInfoOutputs
     UpgradeCold destination ->
       checkMultiSig (membershipUsers datumIn) txInfoSignatories
-        && traceIfFalse "Tx publishes certificates" (null txInfoTxCerts)
+        && checkNoCertificates txInfoTxCerts
         && checkUpgrade coldNFT destination txInfoOutputs
+
+{-# INLINEABLE checkCAConservation #-}
+checkCAConservation :: ColdLockDatum -> ColdLockDatum -> Bool
+checkCAConservation (ColdLockDatum ca _ _) (ColdLockDatum ca' _ _) =
+  traceIfFalse "CA not conserved" (ca == ca')
+
+{-# INLINEABLE checkMembershipConserved #-}
+checkMembershipConserved :: ColdLockDatum -> ColdLockDatum -> Bool
+checkMembershipConserved (ColdLockDatum _ membership _) (ColdLockDatum _ membership' _) =
+  traceIfFalse "Membership group not conserved" (membership == membership')
+
+{-# INLINEABLE checkDelegationConserved #-}
+checkDelegationConserved :: ColdLockDatum -> ColdLockDatum -> Bool
+checkDelegationConserved (ColdLockDatum _ _ delegation) (ColdLockDatum _ _ delegation') =
+  traceIfFalse "Delegation group not conserved" (delegation == delegation')
+
+{-# INLINEABLE checkCertificate #-}
+checkCertificate :: [TxCert] -> TxCert -> Bool
+checkCertificate actual expected = traceIfFalse "Unexpected certificates" $ actual == [expected]
+
+{-# INLINEABLE checkNoCertificates #-}
+checkNoCertificates :: [TxCert] -> Bool
+checkNoCertificates = traceIfFalse "Tx publishes certificates" . null
