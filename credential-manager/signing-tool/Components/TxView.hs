@@ -19,12 +19,16 @@ import GI.Gtk (
   TextTag (TextTag),
   TextView (..),
  )
-import Reactive.Banana (Event)
+import Reactive.Banana (Behavior)
 import Reactive.Banana.Frameworks
 import TxSummary.Common (ItemStatus (..), SummaryItem (..))
 
-buildTxView :: (Globals) => Event [SummaryItem] -> MomentIO ScrolledWindow
-buildTxView summaryItemsE = do
+buildTxView
+  :: (Globals)
+  => Behavior [SummaryItem]
+  -> Behavior Bool
+  -> MomentIO ScrolledWindow
+buildTxView summaryItemsB signedB = do
   scrollWindow <-
     new
       ScrolledWindow
@@ -46,7 +50,7 @@ buildTxView summaryItemsE = do
   initializeBuffer buffer
   scrollWindow.setChild $ Just textView
 
-  reactimate $ renderBuffer buffer <$> summaryItemsE
+  reactimate' =<< changes (renderBuffer buffer <$> summaryItemsB <*> signedB)
 
   pure scrollWindow
 
@@ -96,12 +100,18 @@ createTag buffer attrs = do
   tag <- new TextTag attrs
   void $ tbl.add tag
 
-renderBuffer :: TextBuffer -> [SummaryItem] -> IO ()
-renderBuffer buffer items = do
+renderBuffer :: TextBuffer -> [SummaryItem] -> Bool -> IO ()
+renderBuffer buffer items signed = do
   (start, end) <- buffer.getBounds
   buffer.delete start end
   iter <- buffer.getIterAtOffset 0
-  traverse_ (renderItem buffer iter) items
+  let signedItem =
+        SummaryItem
+          { itemStatus = Ok
+          , itemTitle = "Transaction signed"
+          , itemDetails = []
+          }
+  traverse_ (renderItem buffer iter) if signed then [signedItem] else items
   (start', end') <- buffer.getBounds
   buffer.applyTagByName "mono" start' end'
 

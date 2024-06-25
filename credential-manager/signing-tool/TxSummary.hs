@@ -258,30 +258,43 @@ classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) =
               describe "Constitutional committee resignation transaction."
               pure $ ColdTx ResignCold
             Constr 2 [fromData -> Just Identity{..}] -> do
+              describe "Membership resignation transaction."
+              describe $ "Resignee certificate hash: " <> T.pack (show certificateHash)
+              describe $ "Resignee public key hash: " <> T.pack (show pubKeyHash)
+              pure $ ColdTx $ ResignDelegation Identity{..}
+            Constr 3 [fromData -> Just Identity{..}] -> do
               describe "Delegate resignation transaction."
               describe $ "Resignee certificate hash: " <> T.pack (show certificateHash)
               describe $ "Resignee public key hash: " <> T.pack (show pubKeyHash)
               pure $ ColdTx $ ResignDelegation Identity{..}
-            Constr 3 [] -> do
+            Constr 4 [] -> do
               describe "Cold credential key rotation transaction."
               pure $ ColdTx RotateCold
-            Constr 4 [] -> do
-              describe "Cold NFT unlock transaction."
-              pure $ ColdTx UnlockCold
             Constr 5 [] -> do
+              describe "Cold NFT burn transaction."
+              pure $ ColdTx BurnCold
+            Constr 6 [fromData -> Just scriptHash] -> do
+              describe "Cold NFT upgrade transaction."
+              describe $ "New lock script hash: " <> T.pack (show scriptHash)
+              pure $ ColdTx $ UpgradeCold scriptHash
+            Constr 7 [] -> do
               describe "Vote transaction."
               pure $ HotTx Vote
-            Constr 6 [fromData -> Just Identity{..}] -> do
+            Constr 8 [fromData -> Just Identity{..}] -> do
               describe "Voter resignation transaction."
               describe $ "Resignee certificate hash: " <> T.pack (show certificateHash)
               describe $ "Resignee public key hash: " <> T.pack (show pubKeyHash)
               pure $ HotTx $ ResignVoting Identity{..}
-            Constr 7 [] -> do
+            Constr 9 [] -> do
               describe "Hot credential key rotation transaction."
               pure $ HotTx RotateHot
-            Constr 8 [] -> do
-              describe "Hot NFT unlock transaction."
-              pure $ HotTx UnlockHot
+            Constr 10 [] -> do
+              describe "Hot NFT burn transaction."
+              pure $ ColdTx BurnCold
+            Constr 11 [fromData -> Just scriptHash] -> do
+              describe "Hot NFT upgrade transaction."
+              describe $ "New lock script hash: " <> T.pack (show scriptHash)
+              pure $ ColdTx $ UpgradeCold scriptHash
             _ -> do
               errorStatus
               describe "Transaction has invalid redeemer datum."

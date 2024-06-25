@@ -18,7 +18,6 @@ import Cardano.Api (
  )
 import Components.Common
 import Control.Exception (catch)
-import Control.Monad ((<=<))
 import Data.Foldable (traverse_)
 import Data.GI.Base (AttrOp (..), new)
 import Data.GI.Base.GError (GError)
@@ -36,7 +35,8 @@ import Witherable (Witherable (wither))
 
 data ImportTxButton = ImportTxButton
   { widget :: Button
-  , newTxE :: Event (Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra))
+  , newTxE
+      :: Event (Either (FileError TextEnvelopeCddlError) (FilePath, TxBody ConwayEra))
   }
 
 buildImportTxButton :: (Globals) => ApplicationWindow -> MomentIO ImportTxButton
@@ -50,7 +50,8 @@ buildImportTxButton appWindow = do
 importTx
   :: (Globals)
   => ApplicationWindow
-  -> MomentIO (Event (Either (FileError TextEnvelopeCddlError) (TxBody ConwayEra)))
+  -> MomentIO
+      (Event (Either (FileError TextEnvelopeCddlError) (FilePath, TxBody ConwayEra)))
 importTx appWindow = do
   fileDialog <- new FileDialog [#title := "Import transaction"]
   dir <- liftIO getCurrentDirectory
@@ -64,7 +65,7 @@ importTx appWindow = do
         -- just returning Nothing like the API would lead you to expect...
         pure Nothing
     mFile <- wither fileGetPath mGFile
-    traverse_ (fire <=< readTxBodyFile) mFile
+    traverse_ (\file -> fire . fmap (file,) =<< readTxBodyFile file) mFile
   fromAddHandler addHandler
 
 readTxBodyFile

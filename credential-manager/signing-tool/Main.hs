@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -16,6 +17,7 @@ import Cardano.Api (
  )
 import Components.Common
 import Components.MainButtons (MainButtons (..), buildMainButtons)
+import Components.SignTransactionButton (SignTxPlan (..))
 import Components.TxView (buildTxView)
 import Control.Exception (catch)
 import Control.Monad (guard)
@@ -28,8 +30,9 @@ import Data.Either (fromRight)
 import Data.Functor (void)
 import Data.GI.Base
 import Data.Int (Int32)
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (maybeToList)
 import qualified Data.Text.IO as T
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import GI.Gio (fileGetPath)
@@ -83,21 +86,37 @@ buildMainWindow = mdo
   txViewLabel.setHalign G.AlignStart
   box.append txViewLabel
 
-  txView <- buildTxView summaryItemsE
+  txView <- buildTxView summaryItemsB signedB
   box.append txView
 
-  mainButtons <- buildMainButtons window
+  mainButtons <- buildMainButtons window do
+    tx <- txB
+    myKeys <- keysWithHashesB
+    pure do
+      txResult <- tx
+      (txBodyFile, txBody) <- hush txResult
+      pure SignTxPlan{..}
+  signedB <-
+    stepper False $
+      unionWith (||) (True <$ mainButtons.signedE) (False <$ mainButtons.newTxE)
+  addedKeysB <- accumB [] $ (:) <$> mainButtons.newSecretKeyE
   initialKeys <- liftIO loadKeys
+  txB <- stepper Nothing $ Just <$> mainButtons.newTxE
   myKeysB <-
     stepper initialKeys =<< mapEventIO (const loadKeys) mainButtons.newTxE
-  let keyHashesB = toPubKeyHashes <$> myKeysB
-  let summaryItemsE = summarizeTx <$> keyHashesB <@> mainButtons.newTxE
+
+  let allKeysB = myKeysB <> addedKeysB
+  let keysWithHashesB = toPubKeyHashes <$> allKeysB
+  let summaryItemsB = do
+        keyHashes <- keysWithHashesB
+        tx <- txB
+        pure $ summarizeTx (Map.keysSet keyHashes) . fmap snd =<< maybeToList tx
   box.append mainButtons.widget
 
   window.present
 
-toPubKeyHashes :: [SecretKey] -> Set (Hash PaymentKey)
-toPubKeyHashes = Set.fromList . fmap toPubKeyHash
+toPubKeyHashes :: [SecretKey] -> Map (Hash PaymentKey) SecretKey
+toPubKeyHashes = Map.fromList . fmap \k -> (toPubKeyHash k, k)
 
 toPubKeyHash :: SecretKey -> Hash PaymentKey
 toPubKeyHash =
@@ -107,8 +126,7 @@ toPubKeyHash =
           "Failed to convert from crypton public key to cardano-api verification key"
       )
     . deserialiseFromRawBytes (AsVerificationKey AsPaymentKey)
-    . BS.pack
-    . BA.unpack
+    . BA.convert
     . toPublic
 
 exitWithInt :: Int32 -> IO ()
