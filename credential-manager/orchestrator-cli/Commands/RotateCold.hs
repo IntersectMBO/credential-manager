@@ -5,10 +5,11 @@ module Commands.RotateCold (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   delegationCertParser,
   membershipCertParser,
   outDirParser,
-  readFileTxOut,
+  readFileUTxO,
   readIdentityFromPEMFile',
   runCommand,
   utxoFileParser,
@@ -50,9 +51,11 @@ rotateColdCommandParser = info parser description
 
 runRotateColdCommand :: RotateColdCommand -> IO ()
 runRotateColdCommand RotateColdCommand{..} = do
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   newMembership <- traverse readIdentityFromPEMFile' membershipCerts
   newDelegation <- traverse readIdentityFromPEMFile' delegationCerts
+  checkGroupSize "membership" newMembership
+  checkGroupSize "delegation" newDelegation
   let inputs = RotateColdInputs{..}
   RotateColdOutputs{..} <- runCommand rotateCold inputs \case
     AddressIsByron -> "UTxO has a Byron address."
@@ -70,6 +73,8 @@ runRotateColdCommand RotateColdCommand{..} = do
       "Multiple delegation users have the same certificate hash " <> show cert
     DuplicateDelegationPubKeyHash key ->
       "Multiple delegation users have the same public key hash " <> show key
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

@@ -5,11 +5,11 @@ import Cardano.Api (
   Certificate (..),
   ConwayEra,
   ConwayEraOnwards (..),
-  CtxUTxO,
   PlutusScriptV3,
   Script,
   ShelleyAddr,
   TxOut (..),
+  UTxO,
   Value,
   txOutValueToValue,
  )
@@ -28,6 +28,7 @@ import Cardano.Api.Shelley (hashScript, toShelleyScriptHash)
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
  )
@@ -37,7 +38,7 @@ data ResignInputs = ResignInputs
   { coldCredentialScript :: Script PlutusScriptV3
   , metadataUrl :: Url
   , metadataHash :: SafeHash StandardCrypto AnchorData
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: UTxO ConwayEra
   }
   deriving (Show, Eq, Generic)
 
@@ -56,11 +57,14 @@ data ResignError
   | MissingDatum
   | NonInlineDatum
   | InvalidDatum
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 resign :: ResignInputs -> Either ResignError ResignOutputs
 resign ResignInputs{..} = do
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

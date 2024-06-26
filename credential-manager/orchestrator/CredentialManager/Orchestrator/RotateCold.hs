@@ -3,15 +3,16 @@ module CredentialManager.Orchestrator.RotateCold where
 import Cardano.Api (
   Address,
   ConwayEra,
-  CtxUTxO,
   ShelleyAddr,
   TxOut (..),
+  UTxO (..),
   Value,
   txOutValueToValue,
  )
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
   validateGroup,
@@ -22,7 +23,7 @@ import PlutusLedgerApi.V3 (PubKeyHash)
 data RotateColdInputs = RotateColdInputs
   { newMembership :: [Identity]
   , newDelegation :: [Identity]
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: UTxO ConwayEra
   }
   deriving (Show, Eq, Generic)
 
@@ -46,6 +47,8 @@ data RotateColdError
   | EmptyDelegation
   | DuplicateDelegationCertificates CertificateHash
   | DuplicateDelegationPubKeyHash PubKeyHash
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 rotateCold :: RotateColdInputs -> Either RotateColdError RotateColdOutputs
@@ -60,7 +63,8 @@ rotateCold RotateColdInputs{..} = do
     DuplicateDelegationCertificates
     DuplicateDelegationPubKeyHash
     newDelegation
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

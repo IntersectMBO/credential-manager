@@ -3,35 +3,37 @@ module Commands.Common where
 import Cardano.Api (
   Address,
   AsType (..),
-  AssetId (..),
-  AssetName (..),
+  AssetName,
   Certificate,
   ConwayEra,
-  CtxUTxO,
   File (..),
   FromSomeType (..),
+  IsPlutusScriptLanguage,
   Key (..),
   NetworkId (..),
   NetworkMagic (..),
   PlutusScriptV3,
   PlutusScriptVersion (..),
   PolicyId,
-  Quantity (..),
   Script (..),
+  ScriptHash,
   SerialiseAsBech32,
   SerialiseAsRawBytes (..),
   SerialiseAsRawBytesError (unSerialiseAsRawBytesError),
   ShelleyAddr,
   StakeAddressReference (..),
-  TxOut,
+  TxIn (..),
+  TxIx (..),
+  UTxO (..),
   Value,
   hashScript,
+  plutusScriptVersion,
   readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
+  renderValue,
   serialiseToBech32,
   serialiseToRawBytesHexText,
   unsafeHashableScriptData,
-  valueToList,
   writeFileTextEnvelope,
  )
 import Cardano.Api.Ledger (
@@ -49,6 +51,7 @@ import Cardano.Api.Shelley (
   scriptDataToJsonDetailedSchema,
  )
 import qualified Cardano.Api.Shelley as Shelley
+import Control.Applicative ((<|>))
 import CredentialManager.Api (Identity, readIdentityFromPEMFile)
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -57,8 +60,8 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Base16 (decodeBase16Untyped)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (..), asum)
+import qualified Data.Map as Map
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import Options.Applicative (
@@ -68,6 +71,7 @@ import Options.Applicative (
   ReadM,
   action,
   eitherReader,
+  flag,
   flag',
   help,
   long,
@@ -78,10 +82,14 @@ import Options.Applicative (
   str,
   strOption,
  )
+import PlutusLedgerApi.V2 (TxOutRef (TxOutRef))
+import qualified PlutusLedgerApi.V2 as PV2
 import PlutusTx (ToData, toData)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (die)
 import System.FilePath ((</>))
+import System.IO (hPutStrLn, stderr)
+import Text.Read (readEither)
 
 data StakeCredentialFile = StakeKey FilePath | StakeScript FilePath
 
@@ -101,8 +109,29 @@ networkIdParser =
           ]
     ]
 
+debugParser :: Parser Bool
+debugParser =
+  flag False True $
+    fold
+      [ long "debug"
+      , short 'd'
+      , help "Compile scripts in debug mode"
+      ]
+
+assetNameParser :: Mod OptionFields AssetName -> Parser AssetName
+assetNameParser = option readAssetName . (<> metavar "ASSET_NAME")
+
 policyIdParser :: Mod OptionFields PolicyId -> Parser PolicyId
 policyIdParser = option readPolicyId . (<> metavar "POLICY_ID")
+
+seedInputParser :: Parser TxIn
+seedInputParser =
+  option readTxIn $
+    fold
+      [ long "seed-input"
+      , help "The tx in to consume to determine the token name of the NFT"
+      , metavar "TX_ID#TX_IX"
+      ]
 
 utxoFileParser :: Parser FilePath
 utxoFileParser =
@@ -135,6 +164,28 @@ hotCredentialScriptFileParser =
       , help "A relative path to the compiled hot credential script file."
       , action "file"
       ]
+
+newScriptFileParser :: Parser FilePath
+newScriptFileParser =
+  strOption $
+    fold
+      [ long "new-script-file"
+      , metavar "FILE_PATH"
+      , help "The relative path of a file containing the script to send the NFT to."
+      , action "file"
+      ]
+
+newScriptHashParser :: Parser ScriptHash
+newScriptHashParser =
+  strOption $
+    fold
+      [ long "new-script-hash"
+      , metavar "HEX"
+      , help "The Blake2b-224 hash of the script to send the NFT to, in hex."
+      ]
+
+newScriptParser :: Parser (Either ScriptHash FilePath)
+newScriptParser = Left <$> newScriptHashParser <|> Right <$> newScriptFileParser
 
 outDirParser :: Parser FilePath
 outDirParser =
@@ -170,35 +221,24 @@ stakeCredentialFileParser =
             ]
     ]
 
-membershipCertParser :: Parser FilePath
-membershipCertParser =
+certParser :: String -> Parser FilePath
+certParser group =
   strOption $
     fold
-      [ long "membership-cert"
+      [ long $ group <> "-cert"
       , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a membership user."
+      , help $ "A relative path to the certificate PEM file of a " <> group <> " user."
       , action "file"
       ]
+
+membershipCertParser :: Parser FilePath
+membershipCertParser = certParser "membership"
 
 delegationCertParser :: Parser FilePath
-delegationCertParser =
-  strOption $
-    fold
-      [ long "delegation-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a delegation user."
-      , action "file"
-      ]
+delegationCertParser = certParser "delegation"
 
 votingCertParser :: Parser FilePath
-votingCertParser =
-  strOption $
-    fold
-      [ long "voting-cert"
-      , metavar "FILE_PATH"
-      , help "A relative path to the certificate PEM file of a voting user."
-      , action "file"
-      ]
+votingCertParser = certParser "voting"
 
 readPolicyId :: ReadM PolicyId
 readPolicyId = do
@@ -207,6 +247,30 @@ readPolicyId = do
     (readerError . unSerialiseAsRawBytesError)
     pure
     $ deserialiseFromRawBytes AsPolicyId bytes
+
+readAssetName :: ReadM AssetName
+readAssetName = do
+  bytes <- readBase16
+  either
+    (readerError . unSerialiseAsRawBytesError)
+    pure
+    $ deserialiseFromRawBytes AsAssetName bytes
+
+readTxIn :: ReadM TxIn
+readTxIn = eitherReader \raw -> do
+  let (txIdStr, rest) = splitAt 64 raw
+  txIdBytes <-
+    first (const "Invalid hexadecimal text")
+      . decodeBase16Untyped
+      . T.encodeUtf8
+      $ T.pack txIdStr
+  txId <-
+    first unSerialiseAsRawBytesError $ deserialiseFromRawBytes AsTxId txIdBytes
+  case rest of
+    '#' : txIxStr -> do
+      txIxWord <- readEither txIxStr
+      pure $ TxIn txId $ TxIx txIxWord
+    _ -> Left "Expected \"#<TX_IX>\""
 
 readBase16 :: ReadM ByteString
 readBase16 =
@@ -287,9 +351,9 @@ readFilePlutusV3Script path = do
     Left err -> error $ "Failed to read script file " <> path <> ": " <> show err
     Right script -> pure $ PlutusScript PlutusScriptV3 script
 
-readFileTxOut :: FilePath -> IO (TxOut CtxUTxO ConwayEra)
-readFileTxOut path = do
-  result <- eitherDecodeFileStrict @(TxOut CtxUTxO ConwayEra) path
+readFileUTxO :: FilePath -> IO (UTxO ConwayEra)
+readFileUTxO path = do
+  result <- eitherDecodeFileStrict @(UTxO ConwayEra) path
   case result of
     Left err -> do error $ "Failed to read utxo file: " <> show err
     Right u -> pure u
@@ -320,12 +384,19 @@ writeVoteToFile dir file votingProcedures = do
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing votingProcedures
 
-writeScriptToFile :: FilePath -> FilePath -> Script PlutusScriptV3 -> IO ()
+writeScriptToFile
+  :: forall lang
+   . (IsPlutusScriptLanguage lang)
+  => FilePath
+  -> FilePath
+  -> Script lang
+  -> IO ()
 writeScriptToFile dir file (PlutusScript _ script) = do
   createDirectoryIfMissing True dir
   let path = dir </> file
   either (error . show) pure
     =<< writeFileTextEnvelope (File path) Nothing script
+writeScriptToFile _ _ SimpleScript{} = case plutusScriptVersion @lang of {}
 
 writeHexBytesToFile
   :: (SerialiseAsRawBytes a) => FilePath -> FilePath -> a -> IO ()
@@ -360,16 +431,25 @@ writeTxOutValueToFile dir file address value = do
     fold
       [ serialiseToBech32 address
       , "+"
-      , T.intercalate " + " $ uncurry renderAsset <$> valueToList value
+      , renderValue value
       ]
 
-renderAsset :: AssetId -> Quantity -> T.Text
-renderAsset AdaAssetId (Quantity i) = T.pack (show i) <> " lovelace"
-renderAsset (AssetId policyId "") (Quantity i) =
-  T.pack (show i) <> " " <> serialiseToRawBytesHexText policyId
-renderAsset (AssetId policyId (AssetName assetName)) (Quantity i) =
-  T.pack (show i)
-    <> " "
-    <> serialiseToRawBytesHexText policyId
-    <> "."
-    <> decodeUtf8 assetName
+extractTxIn :: UTxO ConwayEra -> IO TxOutRef
+extractTxIn (UTxO utxo) = case Map.keys utxo of
+  [] -> die "Script UTxO is empty"
+  [TxIn txId (TxIx txIx)] ->
+    pure $
+      TxOutRef
+        (PV2.TxId $ PV2.toBuiltin $ serialiseToRawBytes txId)
+        (toInteger txIx)
+  _ -> die "Script UTxO has more than one output"
+
+checkGroupSize :: String -> [Identity] -> IO ()
+checkGroupSize groupName group
+  | length group < 3 = hPutStrLn stderr msg
+  | otherwise = pure ()
+  where
+    msg =
+      "WARNING: "
+        <> groupName
+        <> " group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3."

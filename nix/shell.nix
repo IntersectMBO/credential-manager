@@ -149,9 +149,7 @@ cabalProject:
         set -o pipefail
 
         cd $(git rev-parse --show-toplevel)
-        cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json \
-          | jq 'to_entries | .[0].value' \
-          > cold-nft.utxo
+        cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json > cold-nft.utxo
       '';
     };
 
@@ -164,50 +162,7 @@ cabalProject:
         set -o pipefail
 
         cd $(git rev-parse --show-toplevel)
-        cardano-cli conway query utxo --address $(cat hot-nft/script.addr) --output-json \
-          | jq 'to_entries | .[0].value' \
-          > hot-nft.utxo
-      '';
-    };
-
-    mint-tokens = {
-      description = "Mint two NFTs to use with the cold and hot credentials.";
-      group = "general";
-      exec = ''
-        set -e
-        set -u
-        set -o pipefail
-        echo "Minting cold NFT"
-        cardano-cli conway transaction build \
-          --tx-in $(get-orchestrator-ada-only | jq -r '.key') \
-          --tx-out "$(cat orchestrator.addr)+5000000 + 1 $COLD_POLICY_ID" \
-          --mint "1 $COLD_POLICY_ID" \
-          --mint-script-file coldMint.native \
-          --change-address $(cat orchestrator.addr) \
-          --out-file coldMint.body
-        cardano-cli conway transaction sign \
-          --signing-key-file orchestrator.skey \
-          --signing-key-file coldMint.skey \
-          --tx-body-file coldMint.body \
-          --out-file coldMint.tx
-        echo "Sending cold NFT to orchestrator..."
-        cardano-cli conway transaction submit --tx-file coldMint.tx
-        sleep 2
-        echo "Minting hot NFT"
-        cardano-cli conway transaction build \
-          --tx-in $(get-orchestrator-ada-only | jq -r '.key') \
-          --tx-out "$(cat orchestrator.addr)+5000000 + 1 $HOT_POLICY_ID" \
-          --mint "1 $HOT_POLICY_ID" \
-          --mint-script-file hotMint.native \
-          --change-address $(cat orchestrator.addr) \
-          --out-file hotMint.body
-        cardano-cli conway transaction sign \
-          --signing-key-file orchestrator.skey \
-          --signing-key-file hotMint.skey \
-          --tx-body-file hotMint.body \
-          --out-file hotMint.tx
-        echo "Sending hot NFT to orchestrator..."
-        cardano-cli conway transaction submit --tx-file hotMint.tx
+        cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json > hot-nft.utxo
       '';
     };
 
@@ -258,7 +213,6 @@ cabalProject:
   env = {
     CARDANO_NODE_NETWORK_ID = "42";
     COLD_POLICY_ID = "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4";
-    HOT_POLICY_ID = "e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0";
   };
 
   shellHook = ''

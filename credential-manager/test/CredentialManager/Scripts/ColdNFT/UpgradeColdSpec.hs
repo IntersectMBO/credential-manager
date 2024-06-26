@@ -1,20 +1,29 @@
-module CredentialManager.Scripts.ColdNFT.UnlockColdSpec where
+module CredentialManager.Scripts.ColdNFT.UpgradeColdSpec where
 
 import CredentialManager.Api
 import CredentialManager.Gen (Fraction (..))
 import CredentialManager.Scripts.ColdNFT
+import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
 import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
+import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValue, assetClassValueOf)
 import PlutusLedgerApi.V3 (
-  Address,
+  Address (..),
   ColdCommitteeCredential,
+  Credential (..),
   Datum (..),
   OutputDatum (..),
+  Redeemer (..),
+  ScriptContext (..),
+  ScriptHash,
+  ScriptInfo (..),
   ToData (..),
   TxInInfo (..),
+  TxInfo (..),
   TxOut (..),
   TxOutRef,
   Value,
@@ -26,22 +35,28 @@ import Test.QuickCheck
 spec :: Spec
 spec = do
   prop
-    "Invariant UC1: UnlockCold fails if signed by minority of membership group"
-    invariantUC1UnlockColdMembershipMinority
+    "Invariant UC1: UpgradeCold fails if signed by minority of membership group"
+    invariantUC1UpgradeColdMembershipMinority
   prop
-    "Invariant UC2: UnlockCold ignores duplicate signers in membership group"
+    "Invariant UC2: UpgradeCold ignores duplicate signers in membership group"
     invariantUC2DuplicateMembership
   prop
-    "Invariant UC3: UnlockCold fails if membership list is empty"
+    "Invariant UC3: UpgradeCold fails if membership list is empty"
     invariantUC3EmptyMembership
+  prop
+    "Invariant UC4: UpgradeCold fails if token burned"
+    invariantUC4Burned
+  prop
+    "Invariant UC5: UpgradeCold fails if token sent to wrong address"
+    invariantUC5WrongAddress
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
-      forAllValidScriptContexts args \datum redeemer ctx ->
-        coldNFTScript unlockColdCredential datum redeemer ctx === True
+      forAllValidScriptContexts args \_ _ ctx ->
+        coldNFTScript coldNFT upgradeColdCredential ctx === True
 
-invariantUC1UnlockColdMembershipMinority :: ValidArgs -> Property
-invariantUC1UnlockColdMembershipMinority args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+invariantUC1UpgradeColdMembershipMinority :: ValidArgs -> Property
+invariantUC1UpgradeColdMembershipMinority args@ValidArgs{..} =
+  forAllValidScriptContexts args \datum _ ctx -> do
     let allSigners = nub $ pubKeyHash <$> membershipUsers datum
     let minSigners = succ (length allSigners) `div` 2
     forAllShrink (chooseInt (0, pred minSigners)) shrink \signerCount ->
@@ -57,11 +72,11 @@ invariantUC1UnlockColdMembershipMinority args@ValidArgs{..} =
                 }
         pure $
           counterexample ("Signers: " <> show signers) $
-            coldNFTScript unlockColdCredential datum redeemer ctx' === False
+            coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 invariantUC2DuplicateMembership :: ValidArgs -> Property
 invariantUC2DuplicateMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let membershipGroup = membershipUsers datum
     let maybeChangeCertificateHash user =
           oneof
@@ -71,15 +86,53 @@ invariantUC2DuplicateMembership args@ValidArgs{..} =
     duplicate <- traverse maybeChangeCertificateHash =<< sublistOf membershipGroup
     membershipUsers' <- shuffle $ membershipGroup <> duplicate
     let datum' = datum{membershipUsers = membershipUsers'}
+    let ctx' = updateDatum datum' ctx
     pure $
       counterexample ("Datum: " <> show datum') $
-        coldNFTScript unlockColdCredential datum' redeemer ctx === True
+        coldNFTScript coldNFT upgradeColdCredential ctx' === True
 
 invariantUC3EmptyMembership :: ValidArgs -> Property
 invariantUC3EmptyMembership args@ValidArgs{..} =
-  forAllValidScriptContexts args \datum redeemer ctx -> do
+  forAllValidScriptContexts args \datum _ ctx -> do
     let datum' = datum{membershipUsers = []}
-    coldNFTScript unlockColdCredential datum' redeemer ctx === False
+    let ctx' = updateDatum datum' ctx
+    coldNFTScript coldNFT upgradeColdCredential ctx' === False
+
+invariantUC4Burned :: ValidArgs -> Property
+invariantUC4Burned args@ValidArgs{..} =
+  forAllValidScriptContexts args \_ _ ctx -> do
+    let outputs' = filter (not . hasToken coldNFT) $ txInfoOutputs $ scriptContextTxInfo ctx
+    let ctx' =
+          ctx
+            { scriptContextTxInfo =
+                (scriptContextTxInfo ctx)
+                  { txInfoOutputs = outputs'
+                  }
+            }
+    counterexample ("Context: " <> show ctx') $
+      coldNFTScript coldNFT upgradeColdCredential ctx' === False
+
+invariantUC5WrongAddress :: ValidArgs -> Property
+invariantUC5WrongAddress args@ValidArgs{..} =
+  forAllValidScriptContexts args \_ _ ctx -> do
+    let tweakAddress TxOut{..}
+          | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
+              address <-
+                arbitrary
+                  `suchThat` ((/= ScriptCredential upgradeDestination) . addressCredential)
+              pure TxOut{txOutAddress = address, ..}
+          | otherwise = pure TxOut{..}
+    outputs' <- traverse tweakAddress $ txInfoOutputs $ scriptContextTxInfo ctx
+    let ctx' =
+          ctx
+            { scriptContextTxInfo =
+                (scriptContextTxInfo ctx)
+                  { txInfoOutputs = outputs'
+                  }
+            }
+    pure $
+      counterexample ("Context: " <> show ctx') $
+        coldNFTScript coldNFT upgradeColdCredential ctx' === False
 
 forAllValidScriptContexts
   :: (Testable prop)
@@ -87,25 +140,36 @@ forAllValidScriptContexts
   -> (ColdLockDatum -> ColdLockRedeemer -> ScriptContext -> prop)
   -> Property
 forAllValidScriptContexts ValidArgs{..} f =
-  forAllShrink gen shrink' $ f datum UnlockCold
+  forAllShrink gen shrink' $ f datum redeemer
   where
+    redeemer = UpgradeCold upgradeDestination
     gen = do
       additionalInputs <-
-        listOf $ arbitrary `suchThat` ((/= unlockScriptRef) . txInInfoOutRef)
+        listOf $ arbitrary `suchThat` ((/= upgradeScriptRef) . txInInfoOutRef)
       inputs <- shuffle $ input : additionalInputs
+      destination <- Address (ScriptCredential upgradeDestination) <$> arbitrary
+      baseValue <- arbitrary `suchThat` \v -> assetClassValueOf v coldNFT == 0
+      let outputValue = baseValue <> assetClassValue coldNFT 1
+      output <- TxOut destination outputValue <$> arbitrary <*> arbitrary
+      extraOutputs <-
+        listOf $
+          arbitrary `suchThat` \out@TxOut{..} ->
+            not (hasToken coldNFT out)
+              && (addressCredential txOutAddress /= ScriptCredential upgradeDestination)
+      outputs <- shuffle $ output : extraOutputs
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
-      let Fraction excessFraction = unlockExcessSignatureFraction
+      let Fraction excessFraction = upgradeExcessSignatureFraction
       let excessSigners = floor $ fromIntegral (maxSigners - minSigners) * excessFraction
       let signerCount = minSigners + excessSigners
       signers <- fmap pubKeyHash . take signerCount <$> shuffle allSigners
       info <-
         TxInfo inputs
           <$> arbitrary
+          <*> pure outputs
           <*> arbitrary
           <*> arbitrary
-          <*> arbitrary
-          <*> arbitrary
+          <*> pure []
           <*> arbitrary
           <*> arbitrary
           <*> pure signers
@@ -116,11 +180,18 @@ forAllValidScriptContexts ValidArgs{..} f =
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
-      pure $ ScriptContext info $ Spending unlockScriptRef
+      let redeemer' = Redeemer $ toBuiltinData redeemer
+      pure $
+        ScriptContext info redeemer' $
+          SpendingScript upgradeScriptRef $
+            Just $
+              Datum $
+                toBuiltinData datum
     shrink' ScriptContext{..} =
       ScriptContext
         <$> shrinkInfo scriptContextTxInfo
-        <*> pure scriptContextPurpose
+        <*> pure scriptContextRedeemer
+        <*> pure scriptContextScriptInfo
     shrinkInfo TxInfo{..} =
       fold
         [ [TxInfo{txInfoInputs = x, ..} | x <- shrinkInputs txInfoInputs]
@@ -154,39 +225,44 @@ forAllValidScriptContexts ValidArgs{..} f =
     allSigners = nubBy (on (==) pubKeyHash) $ membershipUsers datum
     datum =
       ColdLockDatum
-        { certificateAuthority = unlockCA
+        { certificateAuthority = upgradeCA
         , membershipUsers =
-            unlockMembershipPre
-              <> (unlockExtraMembership : unlockMembershipPost)
-        , delegationUsers = unlockDelegation
+            upgradeMembershipPre
+              <> (upgradeExtraMembership : upgradeMembershipPost)
+        , delegationUsers = upgradeDelegation
         }
     input =
-      TxInInfo unlockScriptRef $
+      TxInInfo upgradeScriptRef $
         TxOut
-          unlockScriptAddress
-          unlockValue
+          upgradeScriptAddress
+          upgradeValue
           (OutputDatum $ Datum $ toBuiltinData datum)
           Nothing
 
 data ValidArgs = ValidArgs
-  { unlockScriptRef :: TxOutRef
-  , unlockScriptAddress :: Address
-  , unlockValue :: Value
-  , unlockCA :: Identity
-  , unlockMembershipPre :: [Identity]
-  , unlockExtraMembership :: Identity
-  , unlockMembershipPost :: [Identity]
-  , unlockDelegation :: [Identity]
-  , unlockColdCredential :: ColdCommitteeCredential
-  , unlockExcessSignatureFraction :: Fraction
+  { coldNFT :: AssetClass
+  , upgradeDestination :: ScriptHash
+  , upgradeScriptRef :: TxOutRef
+  , upgradeScriptAddress :: Address
+  , upgradeValue :: Value
+  , upgradeCA :: Identity
+  , upgradeMembershipPre :: [Identity]
+  , upgradeExtraMembership :: Identity
+  , upgradeMembershipPost :: [Identity]
+  , upgradeDelegation :: [Identity]
+  , upgradeColdCredential :: ColdCommitteeCredential
+  , upgradeExcessSignatureFraction :: Fraction
   }
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
+  arbitrary = do
+    destination <- arbitrary
     ValidArgs
       <$> arbitrary
+      <*> pure destination
       <*> arbitrary
+      <*> arbitrary `suchThat` ((/= ScriptCredential destination) . addressCredential)
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

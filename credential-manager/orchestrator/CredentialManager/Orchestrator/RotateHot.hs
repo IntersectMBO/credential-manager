@@ -3,15 +3,16 @@ module CredentialManager.Orchestrator.RotateHot where
 import Cardano.Api (
   Address,
   ConwayEra,
-  CtxUTxO,
   ShelleyAddr,
   TxOut (..),
+  UTxO,
   Value,
   txOutValueToValue,
  )
 import CredentialManager.Api
 import CredentialManager.Orchestrator.Common (
   decodeDatum,
+  extractOutput,
   getInlineDatum,
   getScriptAddress,
   validateGroup,
@@ -21,7 +22,7 @@ import PlutusLedgerApi.V3 (PubKeyHash)
 
 data RotateHotInputs = RotateHotInputs
   { newVoting :: [Identity]
-  , scriptUtxo :: TxOut CtxUTxO ConwayEra
+  , scriptUtxo :: UTxO ConwayEra
   }
   deriving (Show, Eq, Generic)
 
@@ -42,6 +43,8 @@ data RotateHotError
   | EmptyVoting
   | DuplicateVotingCertificates CertificateHash
   | DuplicateVotingPubKeyHash PubKeyHash
+  | EmptyUTxO
+  | AmbiguousUTxO
   deriving (Show, Eq, Generic)
 
 rotateHot :: RotateHotInputs -> Either RotateHotError RotateHotOutputs
@@ -51,7 +54,8 @@ rotateHot RotateHotInputs{..} = do
     DuplicateVotingCertificates
     DuplicateVotingPubKeyHash
     newVoting
-  let TxOut address inputValue txOutDatum _ = scriptUtxo
+  TxOut address inputValue txOutDatum _ <-
+    extractOutput EmptyUTxO AmbiguousUTxO scriptUtxo
   outputAddress <- getScriptAddress AddressIsByron AddressIsPayment address
   inlineDatum <- getInlineDatum MissingDatum NonInlineDatum txOutDatum
   inputDatum <- decodeDatum InvalidDatum inlineDatum

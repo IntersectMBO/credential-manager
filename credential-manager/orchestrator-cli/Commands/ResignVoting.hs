@@ -5,8 +5,9 @@ module Commands.ResignVoting (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   outDirParser,
-  readFileTxOut,
+  readFileUTxO,
   readIdentityFromPEMFile',
   runCommand,
   utxoFileParser,
@@ -14,6 +15,7 @@ import Commands.Common (
   writePlutusDataToFile,
   writeTxOutValueToFile,
  )
+import CredentialManager.Api (HotLockDatum (..))
 import CredentialManager.Orchestrator.ResignVoting
 import Options.Applicative (
   InfoMod,
@@ -45,7 +47,7 @@ resignVotingCommandParser = info parser description
 
 runResignVotingCommand :: ResignVotingCommand -> IO ()
 runResignVotingCommand ResignVotingCommand{..} = do
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   resignee <- readIdentityFromPEMFile' resigneeCert
   let inputs = ResignVotingInputs{..}
   ResignVotingOutputs{..} <- runCommand resignVoting inputs \case
@@ -56,6 +58,10 @@ runResignVotingCommand ResignVotingCommand{..} = do
     InvalidDatum -> "UTxO has an invalid datum."
     ResigneeNotInVotingGroup -> "Resignee is not in the voting group."
     EmptyVoting -> "Resignee is the last member of the voting group."
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
+  let HotLockDatum{..} = outputDatum
+  checkGroupSize "voting" votingUsers
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

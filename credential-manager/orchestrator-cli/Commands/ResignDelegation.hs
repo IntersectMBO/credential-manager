@@ -5,15 +5,17 @@ module Commands.ResignDelegation (
 ) where
 
 import Commands.Common (
+  checkGroupSize,
   delegationCertParser,
   outDirParser,
-  readFileTxOut,
+  readFileUTxO,
   readIdentityFromPEMFile',
   runCommand,
   utxoFileParser,
   writePlutusDataToFile,
   writeTxOutValueToFile,
  )
+import CredentialManager.Api (ColdLockDatum (..))
 import CredentialManager.Orchestrator.ResignDelegation
 import Options.Applicative (
   InfoMod,
@@ -45,7 +47,7 @@ resignDelegationCommandParser = info parser description
 
 runResignDelegationCommand :: ResignDelegationCommand -> IO ()
 runResignDelegationCommand ResignDelegationCommand{..} = do
-  scriptUtxo <- readFileTxOut utxoFile
+  scriptUtxo <- readFileUTxO utxoFile
   resignee <- readIdentityFromPEMFile' resigneeCert
   let inputs = ResignDelegationInputs{..}
   ResignDelegationOutputs{..} <- runCommand resignDelegation inputs \case
@@ -56,6 +58,10 @@ runResignDelegationCommand ResignDelegationCommand{..} = do
     InvalidDatum -> "UTxO has an invalid datum."
     ResigneeNotInDelegationGroup -> "Resignee is not in the delegation group."
     EmptyDelegation -> "Resignee is the last member of the delegation group."
+    EmptyUTxO -> "Script UTxO is empty"
+    AmbiguousUTxO -> "Script UTxO has more than one output"
+  let ColdLockDatum{..} = outputDatum
+  checkGroupSize "delegation" delegationUsers
   writePlutusDataToFile outDir "redeemer.json" redeemer
   writePlutusDataToFile outDir "datum.json" outputDatum
   writeTxOutValueToFile outDir "value" outputAddress outputValue

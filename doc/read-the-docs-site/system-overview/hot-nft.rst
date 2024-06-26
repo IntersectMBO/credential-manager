@@ -3,11 +3,23 @@
 Hot NFT locking script
 =======================
 
-Parameters
-----------
+Cold NFT asset class parameter
+------------------------------
 
-The hot NFT locking script requires a specific cold NFT minting policy ID and hot committee credential to function; 
-These are inlined as parameters in the code of the hot NFT locking script directly when it is compiled and initialized.
+The hot NFT locking script requires the NFT asset class of the cold credential to function.
+This asset class gets inlined as a parameter into the code of the script directly when it is compiled and initialized. 
+
+NFT asset class parameter
+-------------------------
+
+The hot NFT locking script requires its own NFT asset class to function.
+This asset class gets inlined as a parameter into the code of the script directly when it is compiled and initialized. 
+
+Hot committee credential parameters
+------------------------------------
+
+The hot NFT locking script requires a specific hot committee credential to function.
+This hot committee credential gets inlined as a parameter in the code of the hot NFT locking script directly when it is compiled and initialized. 
 
 Rules
 -----
@@ -67,16 +79,32 @@ If the redeemer is a ``RotateHot`` action:
 * The transaction includes a reference input that holds the cold NFT.
 * The reference input contains a valid ``ColdLockDatum``.
 * The transaction has been signed by a majority of users from the **delegation group** defined in the reference input's datum.
+* The transaction has been signed by all members of the **voting group** in the output datum that are not in the input datum.
 * The transaction does not contain any votes.
 
-Rules for ``UnlockHot`` actions
+Rules for ``BurnHot`` actions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If the redeemer is an ``UnlockHot`` action:
+If the redeemer is an ``BurnHot`` action:
 
 * The transaction includes a reference input that holds the cold NFT.
 * The reference input contains a valid ``ColdLockDatum``.
 * The transaction has been signed by a majority of users from the **delegation group** defined in the reference input's datum.
+* All outputs from the transaction do not contain the hot NFT.
+* The transaction does not contain any votes.
+
+
+Rules for ``UpgradeHot`` actions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the redeemer is an ``UpgradeHot`` action:
+
+* The transaction includes a reference input that holds the cold NFT.
+* The reference input contains a valid ``ColdLockDatum``.
+* The transaction has been signed by a majority of users from the **delegation group** defined in the reference input's datum.
+* 1 hot NFT is sent to the upgrade destination script.
+* No other outputs contain the hot NFT.
+* The transaction does not contain any certificates.
 
 Datum
 -----
@@ -101,20 +129,24 @@ Main schema
 
 * **Type**: constructor
 * **Valid constructor indexes**:
-    0. * **Haskell Name**: ``Vote``
+    7. * **Haskell Name**: ``Vote``
        * **Description**: Require the transaction to cast a committee vote.
-    1. * **Haskell Name**: ``ResignVoting``
+    8. * **Haskell Name**: ``ResignVoting``
        * **Description**: Require the transaction to remove a user from the **voting group**.
        * **Fields**:
           * Field 1:
               * **Type**: :ref:`Identity <identity_schema>`
               * **Description**: The resignee.
-    2. * **Haskell Name**: ``RotateHot``
+    9. * **Haskell Name**: ``RotateHot``
        * **Description**: Allow the transaction to change the members of the **voting group**.
-    3. * **Haskell Name**: ``UnlockHot``
-       * **Description**: Allow the transaction to spend the NFT freely.
-
-See :ref:`Note on UnlockCold <unlock_cold>` for comments also applicable to ``UnlockHot``.
+    10. * **Haskell Name**: ``BurnHot``
+        * **Description**: Require the transaction to burn the NFT.
+    11. * **Haskell Name**: ``UpgradeHot``
+        * **Description**: Require the transaction to send the NFT to a new script address.
+        * **Fields**:
+           * Field 1:
+               * **Type**: ScriptHash from Plutus V3.
+               * **Description**: The script that will receive the NFT.
 
 .. warning::
    The **delegation group** has full control over the hot NFT, and consequently the hot credential itself. 

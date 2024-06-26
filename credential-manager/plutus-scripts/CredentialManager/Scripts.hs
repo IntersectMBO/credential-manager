@@ -1,120 +1,65 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Unused LANGUAGE pragma" #-}
 
 module CredentialManager.Scripts where
 
 import CredentialManager.Scripts.ColdCommittee (coldCommitteeScript)
 import CredentialManager.Scripts.ColdNFT (coldNFTScript)
+import CredentialManager.Scripts.Common
 import CredentialManager.Scripts.HotCommittee (hotCommitteeScript)
 import CredentialManager.Scripts.HotNFT (hotNFTScript)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
   ColdCommitteeCredential,
-  CurrencySymbol,
   HotCommitteeCredential,
  )
 import PlutusTx (
   CompiledCode,
-  ToData (..),
-  UnsafeFromData (..),
   compile,
   liftCodeDef,
   unsafeApplyCode,
  )
 import PlutusTx.Prelude
 
-{-# INLINEABLE wrapThreeArgs #-}
-wrapThreeArgs
-  :: ( UnsafeFromData a
-     , UnsafeFromData b
-     , UnsafeFromData c
-     )
-  => (a -> b -> c -> Bool)
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> ()
-wrapThreeArgs f a b ctx =
-  check
-    $ f
-      (unsafeFromBuiltinData a)
-      (unsafeFromBuiltinData b)
-      (unsafeFromBuiltinData ctx)
-
-{-# INLINEABLE wrapFourArgs #-}
-wrapFourArgs
-  :: ( UnsafeFromData a
-     , UnsafeFromData b
-     , UnsafeFromData c
-     , UnsafeFromData d
-     )
-  => (a -> b -> c -> d -> Bool)
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> ()
-wrapFourArgs f a b c ctx =
-  check
-    $ f
-      (unsafeFromBuiltinData a)
-      (unsafeFromBuiltinData b)
-      (unsafeFromBuiltinData c)
-      (unsafeFromBuiltinData ctx)
-
-{-# INLINEABLE wrapFiveArgs #-}
-wrapFiveArgs
-  :: ( UnsafeFromData a
-     , UnsafeFromData b
-     , UnsafeFromData c
-     , UnsafeFromData d
-     , UnsafeFromData e
-     )
-  => (a -> b -> c -> d -> e -> Bool)
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> BuiltinData
-  -> ()
-wrapFiveArgs f a b c d ctx =
-  check
-    $ f
-      (unsafeFromBuiltinData a)
-      (unsafeFromBuiltinData b)
-      (unsafeFromBuiltinData c)
-      (unsafeFromBuiltinData d)
-      (unsafeFromBuiltinData ctx)
-
 coldCommittee
-  :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinUnit)
 coldCommittee =
-  unsafeApplyCode $$(compile [||wrapThreeArgs coldCommitteeScript||])
+  unsafeApplyCode $$(compile [||wrapTwoArgs coldCommitteeScript||])
     . liftCodeDef
-    . toBuiltinData
 
 hotCommittee
-  :: CurrencySymbol -> CompiledCode (BuiltinData -> BuiltinData -> ())
+  :: AssetClass -> CompiledCode (BuiltinData -> BuiltinUnit)
 hotCommittee =
-  unsafeApplyCode $$(compile [||wrapThreeArgs hotCommitteeScript||])
+  unsafeApplyCode $$(compile [||wrapTwoArgs hotCommitteeScript||])
     . liftCodeDef
-    . toBuiltinData
 
 coldNFT
-  :: ColdCommitteeCredential
-  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-coldNFT =
-  unsafeApplyCode $$(compile [||wrapFourArgs coldNFTScript||])
-    . liftCodeDef
-    . toBuiltinData
-
-hotNFT
-  :: CurrencySymbol
-  -> HotCommitteeCredential
-  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-hotNFT coldPolicyId hotCred =
+  :: AssetClass
+  -> ColdCommitteeCredential
+  -> CompiledCode (BuiltinData -> BuiltinUnit)
+coldNFT coldAssetClass coldCred =
   unsafeApplyCode
     ( unsafeApplyCode
-        $$(compile [||wrapFiveArgs hotNFTScript||])
-        (liftCodeDef (toBuiltinData coldPolicyId))
+        $$(compile [||wrapThreeArgs coldNFTScript||])
+        (liftCodeDef coldAssetClass)
     )
-    (liftCodeDef (toBuiltinData hotCred))
+    (liftCodeDef coldCred)
+
+hotNFT
+  :: AssetClass
+  -> AssetClass
+  -> HotCommitteeCredential
+  -> CompiledCode (BuiltinData -> BuiltinUnit)
+hotNFT coldAssetClass hotAssetClass hotCred =
+  unsafeApplyCode
+    ( unsafeApplyCode
+        ( unsafeApplyCode
+            $$(compile [||wrapFourArgs hotNFTScript||])
+            (liftCodeDef coldAssetClass)
+        )
+        (liftCodeDef hotAssetClass)
+    )
+    (liftCodeDef hotCred)

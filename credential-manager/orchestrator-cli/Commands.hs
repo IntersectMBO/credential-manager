@@ -9,31 +9,36 @@ import Commands.Authorize (
   authorizeCommandParser,
   runAuthorizeCommand,
  )
-import Commands.InitColdCredential (
-  InitColdCredentialCommand,
-  initColdCredentialCommandParser,
-  runInitColdCredentialCommand,
+import Commands.BurnCold (
+  BurnColdCommand,
+  burnColdCommandParser,
+  runBurnColdCommand,
  )
-import Commands.InitColdNFT (
-  InitColdNFTCommand,
-  initColdNFTCommandParser,
-  runInitColdNFTCommand,
+import Commands.BurnHot (
+  BurnHotCommand,
+  burnHotCommandParser,
+  runBurnHotCommand,
  )
-import Commands.InitHotCredential (
-  InitHotCredentialCommand,
-  initHotCredentialCommandParser,
-  runInitHotCredentialCommand,
+import Commands.InitCold (
+  InitColdCommand,
+  initColdCommandParser,
+  runInitColdCommand,
  )
-import Commands.InitHotNFT (
-  InitHotNFTCommand,
-  initHotNFTCommandParser,
-  runInitHotNFTCommand,
+import Commands.InitHot (
+  InitHotCommand,
+  initHotCommandParser,
+  runInitHotCommand,
  )
 import Commands.Resign (ResignCommand, resignCommandParser, runResignCommand)
 import Commands.ResignDelegation (
   ResignDelegationCommand,
   resignDelegationCommandParser,
   runResignDelegationCommand,
+ )
+import Commands.ResignMembership (
+  ResignMembershipCommand,
+  resignMembershipCommandParser,
+  runResignMembershipCommand,
  )
 import Commands.ResignVoting (
   ResignVotingCommand,
@@ -50,52 +55,35 @@ import Commands.RotateHot (
   rotateHotCommandParser,
   runRotateHotCommand,
  )
-import Commands.UnlockCold (
-  UnlockColdCommand,
-  runUnlockColdCommand,
-  unlockColdCommandParser,
+import Commands.UpgradeCold (
+  UpgradeColdCommand,
+  runUpgradeColdCommand,
+  upgradeColdCommandParser,
  )
-import Commands.UnlockHot (
-  UnlockHotCommand,
-  runUnlockHotCommand,
-  unlockHotCommandParser,
+import Commands.UpgradeHot (
+  UpgradeHotCommand,
+  runUpgradeHotCommand,
+  upgradeHotCommandParser,
  )
 import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Data.Foldable (Foldable (..))
-import Options.Applicative (
-  InfoMod,
-  Parser,
-  ParserInfo,
-  command,
-  hsubparser,
-  info,
-  progDesc,
- )
+import Options.Applicative (Parser, command, hsubparser)
 
 data Command
-  = ColdCredential ColdCredentialCommand
-  | HotCredential HotCredentialCommand
-  | ColdNFT ColdNFTCommand
-  | HotNFT HotNFTCommand
-
-newtype ColdCredentialCommand = InitColdCredential InitColdCredentialCommand
-
-newtype HotCredentialCommand = InitHotCredential InitHotCredentialCommand
-
-data ColdNFTCommand
-  = InitColdNFT InitColdNFTCommand
+  = InitCold InitColdCommand
   | Authorize AuthorizeCommand
   | Resign ResignCommand
+  | ResignMembership ResignMembershipCommand
   | ResignDelegation ResignDelegationCommand
   | RotateCold RotateColdCommand
-  | UnlockCold UnlockColdCommand
-
-data HotNFTCommand
-  = InitHotNFT InitHotNFTCommand
+  | BurnCold BurnColdCommand
+  | UpgradeCold UpgradeColdCommand
+  | InitHot InitHotCommand
   | Vote VoteCommand
   | ResignVoting ResignVotingCommand
   | RotateHot RotateHotCommand
-  | UnlockHot UnlockHotCommand
+  | BurnHot BurnHotCommand
+  | UpgradeHot UpgradeHotCommand
 
 -- Parsers
 
@@ -103,103 +91,37 @@ commandParser :: Parser Command
 commandParser =
   hsubparser $
     fold
-      [ command "cold-credential" $ ColdCredential <$> coldCredentialCommandParser
-      , command "hot-credential" $ HotCredential <$> hotCredentialCommandParser
-      , command "cold-nft" $ ColdNFT <$> coldNFTCommandParser
-      , command "hot-nft" $ HotNFT <$> hotNFTCommandParser
+      [ command "init-cold" $ InitCold <$> initColdCommandParser
+      , command "init-hot" $ InitHot <$> initHotCommandParser
+      , command "authorize" $ Authorize <$> authorizeCommandParser
+      , command "vote" $ Vote <$> voteCommandParser
+      , command "resign-committee" $ Resign <$> resignCommandParser
+      , command "resign-membership" $ ResignMembership <$> resignMembershipCommandParser
+      , command "resign-delegation" $ ResignDelegation <$> resignDelegationCommandParser
+      , command "resign-voting" $ ResignVoting <$> resignVotingCommandParser
+      , command "rotate-cold" $ RotateCold <$> rotateColdCommandParser
+      , command "rotate-hot" $ RotateHot <$> rotateHotCommandParser
+      , command "burn-cold" $ BurnCold <$> burnColdCommandParser
+      , command "burn-hot" $ BurnHot <$> burnHotCommandParser
+      , command "upgrade-cold" $ UpgradeCold <$> upgradeColdCommandParser
+      , command "upgrade-hot" $ UpgradeHot <$> upgradeHotCommandParser
       ]
-
-coldCredentialCommandParser :: ParserInfo ColdCredentialCommand
-coldCredentialCommandParser = info parser description
-  where
-    description :: InfoMod ColdCredentialCommand
-    description = progDesc "Manage the cold CC credential script."
-
-    parser :: Parser ColdCredentialCommand
-    parser =
-      hsubparser $
-        fold
-          [ command "init" $ InitColdCredential <$> initColdCredentialCommandParser
-          ]
-
-hotCredentialCommandParser :: ParserInfo HotCredentialCommand
-hotCredentialCommandParser = info parser description
-  where
-    description :: InfoMod HotCredentialCommand
-    description = progDesc "Manage the hot CC credential script."
-
-    parser :: Parser HotCredentialCommand
-    parser =
-      hsubparser $
-        fold
-          [ command "init" $ InitHotCredential <$> initHotCredentialCommandParser
-          ]
-
-coldNFTCommandParser :: ParserInfo ColdNFTCommand
-coldNFTCommandParser = info parser description
-  where
-    description :: InfoMod ColdNFTCommand
-    description = progDesc "Manage the cold NFT locking script."
-
-    parser :: Parser ColdNFTCommand
-    parser =
-      hsubparser $
-        fold
-          [ command "init" $ InitColdNFT <$> initColdNFTCommandParser
-          , command "authorize" $ Authorize <$> authorizeCommandParser
-          , command "resign" $ Resign <$> resignCommandParser
-          , command "resign-delegation" $ ResignDelegation <$> resignDelegationCommandParser
-          , command "rotate" $ RotateCold <$> rotateColdCommandParser
-          , command "unlock" $ UnlockCold <$> unlockColdCommandParser
-          ]
-
-hotNFTCommandParser :: ParserInfo HotNFTCommand
-hotNFTCommandParser = info parser description
-  where
-    description :: InfoMod HotNFTCommand
-    description = progDesc "Manage the hot NFT locking script."
-
-    parser :: Parser HotNFTCommand
-    parser =
-      hsubparser $
-        fold
-          [ command "init" $ InitHotNFT <$> initHotNFTCommandParser
-          , command "vote" $ Vote <$> voteCommandParser
-          , command "resign-voting" $ ResignVoting <$> resignVotingCommandParser
-          , command "rotate" $ RotateHot <$> rotateHotCommandParser
-          , command "unlock" $ UnlockHot <$> unlockHotCommandParser
-          ]
 
 -- Implementations
 
 runCommand :: Command -> IO ()
 runCommand = \case
-  ColdCredential cmd -> runColdCredentialCommand cmd
-  HotCredential cmd -> runHotCredentialCommand cmd
-  ColdNFT cmd -> runColdNFTCommand cmd
-  HotNFT cmd -> runHotNFTCommand cmd
-
-runColdCredentialCommand :: ColdCredentialCommand -> IO ()
-runColdCredentialCommand = \case
-  InitColdCredential cmd -> runInitColdCredentialCommand cmd
-
-runHotCredentialCommand :: HotCredentialCommand -> IO ()
-runHotCredentialCommand = \case
-  InitHotCredential cmd -> runInitHotCredentialCommand cmd
-
-runColdNFTCommand :: ColdNFTCommand -> IO ()
-runColdNFTCommand = \case
-  InitColdNFT cmd -> runInitColdNFTCommand cmd
+  InitCold cmd -> runInitColdCommand cmd
   Authorize cmd -> runAuthorizeCommand cmd
   Resign cmd -> runResignCommand cmd
+  ResignMembership cmd -> runResignMembershipCommand cmd
   ResignDelegation cmd -> runResignDelegationCommand cmd
   RotateCold cmd -> runRotateColdCommand cmd
-  UnlockCold cmd -> runUnlockColdCommand cmd
-
-runHotNFTCommand :: HotNFTCommand -> IO ()
-runHotNFTCommand = \case
-  InitHotNFT cmd -> runInitHotNFTCommand cmd
+  BurnCold cmd -> runBurnColdCommand cmd
+  InitHot cmd -> runInitHotCommand cmd
   Vote cmd -> runVoteCommand cmd
   ResignVoting cmd -> runResignVotingCommand cmd
   RotateHot cmd -> runRotateHotCommand cmd
-  UnlockHot cmd -> runUnlockHotCommand cmd
+  BurnHot cmd -> runBurnHotCommand cmd
+  UpgradeHot cmd -> runUpgradeHotCommand cmd
+  UpgradeCold cmd -> runUpgradeColdCommand cmd

@@ -15,10 +15,14 @@ transaction assets to remove them, you can use the following commands:
 .. code-block:: bash
 
    $ fetch-cold-nft-utxo
-   $ orchestrator-cli cold-nft resign-delegation \
+   $ orchestrator-cli resign-delegation \
      --utxo-file cold-nft.utxo \
      --delegation-cert example-certificates/children/child-6/child-6-cert.pem \
      --out-dir resign-child-6
+   WARNING: delegation group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
+
+We see the tool issue a warning that a 2-member group size allows one person to act unilaterally.
+In a real world situation, you would want to avoid these situations, but we can ignore it for now.
 
 As before, let's see what assets were prepared:
 
@@ -33,7 +37,7 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
 .. code-block:: bash
 
-   $ diff <(jq '.inlineDatum' < cold-nft.utxo) <(jq '.' < resign-child-6/datum.json)
+   $ diff <(jq 'to_entries | .[0].value.inlineDatum' < cold-nft.utxo) <(jq '.' < resign-child-6/datum.json)
    75,85d74
    <         },
    <         {
@@ -82,8 +86,8 @@ vote, the transaction is somewhat easier to build:
    $ cardano-cli conway transaction build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
-      --tx-in $(cardano-cli query utxo --address $(cat cold-nft/script.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-script-file cold-nft/script.plutus \
+      --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in-script-file init-cold/nft.plutus \
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file resign-child-6/redeemer.json \
       --tx-out "$(cat resign-child-6/value)" \
@@ -91,7 +95,7 @@ vote, the transaction is somewhat easier to build:
       --required-signer-hash $(cat example-certificates/children/child-6/child-6.keyhash) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-6/body.json
-   Estimated transaction fee: Coin 442451
+   Estimated transaction fee: Coin 570455
 
 The only notable thing about this command compared with previous ones is that
 there is only one ``required-signer-hash``. The transaction must be signed by
@@ -131,10 +135,10 @@ Step 5. Verify the delegation member is removed
 
 .. code-block:: bash
 
-   $ cardano-cli conway query utxo --address $(cat cold-nft/script.addr) --output-json
+   $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "349e7343072587f3bbf7dc98194302b18e8259fe98e3a8055b7a774a5505b60a#0": {
-           "address": "addr_test1wzng9lxemp4skvd9zs3zp4eslldxsg87afcvtm22qm07saqew8uzk",
+       "fa3c88dce510bf291aed1b52a69c94d8af1ad7b058f2590fb0dbfcd7e3f55882#0": {
+           "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -152,17 +156,6 @@ Step 5. Verify the delegation member is removed
                    },
                    {
                        "list": [
-                           {
-                               "constructor": 0,
-                               "fields": [
-                                   {
-                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
-                                   },
-                                   {
-                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
-                                   }
-                               ]
-                           },
                            {
                                "constructor": 0,
                                "fields": [
@@ -215,7 +208,7 @@ Step 5. Verify the delegation member is removed
                    }
                ]
            },
-           "inlineDatumhash": "de77049711cf2b1401a6a5a75b8e92898dff36ad5d9089c79bb4b1f88328acac",
+           "inlineDatumhash": "d4635e4d07c21ca9caa709ce7338cdd6d6772928855dcb95f1aabc4e84e63bff",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {

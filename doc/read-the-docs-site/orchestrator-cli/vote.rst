@@ -64,9 +64,9 @@ Now we can use ``orchestrator-cli`` to build our transaction assets:
 
 .. code-block:: bash
 
-   $ orchestrator-cli hot-nft vote \
+   $ orchestrator-cli vote \
      --utxo-file hot-nft.utxo \
-     --hot-credential-script-file hot-credential/script.plutus \
+     --hot-credential-script-file init-hot/credential.plutus \
      --governance-action-tx-id $(cardano-cli conway query gov-state | jq -r '.proposals[0].actionId.txId') \
      --governance-action-index 0 \
      --yes \
@@ -96,7 +96,7 @@ As before, the output datum is the same as the input datum:
 
 .. code-block:: bash
 
-   diff <(jq '.inlineDatum' < hot-nft.utxo) <(jq '.' < vote/datum.json)
+   diff <(jq 'to_entries | .[0].value.inlineDatum' < hot-nft.utxo) <(jq '.' < vote/datum.json)
 
 And the redeemer instructs the script to perform the ``Vote`` action:
 
@@ -104,7 +104,7 @@ And the redeemer instructs the script to perform the ``Vote`` action:
 
    cat vote/redeemer.json
    {
-       "constructor": 0,
+       "constructor": 7,
        "fields": []
    }
 
@@ -116,8 +116,8 @@ is a vote file that we will add to the transaction to cast the vote:
 
    $ cardano-cli conway governance vote view --vote-file vote/vote
    {
-       "committee-scriptHash-c5ce2386d5fee41a026feb39814e8a0e4185917bfbcd6f1c553d738a": {
-           "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3#0": {
+       "committee-scriptHash-ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a": {
+           "7d1233eccb44570bb7e5f418188af542edb3a68fda6d109bac8148cd8ec6ca47#0": {
                "anchor": {
                    "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
                    "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
@@ -156,8 +156,8 @@ With that out of the way, here is the command to build the transaction:
    $ cardano-cli conway transaction build-raw \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
-      --tx-in $(cardano-cli query utxo --address $(cat hot-nft/script.addr) --output-json | jq -r 'keys[0]') \
-      --tx-in-script-file hot-nft/script.plutus \
+      --tx-in $(cardano-cli query utxo --address $(cat init-hot/nft.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in-script-file init-hot/nft.plutus \
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file vote/redeemer.json \
       --tx-in-execution-units "(3000000000, 4000000)" \
@@ -169,7 +169,7 @@ With that out of the way, here is the command to build the transaction:
       --required-signer-hash $(cat example-certificates/children/child-8/child-8.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-9/child-9.keyhash) \
       --vote-file vote/vote \
-      --vote-script-file hot-credential/script.plutus \
+      --vote-script-file init-hot/credential.plutus \
       --vote-redeemer-value {} \
       --vote-execution-units "(6000000000,4000000)" \
       --out-file vote/body.json
@@ -226,13 +226,13 @@ We can see the results of our vote by querying the gov state from the node:
    {
      "actionId": {
        "govActionIx": 0,
-       "txId": "662d4c4eb59673a2c67882a58dd42465088973edc4f5314211169ea2c981dbe3"
+       "txId": "7d1233eccb44570bb7e5f418188af542edb3a68fda6d109bac8148cd8ec6ca47"
      },
      "committeeVotes": {
-       "scriptHash-c5ce2386d5fee41a026feb39814e8a0e4185917bfbcd6f1c553d738a": "VoteYes"
+       "scriptHash-ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a": "VoteYes"
      },
      "dRepVotes": {},
-     "expiresAfter": 151,
+     "expiresAfter": 111,
      "proposalProcedure": {
        "anchor": {
          "dataHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -244,11 +244,11 @@ We can see the results of our vote by querying the gov state from the node:
        },
        "returnAddr": {
          "credential": {
-           "keyHash": "b16f9798924ecd9f6127afcf6de3273f8b28235c8cf621b73a81a04d"
+           "keyHash": "75d120c4fdb6f5a978357663ac3884074a8344e17964bcc7e3ec3d8e"
          },
          "network": "Testnet"
        }
      },
-     "proposedIn": 51,
+     "proposedIn": 11,
      "stakePoolVotes": {}
    }

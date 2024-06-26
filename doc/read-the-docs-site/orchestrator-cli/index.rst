@@ -19,14 +19,15 @@ tools in a test environment provided by this repository's nix shell.
    :titlesonly:
 
    setup
-   init-cold-committee
-   init-cold-nft
-   init-hot-committee
-   init-hot-nft
+   init-cold
+   init-hot
+   authorize
    vote
+   resign-membership
    resign-delegation
    resign-voting
    rotate-cold
    rotate-hot
    resign
-   unlock
+   upgrade
+   burn

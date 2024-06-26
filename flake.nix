@@ -7,12 +7,12 @@
     iogx = {
       url = "github:input-output-hk/iogx";
       inputs.CHaP.follows = "cardano-node/CHaP";
-      # inputs.hackage.follows = "cardano-node/hackage";
+      inputs.hackage.follows = "cardano-node/hackageNix";
       # inputs.haskell-nix.follows = "haskell-nix";
       # inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # nixpkgs.follows = "iogx/nixpkgs";
+    nixpkgs.follows = "iogx/nixpkgs";
 
     # hackage = {
     #   url = "github:input-output-hk/hackage.nix";
@@ -28,7 +28,8 @@
     #   url = "github:input-output-hk/haskell.nix";
     #   inputs.hackage.follows = "hackage";
     # };
-    cardano-node.url = "github:IntersectMBO/cardano-node?ref=8.11.0-pre";
+    cardano-node.url =
+      "github:IntersectMBO/cardano-node/8.12.0-pre";
   };
 
 

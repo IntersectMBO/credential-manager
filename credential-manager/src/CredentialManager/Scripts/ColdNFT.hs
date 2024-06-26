@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-full-laziness #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
@@ -17,170 +16,83 @@ module CredentialManager.Scripts.ColdNFT where
 import CredentialManager.Api (
   ColdLockDatum (..),
   ColdLockRedeemer (..),
-  Identity (..),
  )
 import CredentialManager.Scripts.Common
-import GHC.Generics (Generic)
+import PlutusLedgerApi.V1.Value (AssetClass)
 import PlutusLedgerApi.V3 (
-  Datum (..),
-  OutputDatum (..),
-  PubKeyHash,
-  ToData (..),
+  ScriptContext,
   TxCert (..),
-  TxInInfo (..),
-  TxOut (..),
-  TxOutRef,
-  unsafeFromBuiltinData,
+  TxInfo (..),
  )
 import PlutusLedgerApi.V3.Contexts (ColdCommitteeCredential)
-import qualified PlutusTx.IsData as PlutusTx
-import qualified PlutusTx.Lift as PlutusTx
-import PlutusTx.Prelude
-import qualified Prelude as Haskell
-
--- | A version of PlutusLedgerApi.V3.ScriptContext that only decodes what the
--- cold NFT script needs.
-data ScriptContext = ScriptContext
-  { scriptContextTxInfo :: TxInfo
-  , scriptContextPurpose :: ScriptPurpose
-  }
-  deriving stock (Haskell.Eq, Haskell.Show, Generic)
-
--- | A version of PlutusLedgerApi.V3.ScriptPurpose that only decodes what the
--- cold NFT script needs.
-data ScriptPurpose
-  = Minting BuiltinData
-  | Spending TxOutRef
-  | Rewarding BuiltinData
-  | Certifying BuiltinData BuiltinData
-  | Voting BuiltinData
-  | Proposing BuiltinData BuiltinData
-  deriving stock (Haskell.Eq, Haskell.Show, Generic)
-
--- | A version of PlutusLedgerApi.V3.TxInfo that only decodes what the
--- cold NFT script needs.
-data TxInfo = TxInfo
-  { txInfoInputs :: [TxInInfo]
-  , txInfoReferenceInputs :: BuiltinData
-  , txInfoOutputs :: [TxOut]
-  , txInfoFee :: BuiltinData
-  , txInfoMint :: BuiltinData
-  , txInfoTxCerts :: [TxCert]
-  , txInfoWdrl :: BuiltinData
-  , txInfoValidRange :: BuiltinData
-  , txInfoSignatories :: [PubKeyHash]
-  , txInfoRedeemers :: BuiltinData
-  , txInfoData :: BuiltinData
-  , txInfoId :: BuiltinData
-  , txInfoVotes :: BuiltinData
-  , txInfoProposalProcedures :: BuiltinData
-  , txInfoCurrentTreasuryAmount :: BuiltinData
-  , txInfoTreasuryDonation :: BuiltinData
-  }
-  deriving stock (Haskell.Show, Haskell.Eq, Generic)
-
--- | Given a UTXO reference and a transaction (`TxInfo`), resolve it to one of the
--- transaction's inputs (`TxInInfo`).
---
--- Note: this only searches the true transaction inputs and not the referenced transaction inputs.
-{-# INLINEABLE findTxInByTxOutRef #-}
-findTxInByTxOutRef :: TxOutRef -> TxInfo -> Maybe TxInInfo
-findTxInByTxOutRef outRef TxInfo{txInfoInputs} =
-  find
-    (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == outRef)
-    txInfoInputs
-
--- | Check if a transaction was signed by the given public key.
-{-# INLINEABLE txSignedBy #-}
-txSignedBy :: TxInfo -> PubKeyHash -> Bool
-txSignedBy TxInfo{txInfoSignatories} k = k `elem` txInfoSignatories
+import PlutusTx.Prelude hiding (traceIfFalse)
 
 -- | This script validates:
 -- * delegators group actions beside voting group management
 -- * members group actions
 {-# INLINEABLE coldNFTScript #-}
 coldNFTScript
-  :: ColdCommitteeCredential
-  -> ColdLockDatum
-  -> ColdLockRedeemer
+  :: AssetClass
+  -> ColdCommitteeCredential
   -> ScriptContext
   -> Bool
-coldNFTScript coldCred (ColdLockDatum ca membershipUsers delegationUsers) red ctx =
-  case scriptContextPurpose ctx of
-    Spending txOurRef -> case txInInfoResolved <$> findTxInByTxOutRef txOurRef txInfo of
-      Nothing -> False
-      Just ownInput -> case red of
-        AuthorizeHot hotCred ->
-          checkTxOutPreservation ownInput outputs
-            && checkMultiSig delegationUsers signatures
-            && checkAuthHotCert
-          where
-            checkAuthHotCert =
-              txInfoTxCerts txInfo == [TxCertAuthHotCommittee coldCred hotCred]
-        ResignDelegation user ->
-          isDelegationUser
-            && signedByResignee
-            && notLastDelegation
-            && resigneeRemoved
-            && checkNoCerts
-          where
-            isDelegationUser = user `elem` delegationUsers
-            signedByResignee = txSignedBy txInfo $ pubKeyHash user
-            notLastDelegation = not $ null newDelegation
-            newDelegation = filter (/= user) delegationUsers
-            newDatum = ColdLockDatum ca membershipUsers newDelegation
-            newOutput =
-              ownInput
-                { txOutDatum = OutputDatum $ Datum $ toBuiltinData newDatum
-                }
-            resigneeRemoved = case ownOutputs ownInput outputs of
-              [ownOutput] -> ownOutput == newOutput
-              _ -> False
-            checkNoCerts = null $ txInfoTxCerts txInfo
-        ResignCold ->
-          checkTxOutPreservation ownInput outputs
-            && checkMultiSig membershipUsers signatures
-            && checkResignationCert
-          where
-            checkResignationCert =
-              txInfoTxCerts txInfo == [TxCertResignColdCommittee coldCred]
-        RotateCold ->
-          checkOutput
-            && checkMultiSig membershipUsers signatures
-            && checkNoCerts
-          where
-            ownAddress = txOutAddress ownInput
-            checkOutput = case ownOutputs ownInput outputs of
-              [TxOut address value' (OutputDatum (Datum datum')) Nothing] ->
-                let ColdLockDatum ca' membership' delegation' =
-                      unsafeFromBuiltinData datum'
-                 in (address == ownAddress)
-                      && (ca' == ca)
-                      && not (null membership')
-                      && not (null delegation')
-                      && (value' == txOutValue ownInput)
-              _ -> False
-            checkNoCerts = null $ txInfoTxCerts txInfo
-        UnlockCold -> checkMultiSig membershipUsers signatures
-    _ -> False
-  where
-    txInfo = scriptContextTxInfo ctx
-    signatures = txInfoSignatories txInfo
-    outputs = txInfoOutputs txInfo
+coldNFTScript coldNFT coldCred =
+  checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
+    AuthorizeHot hotCred ->
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+        && checkMultiSig (delegationUsers datumIn) txInfoSignatories
+        && checkCertificate txInfoTxCerts (TxCertAuthHotCommittee coldCred hotCred)
+    ResignCold ->
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+        && checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && checkCertificate txInfoTxCerts (TxCertResignColdCommittee coldCred)
+    ResignDelegation user ->
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
+          && checkMembershipConserved datumIn datumOut
+          && checkResignation txInfoSignatories user delegationUsers datumIn datumOut
+    ResignMembership user ->
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
+          && checkDelegationConserved datumIn datumOut
+          && checkResignation txInfoSignatories user membershipUsers datumIn datumOut
+    RotateCold ->
+      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
+        checkCAConservation datumIn datumOut
+          && checkNoCertificates txInfoTxCerts
+          && checkMultiSig (membershipUsers datumIn) txInfoSignatories
+          && checkRotation txInfoSignatories membershipUsers datumIn datumOut
+          && checkRotation txInfoSignatories delegationUsers datumIn datumOut
+    BurnCold ->
+      checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && checkNoCertificates txInfoTxCerts
+        && checkBurn coldNFT txInfoOutputs
+    UpgradeCold destination ->
+      checkMultiSig (membershipUsers datumIn) txInfoSignatories
+        && checkNoCertificates txInfoTxCerts
+        && checkUpgrade coldNFT destination txInfoOutputs
 
-PlutusTx.makeLift ''ScriptPurpose
-PlutusTx.makeIsDataIndexed
-  ''ScriptPurpose
-  [ ('Minting, 0)
-  , ('Spending, 1)
-  , ('Rewarding, 2)
-  , ('Certifying, 3)
-  , ('Voting, 4)
-  , ('Proposing, 5)
-  ]
+{-# INLINEABLE checkCAConservation #-}
+checkCAConservation :: ColdLockDatum -> ColdLockDatum -> Bool
+checkCAConservation (ColdLockDatum ca _ _) (ColdLockDatum ca' _ _) =
+  traceIfFalse "CA not conserved" (ca == ca')
 
-PlutusTx.makeLift ''TxInfo
-PlutusTx.makeIsDataIndexed ''TxInfo [('TxInfo, 0)]
+{-# INLINEABLE checkMembershipConserved #-}
+checkMembershipConserved :: ColdLockDatum -> ColdLockDatum -> Bool
+checkMembershipConserved (ColdLockDatum _ membership _) (ColdLockDatum _ membership' _) =
+  traceIfFalse "Membership group not conserved" (membership == membership')
 
-PlutusTx.makeLift ''ScriptContext
-PlutusTx.makeIsDataIndexed ''ScriptContext [('ScriptContext, 0)]
+{-# INLINEABLE checkDelegationConserved #-}
+checkDelegationConserved :: ColdLockDatum -> ColdLockDatum -> Bool
+checkDelegationConserved (ColdLockDatum _ _ delegation) (ColdLockDatum _ _ delegation') =
+  traceIfFalse "Delegation group not conserved" (delegation == delegation')
+
+{-# INLINEABLE checkCertificate #-}
+checkCertificate :: [TxCert] -> TxCert -> Bool
+checkCertificate actual expected = traceIfFalse "Unexpected certificates" $ actual == [expected]
+
+{-# INLINEABLE checkNoCertificates #-}
+checkNoCertificates :: [TxCert] -> Bool
+checkNoCertificates = traceIfFalse "Tx publishes certificates" . null

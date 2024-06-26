@@ -3,15 +3,14 @@
 Setup
 =====
 
-This page will walk you through the steps involved in setting up your
-environment to follow along with this guide from scratch.
+This page will walk you through the steps involved in setting up your environment to follow along with this guide from scratch.
 
 Step 1: Install Nix
 -------------------
 
-This repository uses the Nix package manager to manage dependencies. You will
-need to install Nix on your machine to setup the environment. Instructions for
-doing so can be found |nix_install|.
+This repository uses the Nix package manager to manage dependencies.
+You will need to install Nix on your machine to setup the environment.
+Instructions for doing so can be found |nix_install|.
 
 .. note::
    You should also configure your nix installation to use the IOG and NixOS
@@ -46,8 +45,7 @@ Step 2: Clone this repository
 Step 3: Enter the Nix Shell
 ---------------------------
 
-**Option 1**: To enter the nix shell using the ``nix`` CLI, navigate to the
-root of the git repo and run ``nix develop``:
+**Option 1**: To enter the nix shell using the ``nix`` CLI, navigate to the root of the git repo and run ``nix develop``:
 
 .. code-block:: bash
 
@@ -74,9 +72,8 @@ If you want to use direnv, navigate to the root of the git repo and run
 Step 4: Start the local Cardano testnet
 ---------------------------------------
 
-The nix shell includes a command to spin up a local Cardano testnet running in
-the Conway era. It will initialize the network configuration files and run 3
-SPO block producing nodes.
+The nix shell includes a command to spin up a local Cardano testnet running in the Conway era.
+It will initialize the network configuration files and run 3 SPO block producing nodes.
 
 .. note::
    If you have previously started a testnet and shut it down and want to spin
@@ -90,8 +87,7 @@ SPO block producing nodes.
 Step 5: Open a new shell
 ------------------------
 
-Our previous shell is now running the testnet in the foreground, so open a new
-shell, navigate back to the repo root and enter the nix shell again.
+Our previous shell is now running the testnet in the foreground, so open a new shell, navigate back to the repo root and enter the nix shell again.
 
 Step 6: Initialize the Orchestrator's wallet
 --------------------------------------------
@@ -117,7 +113,7 @@ Check the balance with the command
    $ get-orchestrator-utxo
                            TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b     0        600000000000 lovelace + TxOutDatumNone
+   af00a0caf9924ae9d6a77727c914d8d370d4c0b5f888bd04221392a54094d363     0        600000000000 lovelace + TxOutDatumNone
 
 Or alternatively to have it output JSON:
 
@@ -125,8 +121,8 @@ Or alternatively to have it output JSON:
 
    $ get-orchestrator-utxo --output-json
    {
-       "256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b#0": {
-           "address": "addr_test1vpwg5qy3ku0dfhu0m72nmp79aklvm32gr73xzztnzr35tcgnn0m79",
+       "af00a0caf9924ae9d6a77727c914d8d370d4c0b5f888bd04221392a54094d363#0": {
+           "address": "addr_test1vpqlddqywf5vcypagugpgvp5x8lslgw8e0ngze7a69zuuasrm5utw",
            "datum": null,
            "datumhash": null,
            "inlineDatum": null,
@@ -137,41 +133,4 @@ Or alternatively to have it output JSON:
        }
    }
 
-Other useful commands for querying the UTxO include ``get-output-by-policy-id``
-and ``get-orchestrator-ada-only``.
-
-Step 7: Mint Two NFTs
----------------------
-
-The following pages will require you to have minted 2 NFTs to use for the cold
-and hot credentials. We have provided a convenience command to mint these NFTs.
-
-.. warning::
-   Don't use this command in production to mint your NFTs.
-
-.. code-block:: bash
-
-   $ mint-tokens
-   Minting cold NFT
-   Estimated transaction fee: Coin 174961
-   Sending cold NFT to orchestrator...
-   Transaction successfully submitted.
-   Minting hot NFT
-   Estimated transaction fee: Coin 174961
-   Sending hot NFT to orchestrator...
-   Transaction successfully submitted.
-
-This command will mint two NFTs and send them to the orchestrator along
-with 5 ADA each:
-
-.. code-block:: bash
-
-   $ get-orchestrator-utxo
-                              TxHash                                 TxIx        Amount
-   --------------------------------------------------------------------------------------
-   256e2f832a760e670eee1eb35aced5fe02b6db489f0980783e9fed401e67aa3b     0        600000000000 lovelace + TxOutDatumNone
-   678779930f025f96e568be011a8b1c9aa11b885437c9131db4ce6f808a37b3c1     0        5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4 + TxOutDatumNone
-   6d5f0892e3cfd3b2f5b58dc2965df7ef797125d3192327379ba3db6064e0048d     0        5000000 lovelace + 1 e2ab737f528cd043927496dd34e6629beb1e57ee8fe92c582cf76bd0 + TxOutDatumNone
-
-The policy IDs for these two tokens are in the environment variables
-``$COLD_POLICY_ID`` and ``$HOT_POLICY_ID``.
+Other useful commands for querying the UTxO include ``get-output-by-policy-id`` and ``get-orchestrator-ada-only``.
