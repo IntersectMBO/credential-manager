@@ -15,6 +15,7 @@ cabalProject:
     pkgs.scriv
     pkgs.jq
     pkgs.wrapGAppsHook4
+    inputs.nixgl.packages.nixGLDefault
     inputs.cardano-node.packages.cardano-node
     inputs.cardano-cli.packages."cardano-cli:exe:cardano-cli"
     repoRoot.nix.jsonld-nix.default.nodeDependencies
