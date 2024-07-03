@@ -23,7 +23,6 @@ data MainButtons = MainButtons
       :: Event (Either (FileError TextEnvelopeCddlError) (FilePath, TxBody ConwayEra))
   , newSecretKeyE :: Event SecretKey
   , signedE :: Event ()
-  , newKeyPairE :: Event SecretKey
   }
 
 buildMainButtons
@@ -41,7 +40,7 @@ buildMainButtons appWindow signTxPlanB = do
   box.append importTxButton.widget
 
   createKeyPairButton <- buildNewKeyPairButton appWindow
-  box.append createKeyPairButton.widget
+  box.append createKeyPairButton
 
   addSigningKeyButton <- buildAddSigningKeyButton appWindow
   box.append addSigningKeyButton.widget
@@ -55,4 +54,3 @@ buildMainButtons appWindow signTxPlanB = do
       importTxButton.newTxE
       addSigningKeyButton.newSecretKeyE
       signTransactionButton.signedE
-      createKeyPairButton.newKeyPairE

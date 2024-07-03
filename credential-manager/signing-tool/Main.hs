@@ -124,10 +124,7 @@ buildMainWindow myKeysB = mdo
   signedB <-
     stepper False $
       unionWith (||) (True <$ mainButtons.signedE) (False <$ mainButtons.newTxE)
-  addedKeysB <-
-    accumB [] $
-      (:)
-        <$> unionWith const mainButtons.newSecretKeyE mainButtons.newKeyPairE
+  addedKeysB <- accumB [] $ (:) <$> mainButtons.newSecretKeyE
   txB <- stepper Nothing $ Just <$> mainButtons.newTxE
 
   let allKeysB = myKeysB <> addedKeysB
