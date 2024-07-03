@@ -8,6 +8,7 @@ import Control.Monad (guard)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict)
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import GHC.Records (HasField (..))
 import GI.Gio.Interfaces.File (File, fileNewForPath)
@@ -23,6 +24,13 @@ type Globals =
 data AppConfig f = AppConfig
   { documentsDir :: f
   , secretsDir :: f
+  , defaultCountry :: Maybe Text
+  , defaultState :: Maybe Text
+  , defaultCity :: Maybe Text
+  , defaultOrg :: Maybe Text
+  , defaultOrgUnit :: Maybe Text
+  , defaultDomain :: Maybe Text
+  , defaultEmail :: Maybe Text
   }
   deriving stock (Show, Read, Ord, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (FromJSON, ToJSON)

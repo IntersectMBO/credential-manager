@@ -18,10 +18,11 @@ import Data.Base16.Types (extractBase16)
 import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
 import Data.ByteString.Base16 (encodeBase16)
-import Data.Foldable (Foldable (fold), for_)
+import Data.Foldable (Foldable (fold), for_, traverse_)
 import Data.Functor (void, (<&>))
 import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.GI.Base (AttrOp (..), new)
+import Data.GI.Base.Attributes (AttrOpTag (..))
 import Data.Maybe (fromMaybe, isJust)
 import Data.PEM (PEM (..), pemWriteBS)
 import Data.String (IsString (..))
@@ -102,44 +103,39 @@ createCSR appWindow =
         box.setMarginBottom 8
         box.setSpacing 8
 
-        label <- new Label [#label := "Create Certificate Signing Request"]
+        label <- new Label []
+        label.setMarkup "<b>New Certificate Signing Request</b>"
         label.setHalign AlignStart
         box.append label
 
         let pkHex = extractBase16 $ encodeBase16 $ convert pubKey
-        pkhLabel <- new Label [#label := "Public key: " <> pkHex]
-        pkhLabel.setHalign AlignStart
-        box.append pkhLabel
+        pkLabel <- new Label [#halign := AlignStart]
+        pkLabel.setMarkup "<small>Public key</small>"
+        pkEntry <- new Entry [#text := pkHex, #editable := False, #sensitive := False]
+        box.append pkLabel
+        box.append pkEntry
 
-        countryInput <-
-          new
-            Entry
-            [ #placeholderText := "Country (2 letter code)"
-            , #maxLength := 2
-            ]
-        countryB <- fmap nothingIfNull <$> attrB countryInput #text
-        box.append countryInput
+        countryB <-
+          input
+            box
+            defaultCountry
+            "Country code (optional)"
+            "2 letter code"
+            [#maxLength := 2]
 
-        stateInput <- new Entry [#placeholderText := "State or province (full name)"]
-        stateB <- fmap nothingIfNull <$> attrB stateInput #text
-        box.append stateInput
-
-        cityInput <- new Entry [#placeholderText := "Locality (e.g. city)"]
-        cityB <- fmap nothingIfNull <$> attrB cityInput #text
-        box.append cityInput
-
-        orgInput <- new Entry [#placeholderText := "Organization name"]
-        orgB <- fmap nothingIfNull <$> attrB orgInput #text
-        box.append orgInput
-
-        orgDepInput <-
-          new Entry [#placeholderText := "Organizational department (optional)"]
-        orgDepB <- fmap nothingIfNull <$> attrB orgDepInput #text
-        box.append orgDepInput
-
-        domainInput <- new Entry [#placeholderText := "Domain name"]
-        domainB <- fmap nothingIfNull <$> attrB domainInput #text
-        box.append domainInput
+        stateB <- input box defaultState "State (optional)" "full name" []
+        cityB <- input box defaultCity "Locality (optional)" "e.g. city" []
+        orgB <- input box defaultOrg "Organization name (optional)" "legal name" []
+        orgUnitB <-
+          input box defaultOrgUnit "Organizational department (optional)" "" []
+        emailB <- input box defaultEmail "Email address (optional)" "" []
+        domainB <-
+          input
+            box
+            defaultDomain
+            "Fully qualified domain name (required)"
+            "e.g. www.example.com"
+            []
 
         dialog <-
           new
@@ -164,11 +160,12 @@ createCSR appWindow =
         let csrFieldsB =
               getCompose $
                 CSRFields
-                  <$> Compose countryB
-                  <*> Compose stateB
-                  <*> Compose cityB
-                  <*> Compose orgB
-                  <*> Compose (Just <$> orgDepB)
+                  <$> Compose (Just <$> countryB)
+                  <*> Compose (Just <$> stateB)
+                  <*> Compose (Just <$> cityB)
+                  <*> Compose (Just <$> orgB)
+                  <*> Compose (Just <$> orgUnitB)
+                  <*> Compose (Just <$> emailB)
                   <*> Compose domainB
 
         saveButton <- new Button [#label := "Save"]
@@ -181,17 +178,24 @@ createCSR appWindow =
             let subject =
                   T.unpack $
                     fold
-                      [ "/C="
-                      , country
-                      , "/ST="
-                      , state
-                      , "/L="
-                      , city
-                      , "/O="
-                      , org
-                      , case orgDep of
+                      [ case country of
+                          Nothing -> ""
+                          Just c -> "/C=" <> c
+                      , case state of
+                          Nothing -> ""
+                          Just st -> "/ST=" <> st
+                      , case city of
+                          Nothing -> ""
+                          Just l -> "/L=" <> l
+                      , case org of
+                          Nothing -> ""
+                          Just o -> "/O=" <> o
+                      , case orgUnit of
                           Nothing -> ""
                           Just ou -> "/OU=" <> ou
+                      , case email of
+                          Nothing -> ""
+                          Just e -> "/emailAddress=" <> e
                       , "/CN="
                       , domain
                       ]
@@ -230,17 +234,35 @@ createCSR appWindow =
 
         dialog.present
 
+input
+  :: (Globals)
+  => Box
+  -> (forall a. AppConfig a -> Maybe Text)
+  -> Text
+  -> Text
+  -> [AttrOp Entry AttrConstruct]
+  -> MomentIO (Behavior (Maybe Text))
+input box getter labelText placeholderText extraAttrs = do
+  label <- new Label [#halign := AlignStart]
+  label.setMarkup $ "<small>" <> labelText <> "</small>"
+  entry <- new Entry $ (#placeholderText := placeholderText) : extraAttrs
+  traverse_ entry.setText $ getter =<< ?config
+  box.append label
+  box.append entry
+  fmap nothingIfNull <$> attrB entry #text
+
 nothingIfNull :: Text -> Maybe Text
 nothingIfNull t
   | T.null t = Nothing
   | otherwise = Just t
 
 data CSRFields = CSRFields
-  { country :: Text
-  , state :: Text
-  , city :: Text
-  , org :: Text
-  , orgDep :: Maybe Text
+  { country :: Maybe Text
+  , state :: Maybe Text
+  , city :: Maybe Text
+  , org :: Maybe Text
+  , orgUnit :: Maybe Text
+  , email :: Maybe Text
   , domain :: Text
   }
 
