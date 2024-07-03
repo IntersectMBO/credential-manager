@@ -9,6 +9,7 @@ import Cardano.Api (ConwayEra, FileError, TextEnvelopeCddlError, TxBody)
 import Components.AddSigningKeyButton
 import Components.Common
 import Components.ImportTxButton (ImportTxButton (..), buildImportTxButton)
+import Components.NewKeyPairButton
 import Components.SignTransactionButton
 import Crypto.PubKey.Ed25519 (SecretKey)
 import Data.GI.Base
@@ -22,6 +23,7 @@ data MainButtons = MainButtons
       :: Event (Either (FileError TextEnvelopeCddlError) (FilePath, TxBody ConwayEra))
   , newSecretKeyE :: Event SecretKey
   , signedE :: Event ()
+  , newKeyPairE :: Event SecretKey
   }
 
 buildMainButtons
@@ -38,8 +40,8 @@ buildMainButtons appWindow signTxPlanB = do
   importTxButton <- buildImportTxButton appWindow
   box.append importTxButton.widget
 
-  createKeyPairButton <- new G.Button [#label := "Create new key pair"]
-  box.append createKeyPairButton
+  createKeyPairButton <- buildNewKeyPairButton appWindow
+  box.append createKeyPairButton.widget
 
   addSigningKeyButton <- buildAddSigningKeyButton appWindow
   box.append addSigningKeyButton.widget
@@ -53,3 +55,4 @@ buildMainButtons appWindow signTxPlanB = do
       importTxButton.newTxE
       addSigningKeyButton.newSecretKeyE
       signTransactionButton.signedE
+      createKeyPairButton.newKeyPairE

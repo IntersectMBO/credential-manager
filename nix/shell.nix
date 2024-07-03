@@ -14,6 +14,8 @@ cabalProject:
   packages = [
     pkgs.scriv
     pkgs.jq
+    pkgs.openssl
+    pkgs.ghcid
     pkgs.wrapGAppsHook4
     inputs.nixgl.packages.nixGLDefault
     inputs.cardano-node.packages.cardano-node

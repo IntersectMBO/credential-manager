@@ -4,11 +4,15 @@
 
 module Components.Common where
 
+import Control.Monad (guard)
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict)
 import GHC.Generics (Generic)
 import GHC.Records (HasField (..))
 import GI.Gio.Interfaces.File (File, fileNewForPath)
 import GI.Gtk.Objects.Application (Application)
+import System.Directory (doesFileExist)
 import System.Exit (die)
 
 type Globals =
@@ -23,12 +27,14 @@ data AppConfig f = AppConfig
   deriving stock (Show, Read, Ord, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (FromJSON, ToJSON)
 
-loadConfig :: FilePath -> IO (AppConfig File)
-loadConfig file = do
-  result <- eitherDecodeFileStrict file
-  case result of
-    Left err -> die $ "Failed to load app config: " <> err
-    Right config -> traverse fileNewForPath config
+loadConfig :: FilePath -> IO (Maybe (AppConfig File))
+loadConfig file = runMaybeT do
+  guard =<< liftIO (doesFileExist file)
+  liftIO do
+    result <- eitherDecodeFileStrict file
+    case result of
+      Left err -> die $ "Failed to load app config: " <> err
+      Right config -> traverse fileNewForPath config
 
 instance (HasField field a b) => HasField field (Maybe a) (Maybe b) where
   getField Nothing = Nothing

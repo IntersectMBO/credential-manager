@@ -6,7 +6,7 @@ import Options.Applicative
 import Paths_credential_manager (version)
 
 newtype Options = Options
-  { configFile :: Maybe FilePath
+  { configFile :: FilePath
   }
 
 options :: ParserInfo Options
@@ -31,14 +31,14 @@ description =
     , progDesc "GTK GUI application for signing CC Credential Manager transactions."
     ]
 
-configFileParser :: Parser (Maybe FilePath)
+configFileParser :: Parser FilePath
 configFileParser =
-  optional $
-    strOption $
-      fold
-        [ long "config-file"
-        , short 'c'
-        , metavar "FILEPATH"
-        , help "The JSON config file"
-        , action "file"
-        ]
+  strOption $
+    fold
+      [ long "config-file"
+      , short 'c'
+      , metavar "FILEPATH"
+      , help "The JSON config file"
+      , action "file"
+      , value "signing-tool.config.json"
+      ]
