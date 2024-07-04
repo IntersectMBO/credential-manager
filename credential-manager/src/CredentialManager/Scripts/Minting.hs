@@ -107,17 +107,20 @@ burnScript input symbol mintedTokens TxInfo{..} =
     checkBurn (Value value) = case AMap.lookup symbol value of
       Nothing -> trace "Specified input does not contain burned policy ID" False
       Just tokens ->
-        all (uncurry isBurned) (AMap.toList tokens)
-          && all (outputHasToken tokens) (AMap.keys mintedTokens)
-
-    isBurned :: TokenName -> Integer -> Bool
-    isBurned name q = case AMap.lookup name mintedTokens of
-      Nothing -> trace "Token not burned" False
-      Just q' -> traceIfFalse "Incorrect quantity burned" $ q == -q'
-
-    outputHasToken :: Map TokenName Integer -> TokenName -> Bool
-    outputHasToken tokens token =
-      traceIfFalse "Burned token not found in input" $ AMap.member token tokens
+        -- NOTE(jamie): This check relies on the guarantee from mintScript that
+        -- only one token may be minted for a given token name.
+        -- Check 1: The mint value only burns tokens.
+        traceIfFalse
+          "Mint value is not exclusively burning"
+          (AMap.all (== -1) mintedTokens)
+          -- Check 2: All tokens in the input value are in the mint value
+          && traceIfFalse
+            "Mint value contains tokens not present in burn input value"
+            (all (`AMap.member` mintedTokens) (AMap.keys tokens))
+          -- Check 3: All tokens in the mint value are in the input value
+          && traceIfFalse
+            "Burn input value contains tokens not present in mint value"
+            (all (`AMap.member` tokens) (AMap.keys mintedTokens))
 
 {-# INLINEABLE mintScript #-}
 mintScript
@@ -153,6 +156,9 @@ mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
     checkOutputValue value =
       traceIfFalse
         "Script output does not contain NFT"
+        -- NOTE(jamie): If this check ever changes to allow more than one token
+        -- to be minted, checkBurn in burnScript needs to be changed because it
+        -- relies on this guarantee right now.
         (valueOf value symbol tokenName == 1)
 
     checkOutputDatum NoOutputDatum _ = traceError "Output datum missing"
