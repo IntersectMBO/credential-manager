@@ -171,6 +171,29 @@ checkRotation signatories getGroup datumIn datumOut =
     checkNonEmptyOutputGroup = not $ null newGroup
     checkSignatures = all signedIfNew newGroup
     signedIfNew i@Identity{..} =
+      -- NOTE(jamie) this logic is potentially confusing because it is an
+      -- implication, which can be counterintuitive logical constructs. The
+      -- full check is:
+      --
+      --    newGroupMember `implies` isSignatory
+      --
+      -- This expands to:
+      --
+      --    not newGroupMember || (newGroupMember && isSignatory)
+      --
+      -- which is equivalent to:
+      --
+      --    memberIsInOldGroup || (not memberIsInOldGroup && isSignatory)
+      --
+      -- However, if we are in the right branch of the or expression, we
+      -- already know that `memberIsInOldGroup` must be false, so the check
+      -- `not memberIsInOldGroup` is redundant. Hence, this further simplifies to:
+      --
+      --      memberIsInOldGroup || (not False && isSignatory)
+      --    = memberIsInOldGroup || (True && isSignatory)
+      --    = memberIsInOldGroup || isSignatory
+      --
+      -- which is precisely the check we have below.
       i `elem` oldGroup || pubKeyHash `elem` signatories
 
 {-# INLINEABLE checkBurn #-}
