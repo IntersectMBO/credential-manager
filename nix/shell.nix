@@ -15,7 +15,7 @@ cabalProject:
     pkgs.scriv
     pkgs.jq
     inputs.cardano-node.packages.cardano-node
-    inputs.cardano-node.packages.cardano-cli
+    inputs.cardano-cli.packages."cardano-cli:exe:cardano-cli"
     repoRoot.nix.jsonld-nix.default.nodeDependencies
   ];
 
