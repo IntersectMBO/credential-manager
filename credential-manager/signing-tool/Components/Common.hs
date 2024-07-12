@@ -29,8 +29,6 @@ data AppConfig f = AppConfig
   , defaultCity :: Maybe Text
   , defaultOrg :: Maybe Text
   , defaultOrgUnit :: Maybe Text
-  , defaultDomain :: Maybe Text
-  , defaultEmail :: Maybe Text
   }
   deriving stock (Show, Read, Ord, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (FromJSON, ToJSON)

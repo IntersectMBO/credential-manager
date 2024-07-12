@@ -128,14 +128,7 @@ createCSR appWindow =
         orgB <- input box defaultOrg "Organization name (optional)" "legal name" []
         orgUnitB <-
           input box defaultOrgUnit "Organizational department (optional)" "" []
-        emailB <- input box defaultEmail "Email address (optional)" "" []
-        domainB <-
-          input
-            box
-            defaultDomain
-            "Fully qualified domain name (required)"
-            "e.g. www.example.com"
-            []
+        nameB <- input box (const Nothing) "Role (required)" "e.g. Membership" []
 
         dialog <-
           new
@@ -165,8 +158,7 @@ createCSR appWindow =
                   <*> Compose (Just <$> cityB)
                   <*> Compose (Just <$> orgB)
                   <*> Compose (Just <$> orgUnitB)
-                  <*> Compose (Just <$> emailB)
-                  <*> Compose domainB
+                  <*> Compose nameB
 
         saveButton <- new Button [#label := "Save"]
         saveClickE <- signalE0 saveButton #clicked
@@ -193,11 +185,8 @@ createCSR appWindow =
                       , case orgUnit of
                           Nothing -> ""
                           Just ou -> "/OU=" <> ou
-                      , case email of
-                          Nothing -> ""
-                          Just e -> "/emailAddress=" <> e
                       , "/CN="
-                      , domain
+                      , name
                       ]
             fileDialog <- new FileDialog [#title := "Save certificate signing request"]
             dir <- getCurrentDirectory
@@ -262,8 +251,7 @@ data CSRFields = CSRFields
   , city :: Maybe Text
   , org :: Maybe Text
   , orgUnit :: Maybe Text
-  , email :: Maybe Text
-  , domain :: Text
+  , name :: Text
   }
 
 showError
