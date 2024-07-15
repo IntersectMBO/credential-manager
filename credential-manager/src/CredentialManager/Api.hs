@@ -18,6 +18,7 @@ module CredentialManager.Api (
   HotLockRedeemer (..),
   readIdentityFromPEMFile,
   parseIdentityFromPEMBytes,
+  parsePrivateKeyFromPEMBytes,
 ) where
 
 import Cardano.Api (
@@ -31,6 +32,10 @@ import Cardano.Api.Byron (Hash (unPaymentKeyHash))
 import Cardano.Api.Ledger (KeyHash (..), hashToBytes)
 import Control.Monad (unless)
 import Crypto.Hash (SHA256 (SHA256), hashWith)
+import Crypto.PubKey.Ed25519 (SecretKey)
+import Data.ASN1.BinaryEncoding (BER (..))
+import Data.ASN1.Encoding (decodeASN1')
+import Data.ASN1.Types (ASN1Object (..))
 import Data.Bifunctor (Bifunctor (..))
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
@@ -38,6 +43,7 @@ import Data.PEM (PEM (..), pemParseBS)
 import Data.String (IsString)
 import Data.X509 (
   Certificate (..),
+  PrivKey (..),
   PubKey (PubKeyEd25519),
   decodeSignedCertificate,
   getCertificate,
@@ -84,6 +90,24 @@ data Identity = Identity
 
 readIdentityFromPEMFile :: FilePath -> IO (Either String Identity)
 readIdentityFromPEMFile = fmap parseIdentityFromPEMBytes . BS.readFile
+
+parsePrivateKeyFromPEMBytes :: BS.ByteString -> Either String SecretKey
+parsePrivateKeyFromPEMBytes pemBytes = do
+  PEM{..} <-
+    pemParseBS pemBytes >>= \case
+      [] -> Left "Empty PEM file"
+      [x] -> pure x
+      _ -> Left "Unexpected number of PEM entries found"
+  unless (pemName == "PRIVATE KEY") do
+    Left $ "Unexpected PEM name: " <> pemName
+  asn1 <- first show $ decodeASN1' BER pemContent
+  pk <-
+    first show (fromASN1 asn1) >>= \case
+      (pk, []) -> pure pk
+      _ -> Left "ASN1 stream end expected"
+  case pk of
+    PrivKeyEd25519 key -> pure key
+    _ -> Left "Ed25519 private key expected"
 
 parseIdentityFromPEMBytes :: BS.ByteString -> Either String Identity
 parseIdentityFromPEMBytes pemBytes = do
@@ -365,6 +389,8 @@ instance PlutusTx.Eq HotLockRedeemer where
 PlutusTx.makeLift ''HotLockDatum
 PlutusTx.makeLift ''HotLockRedeemer
 
+-- Using non-zero based indexes to easily differentiate cold and hot lock
+-- redeemers.
 PlutusTx.makeIsDataIndexed
   ''HotLockRedeemer
   [ ('Vote, 7)

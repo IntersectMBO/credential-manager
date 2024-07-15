@@ -12,6 +12,8 @@
       # inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nixgl.url = "github:nix-community/nixGL";
+
     nixpkgs.follows = "iogx/nixpkgs";
 
     # hackage = {
