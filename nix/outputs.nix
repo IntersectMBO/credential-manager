@@ -4,15 +4,16 @@ let
 
   project = repoRoot.nix.project;
 
-  staticPkgs = project.cabalProject.projectCross.musl64.hsPkgs;
+  staticPkgs =
+    if pkgs.stdenv.isLinux
+    then project.cabalProject.projectCross.musl64.hsPkgs
+    else if system == "x86_64-darwin"
+    then project.cabalProject.projectCross.x86_64-darwin.hsPkgs
+    else if system == "aarch64-darwin"
+    then project.cabalProject.projectCross.aarch64-darwin.hsPkgs
+    else { };
 
   static = staticPkgs.credential-manager.components.exes;
-
-  allStatic = pkgs.runCommand "all-statics" { } ''
-    mkdir -p $out
-    ${lib.concatMapStringsSep "\n" (drv: "cp ${drv}/bin/* $out") (lib.attrValues static)}
-  '';
-
 
 in
 
@@ -21,11 +22,7 @@ in
     # Docs for project.flake: https://github.com/input-output-hk/iogx/blob/main/doc/api.md#mkhaskellprojectoutflake
     project.flake
   )
-  (lib.optionalAttrs pkgs.stdenv.isLinux
-    {
-      packages.allStatic = allStatic;
-      hydraJobs.allStatic = allStatic;
-      hydraJobs.static = static;
-    }
-  )
+  {
+    hydraJobs.static.orchestrator-cli = static.orchestrator-cli;
+  }
 ]
