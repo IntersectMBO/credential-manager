@@ -36,6 +36,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (maybeToList)
 import qualified Data.Text.IO as T
+import Data.Traversable (for)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import GI.GLib (idleAdd, pattern PRIORITY_DEFAULT_IDLE)
 import GI.Gio (fileGetPath)
@@ -77,13 +78,15 @@ runApp config = do
       myKeysB <- fromChanges initKeys addHandlerMyKeys
       void $ execute $ buildMainWindow myKeysB <$ activateE
     actuate appNetwork
-    for_ config.secretsDir \dir -> do
-      fileGetPath dir >>= traverse_ \dir' ->
+    stopWatching <- for config.secretsDir \dir -> do
+      fileGetPath dir >>= traverse \dir' ->
         watchDir mgr dir' (const True) \_ ->
           void $ idleAdd PRIORITY_DEFAULT_IDLE do
             fireMyKeys =<< loadKeys
             pure True
-    exitWithInt =<< app.run Nothing
+    exitCode <- app.run Nothing
+    traverse_ sequence stopWatching
+    exitWithInt exitCode
 
 buildMainWindow :: (Globals) => Behavior [SecretKey] -> MomentIO ()
 buildMainWindow myKeysB = mdo
