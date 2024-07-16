@@ -74,6 +74,10 @@ import Commands.UpgradeHot (
  )
 import Commands.Vote (VoteCommand, runVoteCommand, voteCommandParser)
 import Control.Monad (unless)
+import CredentialManager.Api (
+  Identity (Identity, pubKeyHash),
+  parseIdentityFromPEMBytes,
+ )
 import Crypto.Error (eitherCryptoError)
 import qualified Crypto.PubKey.Ed25519 as Crypton
 import Data.ASN1.BinaryEncoding (BER (..), DER (DER))
@@ -96,6 +100,10 @@ import Options.Applicative (
   progDesc,
   strArgument,
  )
+import PlutusLedgerApi.V1 (
+  LedgerBytes (LedgerBytes),
+  PubKeyHash (getPubKeyHash),
+ )
 import System.Exit (die)
 
 data Command
@@ -115,6 +123,7 @@ data Command
   | UpgradeHot UpgradeHotCommand
   | FromPem FilePath FilePath
   | ToPem FilePath FilePath
+  | ExtractPubKeyHash FilePath
 
 -- Parsers
 
@@ -142,7 +151,13 @@ commandParser =
       , command "to-pem" $
           flip info toPemDesc $
             ToPem <$> textEnvelopeInFileParser <*> pemOutFileParser
+      , command "extract-pub-key-hash" $
+          flip info extractPubKeyHashDesc $
+            ExtractPubKeyHash <$> certInFileParser
       ]
+
+extractPubKeyHashDesc :: InfoMod Command
+extractPubKeyHashDesc = progDesc "Extract a pub key hash from a certificate PEM file."
 
 toPemDesc :: InfoMod Command
 toPemDesc = progDesc "Convert a cardano-cli text envelope file to an OpenSSL PEM file."
@@ -188,6 +203,15 @@ pemInFileParser =
       , action "file"
       ]
 
+certInFileParser :: Parser FilePath
+certInFileParser =
+  strArgument $
+    fold
+      [ metavar "FILE_PATH"
+      , help "An X.509 certificate from which to extract the public key hash."
+      , action "file"
+      ]
+
 -- Implementations
 
 runCommand :: Command -> IO ()
@@ -208,6 +232,7 @@ runCommand = \case
   UpgradeCold cmd -> runUpgradeColdCommand cmd
   ToPem src dest -> runToPEM src dest
   FromPem src dest -> runFromPEM src dest
+  ExtractPubKeyHash certFile -> runExtractPubKeyHash certFile
 
 runToPEM :: FilePath -> FilePath -> IO ()
 runToPEM src dest = do
@@ -269,3 +294,11 @@ runFromPEM src dest = do
         . show
   flip assertRight (("Failed to write output file: " <>) . show)
     =<< writeFileTextEnvelope (File dest) (Just "Payment Signing Key") signingKey
+
+runExtractPubKeyHash :: FilePath -> IO ()
+runExtractPubKeyHash certFile = do
+  srcBytes <- BS.readFile certFile
+  let parseResult = parseIdentityFromPEMBytes srcBytes
+  case parseResult of
+    Left err -> die err
+    Right Identity{..} -> print $ LedgerBytes $ getPubKeyHash pubKeyHash
