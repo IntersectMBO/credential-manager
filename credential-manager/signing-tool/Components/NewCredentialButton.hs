@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Components.NewKeyPairButton where
+module Components.NewCredentialButton where
 
 import Components.Common
 import Control.Exception (catch)
@@ -55,16 +55,16 @@ import System.Process (
  )
 import Witherable (Witherable (..))
 
-buildNewKeyPairButton
+buildNewCredentialButton
   :: (Globals)
   => ApplicationWindow
   -> MomentIO Button
-buildNewKeyPairButton appWindow = do
-  btn <- new Button [#label := "New key pair"]
+buildNewCredentialButton appWindow = do
+  btn <- new Button [#label := "New credential"]
   clickE <- signalE0 btn #clicked
-  newKeyPairE <- execute (createCSR appWindow <$ clickE)
+  newCredentialE <- execute (createCSR appWindow <$ clickE)
   -- Make sure execute gets called by sending the event to some no-op sink.
-  reactimate $ pure () <$ newKeyPairE
+  reactimate $ pure () <$ newCredentialE
   pure btn
 
 createCSR :: (Globals) => ApplicationWindow -> MomentIO ()
