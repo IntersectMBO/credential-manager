@@ -123,8 +123,8 @@ hush :: Either a b -> Maybe b
 hush = either (const Nothing) Just
 
 icon :: Bool -> Text
-icon False = "view-reveal-symbolic.symbolic"
-icon True = "view-conceal-symbolic.symbolic"
+icon False = "view-reveal-symbolic"
+icon True = "view-conceal-symbolic"
 
 isSecondary :: EntryIconPosition -> Bool
 isSecondary = (== EntryIconPositionSecondary)
