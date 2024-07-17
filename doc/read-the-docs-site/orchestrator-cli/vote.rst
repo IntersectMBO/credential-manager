@@ -47,7 +47,7 @@ and hashing it. We can use the `jsonld` CLI to help with this:
 
    $ ANCHOR=https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json 
    $ cardano-cli conway governance hash anchor-data \
-      --text "$(curl -s $ANCHOR | jsonld canonize)" \
+      --text "$(curl -s $ANCHOR)" \
       --out-file anchor.hash
 
 As before, we also need the current output of the hot NFT script:
