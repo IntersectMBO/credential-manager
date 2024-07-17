@@ -27,6 +27,9 @@ tests: True
 
 test-show-details: direct
 
+package dear-imgui
+  flags: +sdl -opengl3 +sdl-renderer
+
 package credential-manager
   tests: True
   ghc-options: -Werror
