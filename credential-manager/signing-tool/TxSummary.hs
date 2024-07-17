@@ -14,7 +14,6 @@ import Cardano.Api (
   PaymentKey,
   Quantity (..),
   SerialiseAddress (serialiseAddress),
-  SerialiseAsRawBytes (..),
   ShelleyBasedEra (..),
   TextEnvelopeCddlError (..),
   TxBody (..),
@@ -62,7 +61,6 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
 import Data.Traversable (for)
 import PlutusLedgerApi.Common (Data (..))
 import PlutusLedgerApi.V3 (
@@ -322,7 +320,7 @@ summarizeOutput classification (TxOut address outValue outDatum _refScript) = do
         T.pack (show q)
           <> " "
           <> serialiseToRawBytesHexText p
-          <> case decodeUtf8 $ serialiseToRawBytes n of
+          <> case serialiseToRawBytesHexText n of
             "" -> ""
             n' -> "." <> n'
   case outDatum of
