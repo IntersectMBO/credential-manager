@@ -6,12 +6,6 @@ set -e
 set -u
 set -o pipefail
 
-UNAME=$(uname -s) SED=
-case $UNAME in
-  Darwin )      SED="gsed";;
-  Linux )       SED="sed";;
-esac
-
 sprocket() {
   if [ "$UNAME" == "Windows_NT" ]; then
     # Named pipes names on Windows must have the structure: "\\.\pipe\PipeName"
@@ -21,14 +15,6 @@ sprocket() {
     echo "$1"
   fi
 }
-
-UNAME=$(uname -s) DATE=
-case $UNAME in
-  Darwin )      DATE="gdate";;
-  Linux )       DATE="date";;
-  MINGW64_NT* ) UNAME="Windows_NT"
-                DATE="date";;
-esac
 
 CARDANO_CLI="${CARDANO_CLI:-cardano-cli}"
 NETWORK_MAGIC=42
@@ -82,7 +68,7 @@ cp scripts/babbage/alonzo-babbage-test-genesis.json "${ROOT}/genesis.alonzo.spec
 cp scripts/babbage/conway-babbage-test-genesis.json "${ROOT}/genesis.conway.spec.json"
 
 cp configuration/defaults/byron-mainnet/configuration.yaml "${ROOT}/"
-$SED -i "${ROOT}/configuration.yaml" \
+sed -i "${ROOT}/configuration.yaml" \
      -e 's/Protocol: RealPBFT/Protocol: Cardano/' \
      -e '/Protocol/ aPBftSignatureThreshold: 0.6' \
      -e 's|GenesisFile: genesis.json|ByronGenesisFile: genesis/byron/genesis.json|' \

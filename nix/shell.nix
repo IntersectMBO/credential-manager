@@ -17,6 +17,8 @@ cabalProject:
     pkgs.openssl
     pkgs.ghcid
     pkgs.wrapGAppsHook4
+    pkgs.coreutils
+    pkgs.gnused
     # inputs.nixgl.packages.nixGLDefault
     inputs.cardano-node.packages.cardano-node
     inputs.cardano-cli.packages."cardano-cli:exe:cardano-cli"
