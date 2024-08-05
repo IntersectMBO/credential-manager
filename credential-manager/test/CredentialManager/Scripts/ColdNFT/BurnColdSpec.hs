@@ -1,10 +1,17 @@
 module CredentialManager.Scripts.ColdNFT.BurnColdSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genNonAdaAssetClass,
+  genTxInfoMintForNFTBurn,
+ )
 import CredentialManager.Scripts.ColdNFT
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
-import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonMembershipSigners,
+ )
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
@@ -97,7 +104,14 @@ invariantBC4NotBurned :: ValidArgs -> Property
 invariantBC4NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \_ _ ctx -> do
     baseValue <- arbitrary
-    let value = baseValue <> assetClassValue coldNFT 1
+    (nftOutValue, mintValue) <-
+      elements
+        [ (assetClassValue coldNFT 1, mempty) -- outputted and not burned
+        , (assetClassValue coldNFT 1, assetClassValue coldNFT (-1)) -- outputted and burned
+        , (mempty, assetClassValue coldNFT 1) -- not outputted and minted
+        , (mempty, mempty) -- not outputted and not burned/minted
+        ]
+    let value = baseValue <> nftOutValue
     output <-
       TxOut
         <$> arbitrary
@@ -110,6 +124,7 @@ invariantBC4NotBurned args@ValidArgs{..} =
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs = outputs'
+                  , txInfoMint = mintValue
                   }
             }
     pure $
@@ -130,6 +145,7 @@ forAllValidScriptContexts ValidArgs{..} f =
         listOf $ arbitrary `suchThat` ((/= burnScriptRef) . txInInfoOutRef)
       inputs <- shuffle $ input : additionalInputs
       outputs <- listOf $ arbitrary `suchThat` (not . hasToken coldNFT)
+      mint <- genTxInfoMintForNFTBurn coldNFT
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
       let Fraction excessFraction = burnExcessSignatureFraction
@@ -141,7 +157,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <$> arbitrary
           <*> pure outputs
           <*> arbitrary
-          <*> arbitrary
+          <*> pure mint
           <*> pure []
           <*> arbitrary
           <*> arbitrary
@@ -228,12 +244,13 @@ data ValidArgs = ValidArgs
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
-    ValidArgs
+  arbitrary = do
+    coldNFT <- genNonAdaAssetClass
+    burnValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> pure burnValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

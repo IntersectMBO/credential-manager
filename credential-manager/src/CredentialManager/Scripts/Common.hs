@@ -16,7 +16,12 @@ import CredentialManager.Api (Identity (..))
 #ifdef TRACE_GHC
 import qualified Debug.Trace as D
 #endif
-import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
+import PlutusLedgerApi.V1.Value (
+  AssetClass,
+  assetClassValueOf,
+  lovelaceValue,
+  lovelaceValueOf,
+ )
 import PlutusLedgerApi.V3 (
   Address (..),
   Credential (..),
@@ -31,12 +36,12 @@ import PlutusLedgerApi.V3 (
   TxInInfo (..),
   TxInfo (..),
   TxOut (..),
-  TxOutRef,
   UnsafeFromData,
   Value,
   fromBuiltinData,
   unsafeFromBuiltinData,
  )
+import PlutusLedgerApi.V3.Contexts (findOwnInput)
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
 #ifdef TRACE_GHC
 import qualified Prelude as H
@@ -63,68 +68,91 @@ traceIfFalse _ True = True
 {-# INLINEABLE checkMultiSig #-}
 checkMultiSig :: [Identity] -> [PubKeyHash] -> Bool
 checkMultiSig [] _ = trace "Empty multisig requirement" False
-checkMultiSig list signatures =
+checkMultiSig allowedSigners providedSigners =
   traceIfFalse "insufficient signatures" $ majority <= numberOfSignatures
   where
-    allSignatures = nub $ pubKeyHash <$> list
+    allSignatures = nub $ pubKeyHash <$> allowedSigners
     majority = (\x -> divide x 2 + modulo x 2) $ length allSignatures
-    numberOfSignatures = length $ filter (`elem` signatures) allSignatures
+    numberOfSignatures = length $ filter (`elem` providedSigners) allSignatures
 
-{-# INLINEABLE findOutputsByCredential #-}
-findOutputsByCredential :: Credential -> [TxOut] -> [TxOut]
-findOutputsByCredential ownCredential =
-  filter \(TxOut (Address outCredential _) _ _ _) ->
-    ownCredential == outCredential
+{-# INLINEABLE findOutputsByAddress #-}
+findOutputsByAddress :: Address -> [TxOut] -> [TxOut]
+findOutputsByAddress ownAddress =
+  filter \(TxOut outAddress _ _ _) ->
+    ownAddress == outAddress
 
 {-# INLINEABLE checkSpendingTx #-}
 checkSpendingTx
   :: (FromData datum, FromData redeemer)
-  => (TxInfo -> TxOutRef -> Address -> Value -> datum -> redeemer -> Bool)
+  => AssetClass
+  -> (TxInfo -> Address -> Value -> Maybe ScriptHash -> datum -> redeemer -> Bool)
   -> ScriptContext
   -> Bool
-checkSpendingTx checkSpend ScriptContext{..} =
-  case scriptContextScriptInfo of
-    SpendingScript _ Nothing -> trace "No input datum" False
-    SpendingScript ownRef (Just inDatum) -> go txInfoInputs
-      where
-        TxInfo{..} = scriptContextTxInfo
-        go [] = trace "Input from script purpose not found" False
-        go (TxInInfo ref TxOut{..} : inputs')
-          | ref == ownRef = case fromBuiltinData $ getDatum inDatum of
-              Nothing -> trace "Invalid input datum" False
-              Just datum -> case fromBuiltinData $ getRedeemer scriptContextRedeemer of
-                Nothing -> trace "Invalid redeemer" False
-                Just redeemer ->
-                  checkSpend
-                    scriptContextTxInfo
-                    ownRef
-                    txOutAddress
-                    txOutValue
-                    datum
-                    redeemer
-          | otherwise = go inputs'
-    _ -> trace "Not a spending script" False
+checkSpendingTx
+  nft
+  checkSpend
+  scriptContext@ScriptContext
+    { scriptContextScriptInfo
+    , scriptContextRedeemer
+    , scriptContextTxInfo
+    } =
+    case scriptContextScriptInfo of
+      SpendingScript _ Nothing -> trace "No input datum" False
+      SpendingScript _ (Just inDatum) -> case findOwnInput scriptContext of
+        Nothing -> trace "Input from script purpose not found" False
+        Just (TxInInfo _ TxOut{txOutAddress, txOutValue, txOutReferenceScript}) -> case fromBuiltinData $ getDatum inDatum of
+          Nothing -> trace "Invalid input datum" False
+          Just datum -> case fromBuiltinData $ getRedeemer scriptContextRedeemer of
+            Nothing -> trace "Invalid redeemer" False
+            Just redeemer ->
+              traceIfFalse "NFT not found in input" (assetClassValueOf txOutValue nft == 1)
+                && checkSpend
+                  scriptContextTxInfo
+                  txOutAddress
+                  txOutValue
+                  txOutReferenceScript
+                  datum
+                  redeemer
+      _ -> trace "Not a spending script" False
 
 {-# INLINEABLE checkSelfPreservation #-}
 checkSelfPreservation
   :: (FromData a, Eq a)
   => Address
   -> Value
+  -> Maybe ScriptHash
   -> [TxOut]
   -> a
   -> Bool
-checkSelfPreservation addrIn valueIn outputs datumIn =
-  checkContinuingTx addrIn valueIn outputs \datumOut ->
+checkSelfPreservation addrIn valueIn refScriptIn outputs datumIn =
+  checkContinuingTx addrIn valueIn refScriptIn outputs \datumOut ->
     traceIfFalse "Own datum not conserved" (datumIn == datumOut)
+
+{-# INLINEABLE checkPossibleLovelaceIncrease #-}
+checkPossibleLovelaceIncrease :: Value -> Value -> Bool
+checkPossibleLovelaceIncrease v1 v2 = l1 <= l2 && v1' == v2'
+  where
+    l1 = lovelaceValueOf v1
+    l2 = lovelaceValueOf v2
+    v1' = v1 <> inv (lovelaceValue l1)
+    v2' = v2 <> inv (lovelaceValue l2)
 
 {-# INLINEABLE checkContinuingTx #-}
 checkContinuingTx
-  :: (FromData a) => Address -> Value -> [TxOut] -> (a -> Bool) -> Bool
-checkContinuingTx addrIn valueIn outputs checkDatum =
-  case findOutputsByCredential (addressCredential addrIn) outputs of
-    [TxOut addrOut valueOut datumOut _] ->
-      traceIfFalse "own address not preserved" (addrIn == addrOut)
-        && traceIfFalse "own value not preserved" (valueIn == valueOut)
+  :: (FromData a)
+  => Address
+  -> Value
+  -> Maybe ScriptHash
+  -> [TxOut]
+  -> (a -> Bool)
+  -> Bool
+checkContinuingTx addrIn valueIn refScriptIn outputs checkDatum =
+  case findOutputsByAddress addrIn outputs of
+    [TxOut _ valueOut datumOut refScript] ->
+      traceIfFalse "reference script value not preserved" (refScript == refScriptIn)
+        && traceIfFalse
+          "own value not preserved"
+          (checkPossibleLovelaceIncrease valueIn valueOut)
         && case datumOut of
           OutputDatum (Datum datum) -> case fromBuiltinData datum of
             Just datum' -> checkDatum datum'
@@ -170,7 +198,7 @@ checkRotation signatories getGroup datumIn datumOut =
     newGroup = getGroup datumOut
     checkNonEmptyOutputGroup = not $ null newGroup
     checkSignatures = all signedIfNew newGroup
-    signedIfNew i@Identity{..} =
+    signedIfNew i@Identity{pubKeyHash} =
       -- NOTE(jamie) this logic is potentially confusing because it is an
       -- implication, which can be counterintuitive logical constructs. The
       -- full check is:
@@ -196,24 +224,31 @@ checkRotation signatories getGroup datumIn datumOut =
       -- which is precisely the check we have below.
       i `elem` oldGroup || pubKeyHash `elem` signatories
 
-{-# INLINEABLE checkBurn #-}
-checkBurn :: AssetClass -> [TxOut] -> Bool
-checkBurn assetClass = traceIfFalse "NFT not burned" . not . any containsAsset
+{-# INLINEABLE checkBurnAll #-}
+checkBurnAll :: AssetClass -> TxInfo -> Bool
+checkBurnAll assetClass TxInfo{txInfoMint, txInfoOutputs} = checkAssetBurn && checkAssetMissingFromOutputs
   where
-    containsAsset TxOut{..} = assetClassValueOf txOutValue assetClass > 0
+    checkAssetBurn = assetClassValueOf txInfoMint assetClass < 0
+    checkAssetMissingFromOutputs = traceIfFalse "NFT not burned" . not . any containsAsset $ txInfoOutputs
+      where
+        containsAsset TxOut{txOutValue} = assetClassValueOf txOutValue assetClass > 0
 
 {-# INLINEABLE checkUpgrade #-}
-checkUpgrade :: AssetClass -> ScriptHash -> [TxOut] -> Bool
-checkUpgrade assetClass destination = go
+checkUpgrade :: AssetClass -> Address -> ScriptHash -> [TxOut] -> Bool
+checkUpgrade assetClass sourceAddr destination outs = checkUpgradeToDifferentScript && checkNFTOutput outs
   where
-    go [] = trace "NFT not found in outputs" False
-    go (TxOut{..} : outputs)
-      | assetClassValueOf txOutValue assetClass > 0 =
+    checkUpgradeToDifferentScript =
+      case addressCredential sourceAddr of
+        ScriptCredential source -> traceIfFalse "Upgrade to the same script" $ source /= destination
+        _ -> trace "Source address not at script address" False
+    checkNFTOutput [] = trace "NFT not found in outputs" False
+    checkNFTOutput (TxOut{txOutAddress, txOutValue} : outputs)
+      | assetClassValueOf txOutValue assetClass == 1 =
           case addressCredential txOutAddress of
             ScriptCredential scriptHash ->
               traceIfFalse "NFT sent to incorrect script" $ destination == scriptHash
             _ -> trace "NFT sent to key hash address" False
-      | otherwise = go outputs
+      | otherwise = checkNFTOutput outputs
 
 {-# INLINEABLE wrapTwoArgsV2 #-}
 wrapTwoArgsV2

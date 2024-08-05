@@ -1,10 +1,16 @@
 module CredentialManager.Scripts.ColdNFT.UpgradeColdSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genNonAdaAssetClass,
+ )
 import CredentialManager.Scripts.ColdNFT
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
-import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonMembershipSigners,
+ )
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
@@ -49,6 +55,9 @@ spec = do
   prop
     "Invariant UC5: UpgradeCold fails if token sent to wrong address"
     invariantUC5WrongAddress
+  prop
+    "Invariant UC6: UpgradeCold fails if upgrades to the same script"
+    invariantUC6SameScript
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \_ _ ctx ->
@@ -126,6 +135,35 @@ invariantUC5WrongAddress args@ValidArgs{..} =
     let ctx' =
           ctx
             { scriptContextTxInfo =
+                (scriptContextTxInfo ctx)
+                  { txInfoOutputs = outputs'
+                  }
+            }
+    pure $
+      counterexample ("Context: " <> show ctx') $
+        coldNFTScript coldNFT upgradeColdCredential ctx' === False
+
+invariantUC6SameScript :: ValidArgs -> Property
+invariantUC6SameScript args@ValidArgs{..} =
+  forAllValidScriptContexts args \_ _ ctx -> do
+    let destinationScriptCredential = case addressCredential upgradeScriptAddress of
+          ScriptCredential source -> source
+          _ -> error "ValidArgs should have a script address as a source"
+    destinationStakingCredential <- arbitrary
+    let destination =
+          Address
+            (ScriptCredential destinationScriptCredential)
+            destinationStakingCredential
+        tweakAddress TxOut{..}
+          | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
+              pure TxOut{txOutAddress = destination, ..}
+          | otherwise = pure TxOut{..}
+    outputs' <- traverse tweakAddress $ txInfoOutputs $ scriptContextTxInfo ctx
+    let redeemer = UpgradeCold destinationScriptCredential
+        ctx' =
+          ctx
+            { scriptContextRedeemer = Redeemer $ toBuiltinData redeemer
+            , scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs = outputs'
                   }
@@ -258,12 +296,16 @@ data ValidArgs = ValidArgs
 instance Arbitrary ValidArgs where
   arbitrary = do
     destination <- arbitrary
-    ValidArgs
+    scriptAddress <-
+      arbitrary `suchThat` \addr -> case addressCredential addr of
+        (ScriptCredential source) -> source /= destination
+        _ -> False
+    coldNFT <- genNonAdaAssetClass
+    updradeValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT destination
       <$> arbitrary
-      <*> pure destination
-      <*> arbitrary
-      <*> arbitrary `suchThat` ((/= ScriptCredential destination) . addressCredential)
-      <*> arbitrary
+      <*> pure scriptAddress
+      <*> pure updradeValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
