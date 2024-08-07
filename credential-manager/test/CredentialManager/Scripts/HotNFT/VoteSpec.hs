@@ -1,7 +1,12 @@
 module CredentialManager.Scripts.HotNFT.VoteSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genIncorrectlyPreservedValue,
+  genNonAdaAssetClass,
+ )
+import CredentialManager.Scripts.ColdNFTSpec (importanceSampleScriptValue)
 import CredentialManager.Scripts.HotNFT
 import CredentialManager.Scripts.HotNFTSpec (nonVotingSigners)
 import Data.Foldable (Foldable (..))
@@ -183,7 +188,7 @@ invariantV7VoteMultipleSelfOutputs args@ValidArgs{..} =
 invariantV8VoteValueNotPreserved :: ValidArgs -> Property
 invariantV8VoteValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts pure args \coldNFT hotNFT _ _ ctx -> do
-    newValue <- arbitrary `suchThat` (/= voteValue)
+    newValue <- genIncorrectlyPreservedValue voteValue
     let modifyValue TxOut{..}
           | txOutAddress == voteScriptAddress = TxOut{txOutValue = newValue, ..}
           | otherwise = TxOut{..}
@@ -402,16 +407,18 @@ data ValidArgs = ValidArgs
 
 instance Arbitrary ValidArgs where
   arbitrary = do
-    coldNFT <- arbitrary
+    coldNFT <- genNonAdaAssetClass
+    hotNFT <- genNonAdaAssetClass `suchThat` (/= coldNFT)
+    voteValue <- importanceSampleScriptValue True hotNFT
     ValidArgs
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> pure voteValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> pure coldNFT
-      <*> arbitrary `suchThat` (/= coldNFT)
+      <*> pure hotNFT
       <*> arbitrary
       <*> arbitrary
   shrink = genericShrink

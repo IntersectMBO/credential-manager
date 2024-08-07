@@ -46,9 +46,9 @@ hotNFTScript
   -> ScriptContext
   -> Bool
 hotNFTScript coldNFT hotNFT hotCred =
-  checkSpendingTx \TxInfo{..} _ inAddress inValue datumIn -> \case
+  checkSpendingTx hotNFT \txInfo@TxInfo{txInfoOutputs, txInfoReferenceInputs, txInfoSignatories, txInfoVotes} inAddress inValue inRefScript datumIn -> \case
     Vote ->
-      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
+      checkSelfPreservation inAddress inValue inRefScript txInfoOutputs datumIn
         && checkMultiSig (votingUsers datumIn) txInfoSignatories
         && checkVote
       where
@@ -58,30 +58,38 @@ hotNFTScript coldNFT hotNFT hotCred =
               && traceIfFalse "No votes" (not $ Map.null voterVotes)
           _ -> trace "Invalid number of voters" False
     ResignVoting user ->
-      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        checkNoVotes txInfoVotes
-          && checkResignation txInfoSignatories user votingUsers datumIn datumOut
+      checkNoVotes txInfoVotes
+        && checkContinuingTx
+          inAddress
+          inValue
+          inRefScript
+          txInfoOutputs
+          (checkResignation txInfoSignatories user votingUsers datumIn)
     RotateHot ->
-      checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
-        checkNoVotes txInfoVotes
-          && signedByDelegators txInfoSignatories txInfoReferenceInputs
-          && checkRotation txInfoSignatories votingUsers datumIn datumOut
+      checkNoVotes txInfoVotes
+        && signedByDelegators txInfoSignatories txInfoReferenceInputs
+        && checkContinuingTx
+          inAddress
+          inValue
+          inRefScript
+          txInfoOutputs
+          (checkRotation txInfoSignatories votingUsers datumIn)
     BurnHot ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
         && checkNoVotes txInfoVotes
-        && checkBurn hotNFT txInfoOutputs
+        && checkBurnAll hotNFT txInfo
     UpgradeHot destination ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
         && checkNoVotes txInfoVotes
-        && checkUpgrade hotNFT destination txInfoOutputs
+        && checkUpgrade hotNFT inAddress destination txInfoOutputs
   where
     signedByDelegators signatories = go
       where
         go [] = trace "Cold NFT reference input not found" False
-        go (TxInInfo _ TxOut{..} : refInputs')
-          | assetClassValueOf txOutValue coldNFT > 0 = case txOutDatum of
+        go (TxInInfo _ TxOut{txOutDatum, txOutValue} : refInputs')
+          | assetClassValueOf txOutValue coldNFT == 1 = case txOutDatum of
               OutputDatum datum -> case fromBuiltinData $ getDatum datum of
-                Just ColdLockDatum{..} -> checkMultiSig delegationUsers signatories
+                Just ColdLockDatum{delegationUsers} -> checkMultiSig delegationUsers signatories
                 _ -> trace "Invalid cold NFT datum" False
               _ -> trace "Missing cold NFT datum" False
           | otherwise = go refInputs'

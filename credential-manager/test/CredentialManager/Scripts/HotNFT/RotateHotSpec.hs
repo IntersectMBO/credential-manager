@@ -1,8 +1,15 @@
 module CredentialManager.Scripts.HotNFT.RotateHotSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
-import CredentialManager.Scripts.ColdNFTSpec (nonDelegationSigners)
+import CredentialManager.Gen (
+  Fraction (..),
+  genIncorrectlyPreservedValue,
+  genNonAdaAssetClass,
+ )
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonDelegationSigners,
+ )
 import CredentialManager.Scripts.HotNFT
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
@@ -220,7 +227,7 @@ invariantRTH7MultipleSelfOutputs args@ValidArgs{..} =
 invariantRTH8ValueNotPreserved :: ValidArgs -> Property
 invariantRTH8ValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx -> do
-    newValue <- arbitrary `suchThat` (/= rotateValue)
+    newValue <- genIncorrectlyPreservedValue rotateValue
     let modifyValue TxOut{..}
           | txOutAddress == rotateScriptAddress = TxOut{txOutValue = newValue, ..}
           | otherwise = TxOut{..}
@@ -465,12 +472,14 @@ data ValidArgs = ValidArgs
 instance Arbitrary ValidArgs where
   arbitrary = do
     coldNFT <- arbitrary
+    hotNFT <- genNonAdaAssetClass `suchThat` (/= coldNFT)
+    rotateValue <- importanceSampleScriptValue True hotNFT
     ValidArgs
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> pure rotateValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -482,7 +491,7 @@ instance Arbitrary ValidArgs where
       <*> arbitrary
       <*> arbitrary
       <*> pure coldNFT
-      <*> arbitrary `suchThat` (/= coldNFT)
+      <*> pure hotNFT
       <*> arbitrary
       <*> arbitrary
   shrink = filter (not . invalid) . genericShrink

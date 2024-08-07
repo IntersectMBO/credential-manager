@@ -1,8 +1,15 @@
 module CredentialManager.Scripts.HotNFT.BurnHotSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
-import CredentialManager.Scripts.ColdNFTSpec (nonDelegationSigners)
+import CredentialManager.Gen (
+  Fraction (..),
+  genNonAdaAssetClass,
+  genTxInfoMintForNFTBurn,
+ )
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonDelegationSigners,
+ )
 import CredentialManager.Scripts.HotNFT
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
@@ -157,7 +164,14 @@ invariantBH5NotBurned :: ValidArgs -> Property
 invariantBH5NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ ctx -> do
     baseValue <- arbitrary
-    let value = baseValue <> assetClassValue hotNFT 1
+    (nftOutValue, mintValue) <-
+      elements
+        [ (assetClassValue coldNFT 1, mempty) -- outputted not burned
+        , (assetClassValue coldNFT 1, assetClassValue coldNFT (-1)) -- outputted and burned
+        , (mempty, assetClassValue coldNFT 1) -- not outputted and minted
+        , (mempty, mempty) -- not outputted and not burned/minted
+        ]
+    let value = baseValue <> nftOutValue
     output <-
       TxOut
         <$> arbitrary
@@ -170,6 +184,7 @@ invariantBH5NotBurned args@ValidArgs{..} =
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs = outputs'
+                  , txInfoMint = mintValue
                   }
             }
     pure $
@@ -193,6 +208,7 @@ forAllValidScriptContexts ValidArgs{..} f =
       outputs <- listOf $ arbitrary `suchThat` (not . hasToken burnHotNFT)
       inputs <- shuffle $ input : additionalInputs
       refInputs <- shuffle $ refInput : additionalRefInputs
+      mint <- genTxInfoMintForNFTBurn burnHotNFT
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
       let Fraction excessFraction = burnExcessSignatureFraction
@@ -202,7 +218,7 @@ forAllValidScriptContexts ValidArgs{..} f =
       info <-
         TxInfo inputs refInputs outputs
           <$> arbitrary
-          <*> arbitrary
+          <*> pure mint
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -318,12 +334,14 @@ data ValidArgs = ValidArgs
 instance Arbitrary ValidArgs where
   arbitrary = do
     coldNFT <- arbitrary
+    hotNFT <- genNonAdaAssetClass `suchThat` (/= coldNFT)
+    burnValue <- importanceSampleScriptValue True hotNFT
     ValidArgs
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> pure burnValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
@@ -332,7 +350,7 @@ instance Arbitrary ValidArgs where
       <*> arbitrary
       <*> arbitrary
       <*> pure coldNFT
-      <*> arbitrary `suchThat` (/= coldNFT)
+      <*> pure hotNFT
       <*> arbitrary
       <*> arbitrary
   shrink = filter (not . invalid) . genericShrink

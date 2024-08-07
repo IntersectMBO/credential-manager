@@ -29,13 +29,13 @@ import PlutusTx.Prelude hiding (trace, traceIfFalse)
 -- in any spending input of the transaction.
 {-# INLINEABLE coldCommitteeScript #-}
 coldCommitteeScript :: AssetClass -> ScriptContext -> Bool
-coldCommitteeScript nft ScriptContext{..} = case scriptContextScriptInfo of
+coldCommitteeScript nft ScriptContext{scriptContextScriptInfo, scriptContextTxInfo} = case scriptContextScriptInfo of
   CertifyingScript _ _ ->
     traceIfFalse "Cold NFT not found in any input" $ any inputSpendsToken txInputs
   _ -> trace "Invalid script purpose" False
   where
     -- Checks if an input spends the correct token
-    inputSpendsToken TxInInfo{txInInfoResolved = TxOut{..}} =
+    inputSpendsToken TxInInfo{txInInfoResolved = TxOut{txOutValue}} =
       assetClassValueOf txOutValue nft == 1
     -- The list of transaction inputs being consumed in this transaction.
     txInputs = txInfoInputs scriptContextTxInfo

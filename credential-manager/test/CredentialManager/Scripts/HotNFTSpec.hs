@@ -1,6 +1,8 @@
 module CredentialManager.Scripts.HotNFTSpec where
 
+import Control.Exception (evaluate)
 import CredentialManager.Api
+import CredentialManager.Gen (genTxInfoMintForNFTBurn)
 import CredentialManager.Scripts.ColdNFTSpec (
   genNonSpending,
   importanceSampleArbitrary,
@@ -13,9 +15,16 @@ import CredentialManager.Scripts.ColdNFTSpec (
 import CredentialManager.Scripts.HotNFT
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
-import Data.List (nub, nubBy)
+import Data.Functor ((<&>))
+import Data.List (elemIndex, nub, nubBy)
+import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
-import PlutusLedgerApi.V1.Value (AssetClass (..), assetClassValueOf)
+import GHC.IO (catchAny, unsafePerformIO)
+import PlutusLedgerApi.V1.Value (
+  AssetClass (..),
+  assetClassValue,
+  assetClassValueOf,
+ )
 import PlutusLedgerApi.V3 (
   Address (..),
   Credential (..),
@@ -37,6 +46,7 @@ import PlutusLedgerApi.V3 (
  )
 import qualified PlutusLedgerApi.V3 as PV3
 import qualified PlutusTx.AssocMap as AMap
+import PlutusTx.Monoid (Group (inv))
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -57,6 +67,12 @@ spec = do
   prop
     "Invariant 4: Valid transitions don't leave empty voting"
     invariant4VotingNonempty
+  prop
+    "Invariant 5: Hot NFT is not present in own input"
+    invariant5TokenNotPresentInOwnInput
+  prop
+    "Invariant 6: Valid transitions preserve reference script"
+    invariant6ReferenceScriptPreservation
 
 invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
@@ -88,6 +104,90 @@ invariant4VotingNonempty :: ScriptArgs -> Property
 invariant4VotingNonempty args =
   not (null $ votingUsers $ datum args) ==>
     forAllValidTransitions args \_ -> not . null . votingUsers
+
+invariant5TokenNotPresentInOwnInput :: ScriptArgs -> Property
+invariant5TokenNotPresentInOwnInput args@ScriptArgs{..} =
+  forAllScriptContexts True args \ctx ->
+    wrapHotNFTScript coldNFT hotNFT hotCredential ctx ==> do
+      let genIx len =
+            if len == 0
+              then pure Nothing
+              else
+                frequency
+                  [ (len - 1, Just <$> choose (0, len - 1))
+                  , (1, pure Nothing)
+                  ]
+          genInputIx = do
+            let otherInputsNumber = (length . txInfoInputs . scriptContextTxInfo $ ctx) - 1
+            genIx otherInputsNumber
+          genOutputIx = do
+            let otherOutputsNumber = (length . txInfoOutputs . scriptContextTxInfo $ ctx) - 1
+            genIx otherOutputsNumber
+          gen = (,) <$> genInputIx <*> genOutputIx
+
+      forAll gen \(possibleNewNFTInputTx, possibleNewNFTOutputTx) -> do
+        let ScriptContext{..} = ctx
+            TxInfo{txInfoInputs = inputs, txInfoOutputs = outputs} = scriptContextTxInfo
+            removeHotNFTFromOutput txOut@(TxOut{txOutValue}) =
+              txOut
+                { txOutValue =
+                    txOutValue <> inv (assetClassValue hotNFT (assetClassValueOf txOutValue hotNFT))
+                }
+            removeHotNFTFromInput txInInfo@TxInInfo{txInInfoResolved = txOut} = do
+              txInInfo{txInInfoResolved = removeHotNFTFromOutput txOut}
+            input' = removeHotNFTFromInput scriptInput
+            inputs' =
+              inputs <&> \input ->
+                if input == scriptInput
+                  then input'
+                  else input
+            output' = removeHotNFTFromOutput <$> scriptOutput
+            outputs' =
+              outputs <&> \output ->
+                if Just output == scriptOutput
+                  then fromMaybe output output'
+                  else output
+            addHotNFTToOutput txOut@(TxOut{txOutValue}) =
+              txOut{txOutValue = txOutValue <> assetClassValue hotNFT 1}
+            addHotNFTToInput txInInfo@TxInInfo{txInInfoResolved = txOut} = do
+              txInInfo{txInInfoResolved = addHotNFTToOutput txOut}
+            tweakElemSkipping :: forall a. Int -> Int -> [a] -> (a -> a) -> [a]
+            tweakElemSkipping ignoredIx targetIx elems f = do
+              let targetIx' = if targetIx < ignoredIx then targetIx else targetIx + 1
+              flip map (zip [0 ..] elems) \(i, e) ->
+                if i == targetIx'
+                  then f e
+                  else e
+            inputs'' = fromMaybe inputs' do
+              targetIx <- possibleNewNFTInputTx
+              ignoredIx <- elemIndex scriptInput inputs'
+              pure $ tweakElemSkipping ignoredIx targetIx inputs' addHotNFTToInput
+            outputs'' = fromMaybe outputs' do
+              targetIx <- possibleNewNFTOutputTx
+              ignoredIx <- output' >>= flip elemIndex outputs'
+              pure $ tweakElemSkipping ignoredIx targetIx outputs' addHotNFTToOutput
+            ctx' =
+              ScriptContext
+                { scriptContextTxInfo =
+                    scriptContextTxInfo{txInfoInputs = inputs'', txInfoOutputs = outputs''}
+                , ..
+                }
+         in wrapHotNFTScript coldNFT hotNFT hotCredential ctx' === False
+
+invariant6ReferenceScriptPreservation :: ScriptArgs -> Property
+invariant6ReferenceScriptPreservation args@ScriptArgs{..} =
+  forAllValidTransitions args \output _ ->
+    on (===) txOutReferenceScript (txInInfoResolved scriptInput) output
+
+wrapHotNFTScript
+  :: AssetClass
+  -> AssetClass
+  -> HotCommitteeCredential
+  -> ScriptContext
+  -> Bool
+wrapHotNFTScript coldNFT hotNFT c ctx =
+  unsafePerformIO $
+    evaluate (hotNFTScript coldNFT hotNFT c ctx) `catchAny` const (pure False)
 
 forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> HotLockDatum -> prop) -> Property
@@ -263,10 +363,14 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
         Just output -> do
           extraOutputs <- importanceSampleExtraOutputs onlyValid output
           shuffle $ output : extraOutputs
+      mint <- case redeemer of
+        BurnHot -> genTxInfoMintForNFTBurn hotNFT
+        _ -> arbitrary
+
       txInfo <-
         TxInfo inputs refInputs outputs
           <$> arbitrary
-          <*> arbitrary
+          <*> pure mint
           <*> arbitrary
           <*> arbitrary
           <*> arbitrary
@@ -384,4 +488,6 @@ importanceSampleScriptOutput onlyValid TxOut{..} outDatum =
     <*> importanceSampleArbitrary
       onlyValid
       (pure $ OutputDatum $ Datum $ toBuiltinData outDatum)
-    <*> arbitrary
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure txOutReferenceScript)

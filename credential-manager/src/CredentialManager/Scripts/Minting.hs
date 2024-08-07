@@ -44,7 +44,7 @@ hotMintingScript = mintingScript $ Just validateHotLockDatum
 {-# INLINEABLE mintingScript #-}
 mintingScript
   :: Maybe (BuiltinData -> Bool) -> MintingRedeemer -> ScriptContext -> Bool
-mintingScript validateDatum redeemer ScriptContext{..} = case scriptContextPurpose of
+mintingScript validateDatum redeemer ScriptContext{scriptContextPurpose, scriptContextTxInfo} = case scriptContextPurpose of
   Minting symbol -> case AMap.lookup symbol (getValue txInfoMint) of
     Nothing -> traceError "Transaction does not mint any tokens"
     Just mintedTokens -> case redeemer of
@@ -60,13 +60,13 @@ mintingScript validateDatum redeemer ScriptContext{..} = case scriptContextPurpo
           scriptContextTxInfo
   _ -> traceError "Wrong script purpose"
   where
-    TxInfo{..} = scriptContextTxInfo
+    TxInfo{txInfoMint} = scriptContextTxInfo
 
 {-# INLINEABLE validateColdLockDatum #-}
 validateColdLockDatum :: BuiltinData -> Bool
 validateColdLockDatum datum = case fromBuiltinData datum of
   Nothing -> traceError "Invalid cold lock datum"
-  Just ColdLockDatum{..} ->
+  Just ColdLockDatum{delegationUsers, membershipUsers} ->
     traceIfFalse "Membership group invalid" (checkGroup membershipUsers)
       && traceIfFalse "Delegation group invalid" (checkGroup delegationUsers)
 
@@ -74,7 +74,7 @@ validateColdLockDatum datum = case fromBuiltinData datum of
 validateHotLockDatum :: BuiltinData -> Bool
 validateHotLockDatum datum = case fromBuiltinData datum of
   Nothing -> traceError "Invalid hot lock datum"
-  Just HotLockDatum{..} ->
+  Just HotLockDatum{votingUsers} ->
     traceIfFalse "Voting group invalid" $ checkGroup votingUsers
 
 {-# INLINEABLE checkGroup #-}
@@ -94,29 +94,31 @@ burnScript
   -> Map TokenName Integer
   -> TxInfo
   -> Bool
-burnScript input symbol mintedTokens TxInfo{..} =
-  checkInputs txInfoInputs
+burnScript input symbol mintedTokens TxInfo{txInfoInputs} =
+  checkInputs txInfoInputs && checkBurnAllListed
   where
     checkInputs [] = trace "Burn input not found" False
-    checkInputs (TxInInfo ref TxOut{..} : inputs)
+    checkInputs (TxInInfo ref TxOut{txOutValue} : inputs)
       | ref == input =
-          traceIfFalse "Incorrect tokens burned" $ checkBurn txOutValue
+          traceIfFalse "Incorrect tokens burned" $ checkAllListedInValue txOutValue
       | otherwise = checkInputs inputs
 
-    checkBurn :: Value -> Bool
-    checkBurn (Value value) = case AMap.lookup symbol value of
+    checkBurnAllListed =
+      -- Check 1: The mint value only burns tokens.
+      traceIfFalse
+        "Mint value is not exclusively burning"
+        (AMap.all (== -1) mintedTokens)
+
+    checkAllListedInValue :: Value -> Bool
+    checkAllListedInValue (Value value) = case AMap.lookup symbol value of
       Nothing -> trace "Specified input does not contain burned policy ID" False
       Just tokens ->
         -- NOTE(jamie): This check relies on the guarantee from mintScript that
         -- only one token may be minted for a given token name.
-        -- Check 1: The mint value only burns tokens.
+        -- Check 2: All tokens in the input value are in the mint value
         traceIfFalse
-          "Mint value is not exclusively burning"
-          (AMap.all (== -1) mintedTokens)
-          -- Check 2: All tokens in the input value are in the mint value
-          && traceIfFalse
-            "Mint value contains tokens not present in burn input value"
-            (all (`AMap.member` mintedTokens) (AMap.keys tokens))
+          "Mint value contains tokens not present in burn input value"
+          (all (`AMap.member` mintedTokens) (AMap.keys tokens))
           -- Check 3: All tokens in the mint value are in the input value
           && traceIfFalse
             "Burn input value contains tokens not present in mint value"
@@ -131,7 +133,7 @@ mintScript
   -> Map TokenName Integer
   -> TxInfo
   -> Bool
-mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
+mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{txInfoInputs, txInfoOutputs} =
   checkMintedTokens && checkInputs txInfoInputs
   where
     checkInputs [] = traceError "Seed input not found"
@@ -140,17 +142,22 @@ mintScript validateDatum seed scriptHash symbol mintedTokens TxInfo{..} =
       | otherwise = checkInputs inputs
 
     checkOutputs [] = traceError "Script output not found"
-    checkOutputs (TxOut address value datum _ : outputs)
+    checkOutputs (TxOut address value datum refScript : outputs)
       | addressMatches address =
           checkOutputValue value
             && maybe True (checkOutputDatum datum) validateDatum
             && not (any (addressMatches . txOutAddress) outputs)
+            && checkOutputReferenceScript refScript
       | otherwise = checkOutputs outputs
 
     addressMatches :: Address -> Bool
-    addressMatches Address{..} = case addressCredential of
+    addressMatches Address{addressCredential} = case addressCredential of
       ScriptCredential scriptHash' -> scriptHash == scriptHash'
       _ -> False
+
+    -- \| Refernece script should be empty
+    checkOutputReferenceScript :: Maybe ScriptHash -> Bool
+    checkOutputReferenceScript = traceIfFalse "Output reference script is not empty" . isNothing
 
     checkOutputValue :: Value -> Bool
     checkOutputValue value =

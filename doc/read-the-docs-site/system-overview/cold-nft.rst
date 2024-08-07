@@ -21,8 +21,8 @@ Rules
 The script enforces the following rules unconditionally:
 
 * The purpose of the script execution must be `Spending`.
-
 * The UTXO being spent must be in the transaction's inputs (this will always be the case when the script is invoked by a properly implemented ledger layer).
+* The UTXO being spent should contain inline datum.
 
 The script enforces the following additional rules depending on the redeemer:
 
@@ -126,9 +126,15 @@ Rules for ``UpgradeCold`` actions
 If the redeemer is an ``UpgradeCold`` action:
 
 * The transaction has been signed by a majority of users from the **membership group** defined in the input datum.
+* The transaction includes an input at current script address that holds 1 cold NFT.
+* The destination script hash is different than the current script hash.
 * 1 cold NFT is sent to the upgrade destination script.
-* No other outputs contain the cold NFT.
 * The transaction does not contain any certificates.
+
+.. warning::
+    Before updating the cold script, it's critical to upgrade the hot locking script, especially if the cold datum structure changes. Upgrading out of order could lock the hot NFT script, as it relies heavily on the cold datum structure, including within its `UpgradeHot` function.
+
+
 
 Datum
 -----

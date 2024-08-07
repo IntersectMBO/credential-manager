@@ -1,8 +1,12 @@
 module CredentialManager.Scripts.HotNFT.ResignVotingSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen ()
+import CredentialManager.Gen (
+  genIncorrectlyPreservedValue,
+  genNonAdaAssetClass,
+ )
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
+import CredentialManager.Scripts.ColdNFTSpec (importanceSampleScriptValue)
 import CredentialManager.Scripts.HotNFT
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
@@ -217,7 +221,7 @@ invariantRV8MultipleSelfOutputs args@ValidArgs{..} =
 invariantRV9ValueNotPreserved :: ValidArgs -> Property
 invariantRV9ValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ _ ctx -> do
-    newValue <- arbitrary `suchThat` (/= resignVotingValue)
+    newValue <- genIncorrectlyPreservedValue resignVotingValue
     let modifyValue TxOut{..}
           | txOutAddress == resignVotingScriptAddress =
               TxOut{txOutValue = newValue, ..}
@@ -372,14 +376,16 @@ instance Arbitrary ValidArgs where
         [ (,) <$> listOf1 arbitrary <*> arbitrary
         , (,) <$> arbitrary <*> listOf1 arbitrary
         ]
-    hotNFT <- arbitrary
+    coldNFT <- arbitrary
+    hotNFT <- genNonAdaAssetClass `suchThat` (/= coldNFT)
+    resignValue <- importanceSampleScriptValue True hotNFT
     ValidArgs
       <$> arbitrary
       <*> arbitrary
       <*> pure hotNFT
-      <*> arbitrary `suchThat` (/= hotNFT)
+      <*> pure coldNFT
       <*> arbitrary
-      <*> arbitrary
+      <*> pure resignValue
       <*> arbitrary `suchThat` (`notElem` membershipPre <> membershipPost)
       <*> pure membershipPre
       <*> pure membershipPost
