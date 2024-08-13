@@ -70,9 +70,6 @@ spec = do
   prop
     "Invariant 5: Hot NFT is not present in own input"
     invariant5TokenNotPresentInOwnInput
-  prop
-    "Invariant 6: Valid transitions preserve reference script"
-    invariant6ReferenceScriptPreservation
 
 invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
@@ -173,11 +170,6 @@ invariant5TokenNotPresentInOwnInput args@ScriptArgs{..} =
                 , ..
                 }
          in wrapHotNFTScript coldNFT hotNFT hotCredential ctx' === False
-
-invariant6ReferenceScriptPreservation :: ScriptArgs -> Property
-invariant6ReferenceScriptPreservation args@ScriptArgs{..} =
-  forAllValidTransitions args \output _ ->
-    on (===) txOutReferenceScript (txInInfoResolved scriptInput) output
 
 wrapHotNFTScript
   :: AssetClass

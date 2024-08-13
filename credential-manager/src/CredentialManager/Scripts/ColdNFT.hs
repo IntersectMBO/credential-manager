@@ -37,42 +37,42 @@ coldNFTScript
   -> ScriptContext
   -> Bool
 coldNFTScript coldNFT coldCred =
-  checkSpendingTx coldNFT \txInfo@TxInfo{txInfoTxCerts, txInfoOutputs, txInfoSignatories} inAddress inValue inRefScript datumIn -> \case
+  checkSpendingTx coldNFT \txInfo@TxInfo{txInfoTxCerts, txInfoOutputs, txInfoSignatories} inAddress inValue datumIn -> \case
     AuthorizeHot hotCred ->
-      checkSelfPreservation inAddress inValue inRefScript txInfoOutputs datumIn
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
         && checkMultiSig (delegationUsers datumIn) txInfoSignatories
         && checkCertificate txInfoTxCerts (TxCertAuthHotCommittee coldCred hotCred)
     ResignCold ->
-      checkSelfPreservation inAddress inValue inRefScript txInfoOutputs datumIn
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
         && checkMultiSig (membershipUsers datumIn) txInfoSignatories
         && checkCertificate txInfoTxCerts (TxCertResignColdCommittee coldCred)
     ResignDelegation user ->
       checkNoCertificates txInfoTxCerts
-        && checkContinuingTx inAddress inValue inRefScript txInfoOutputs \datumOut ->
+        && checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
           checkCAConservation datumIn datumOut
             && checkMembershipConserved datumIn datumOut
             && checkResignation txInfoSignatories user delegationUsers datumIn datumOut
     ResignMembership user ->
       checkNoCertificates txInfoTxCerts
-        && checkContinuingTx inAddress inValue inRefScript txInfoOutputs \datumOut ->
+        && checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
           checkCAConservation datumIn datumOut
             && checkDelegationConserved datumIn datumOut
             && checkResignation txInfoSignatories user membershipUsers datumIn datumOut
     RotateCold ->
       checkNoCertificates txInfoTxCerts
         && checkMultiSig (membershipUsers datumIn) txInfoSignatories
-        && checkContinuingTx inAddress inValue inRefScript txInfoOutputs \datumOut ->
+        && checkContinuingTx inAddress inValue txInfoOutputs \datumOut ->
           checkCAConservation datumIn datumOut
             && checkRotation txInfoSignatories membershipUsers datumIn datumOut
             && checkRotation txInfoSignatories delegationUsers datumIn datumOut
     BurnCold ->
       checkMultiSig (membershipUsers datumIn) txInfoSignatories
         && checkNoCertificates txInfoTxCerts
-        && checkBurnAll coldNFT txInfo
+        && checkBurn coldNFT txInfo
     UpgradeCold destination ->
       checkMultiSig (membershipUsers datumIn) txInfoSignatories
         && checkNoCertificates txInfoTxCerts
-        && checkUpgrade coldNFT inAddress destination txInfoOutputs
+        && checkUpgrade coldNFT destination txInfoOutputs
 
 {-# INLINEABLE checkCAConservation #-}
 checkCAConservation :: ColdLockDatum -> ColdLockDatum -> Bool

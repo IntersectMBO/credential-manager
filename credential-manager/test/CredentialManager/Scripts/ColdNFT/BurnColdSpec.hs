@@ -17,7 +17,7 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
-import PlutusLedgerApi.V1.Value (AssetClass, assetClassValue)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Address,
   ColdCommitteeCredential,
@@ -103,28 +103,12 @@ invariantBC3EmptyMembership args@ValidArgs{..} =
 invariantBC4NotBurned :: ValidArgs -> Property
 invariantBC4NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \_ _ ctx -> do
-    baseValue <- arbitrary
-    (nftOutValue, mintValue) <-
-      elements
-        [ (assetClassValue coldNFT 1, mempty) -- outputted and not burned
-        , (assetClassValue coldNFT 1, assetClassValue coldNFT (-1)) -- outputted and burned
-        , (mempty, assetClassValue coldNFT 1) -- not outputted and minted
-        , (mempty, mempty) -- not outputted and not burned/minted
-        ]
-    let value = baseValue <> nftOutValue
-    output <-
-      TxOut
-        <$> arbitrary
-        <*> pure value
-        <*> arbitrary
-        <*> arbitrary
-    outputs' <- shuffle $ output : txInfoOutputs (scriptContextTxInfo ctx)
+    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf v coldNFT /= -1
     let ctx' =
           ctx
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
-                  { txInfoOutputs = outputs'
-                  , txInfoMint = mintValue
+                  { txInfoMint = mintValue
                   }
             }
     pure $

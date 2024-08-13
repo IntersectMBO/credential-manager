@@ -20,6 +20,7 @@ import PlutusLedgerApi.V1.Value (
   assetClass,
   assetClassValue,
   assetClassValueOf,
+  flattenValue,
   lovelaceValue,
   lovelaceValueOf,
  )
@@ -443,16 +444,20 @@ instance Arbitrary ScriptContext where
 --  * decrease the original Lovelace value
 --  * or change the original non-Lovelace value
 genIncorrectlyPreservedValue :: Value -> Gen Value
-genIncorrectlyPreservedValue v =
-  arbitrary `suchThat` \nv -> do
-    let oldValueLovelace = lovelaceValueOf v
-        oldValueNonLovelace = v <> inv (lovelaceValue oldValueLovelace)
-
-        newValueLovelace = lovelaceValueOf nv
-        newValueNonLovelace = nv <> inv (lovelaceValue newValueLovelace)
-
-    newValueLovelace < oldValueLovelace
-      || newValueNonLovelace /= oldValueNonLovelace
+genIncorrectlyPreservedValue = \v ->
+  oneof
+    [ decreaseAda v
+    , changeOtherTokens v
+    , decreaseAda =<< changeOtherTokens v
+    ]
+  where
+    decreaseAda v = (v <>) . lovelaceValue . negate . abs <$> arbitrary `suchThat` (/= 0)
+    changeOtherTokens v = do
+      modifications <- arbitrary `suchThat` containsNonAda
+      pure $ v <> modifications
+    containsNonAda = any nonAda . flattenValue
+    nonAda (_, _, 0) = False
+    nonAda (sym, tok, _) = sym /= adaSymbol || tok /= adaToken
 
 genTxInfoMintForNFTBurn :: AssetClass -> Gen Value
 genTxInfoMintForNFTBurn nft = do

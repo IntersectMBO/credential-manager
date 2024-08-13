@@ -18,9 +18,10 @@ import qualified Debug.Trace as D
 #endif
 import PlutusLedgerApi.V1.Value (
   AssetClass,
+  adaSymbol,
+  adaToken,
   assetClassValueOf,
-  lovelaceValue,
-  lovelaceValueOf,
+  flattenValue,
  )
 import PlutusLedgerApi.V3 (
   Address (..),
@@ -45,7 +46,6 @@ import PlutusLedgerApi.V3.Contexts (findOwnInput)
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
 #ifdef TRACE_GHC
 import qualified Prelude as H
-import qualified PlutusLedgerApi.V2 as V2
 #else
 import qualified PlutusTx.Prelude as H
 import qualified PlutusTx.Prelude as D
@@ -68,24 +68,24 @@ traceIfFalse _ True = True
 {-# INLINEABLE checkMultiSig #-}
 checkMultiSig :: [Identity] -> [PubKeyHash] -> Bool
 checkMultiSig [] _ = trace "Empty multisig requirement" False
-checkMultiSig allowedSigners providedSigners =
+checkMultiSig authorizedGroup signatories =
   traceIfFalse "insufficient signatures" $ majority <= numberOfSignatures
   where
-    allSignatures = nub $ pubKeyHash <$> allowedSigners
+    allSignatures = nub $ pubKeyHash <$> authorizedGroup
     majority = (\x -> divide x 2 + modulo x 2) $ length allSignatures
-    numberOfSignatures = length $ filter (`elem` providedSigners) allSignatures
+    numberOfSignatures = length $ filter (`elem` signatories) allSignatures
 
-{-# INLINEABLE findOutputsByAddress #-}
-findOutputsByAddress :: Address -> [TxOut] -> [TxOut]
-findOutputsByAddress ownAddress =
-  filter \(TxOut outAddress _ _ _) ->
-    ownAddress == outAddress
+{-# INLINEABLE findOutputsByCredential #-}
+findOutputsByCredential :: Credential -> [TxOut] -> [TxOut]
+findOutputsByCredential ownCredential =
+  filter \(TxOut (Address outCredential _) _ _ _) ->
+    ownCredential == outCredential
 
 {-# INLINEABLE checkSpendingTx #-}
 checkSpendingTx
   :: (FromData datum, FromData redeemer)
   => AssetClass
-  -> (TxInfo -> Address -> Value -> Maybe ScriptHash -> datum -> redeemer -> Bool)
+  -> (TxInfo -> Address -> Value -> datum -> redeemer -> Bool)
   -> ScriptContext
   -> Bool
 checkSpendingTx
@@ -100,7 +100,7 @@ checkSpendingTx
       SpendingScript _ Nothing -> trace "No input datum" False
       SpendingScript _ (Just inDatum) -> case findOwnInput scriptContext of
         Nothing -> trace "Input from script purpose not found" False
-        Just (TxInInfo _ TxOut{txOutAddress, txOutValue, txOutReferenceScript}) -> case fromBuiltinData $ getDatum inDatum of
+        Just (TxInInfo _ TxOut{txOutAddress, txOutValue}) -> case fromBuiltinData $ getDatum inDatum of
           Nothing -> trace "Invalid input datum" False
           Just datum -> case fromBuiltinData $ getRedeemer scriptContextRedeemer of
             Nothing -> trace "Invalid redeemer" False
@@ -110,7 +110,6 @@ checkSpendingTx
                   scriptContextTxInfo
                   txOutAddress
                   txOutValue
-                  txOutReferenceScript
                   datum
                   redeemer
       _ -> trace "Not a spending script" False
@@ -120,44 +119,42 @@ checkSelfPreservation
   :: (FromData a, Eq a)
   => Address
   -> Value
-  -> Maybe ScriptHash
   -> [TxOut]
   -> a
   -> Bool
-checkSelfPreservation addrIn valueIn refScriptIn outputs datumIn =
-  checkContinuingTx addrIn valueIn refScriptIn outputs \datumOut ->
+checkSelfPreservation addrIn valueIn outputs datumIn =
+  checkContinuingTx addrIn valueIn outputs \datumOut ->
     traceIfFalse "Own datum not conserved" (datumIn == datumOut)
-
-{-# INLINEABLE checkPossibleLovelaceIncrease #-}
-checkPossibleLovelaceIncrease :: Value -> Value -> Bool
-checkPossibleLovelaceIncrease v1 v2 = l1 <= l2 && v1' == v2'
-  where
-    l1 = lovelaceValueOf v1
-    l2 = lovelaceValueOf v2
-    v1' = v1 <> inv (lovelaceValue l1)
-    v2' = v2 <> inv (lovelaceValue l2)
 
 {-# INLINEABLE checkContinuingTx #-}
 checkContinuingTx
   :: (FromData a)
   => Address
   -> Value
-  -> Maybe ScriptHash
   -> [TxOut]
   -> (a -> Bool)
   -> Bool
-checkContinuingTx addrIn valueIn refScriptIn outputs checkDatum =
-  case findOutputsByAddress addrIn outputs of
-    [TxOut _ valueOut datumOut refScript] ->
-      traceIfFalse "reference script value not preserved" (refScript == refScriptIn)
+checkContinuingTx addrIn valueIn outputs checkDatum =
+  case findOutputsByCredential (addressCredential addrIn) outputs of
+    [TxOut addrOut valueOut datumOut _] ->
+      traceIfFalse "own address not preserved" (addrIn == addrOut)
         && traceIfFalse
           "own value not preserved"
-          (checkPossibleLovelaceIncrease valueIn valueOut)
+          ( case flattenValue $ valueOut <> inv valueIn of
+              -- Values are equal, valid
+              [] -> True
+              -- Values only differ in ADA and the output has more ADA than the
+              -- input, valid.
+              [(sym, tok, q)] -> sym == adaSymbol && tok == adaToken && q >= 0
+              -- Values differ in more than just ADA, invalid.
+              _ -> False
+          )
         && case datumOut of
           OutputDatum (Datum datum) -> case fromBuiltinData datum of
             Just datum' -> checkDatum datum'
             Nothing -> trace "Invalid output datum" False
-          _ -> trace "Output has no datum" False
+          OutputDatumHash _ -> trace "Inline datum required" False
+          NoOutputDatum -> trace "Output has no datum" False
     [] -> trace "No continuing output found" False
     _ -> trace "Multiple continuing outputs found" False
 
@@ -224,31 +221,22 @@ checkRotation signatories getGroup datumIn datumOut =
       -- which is precisely the check we have below.
       i `elem` oldGroup || pubKeyHash `elem` signatories
 
-{-# INLINEABLE checkBurnAll #-}
-checkBurnAll :: AssetClass -> TxInfo -> Bool
-checkBurnAll assetClass TxInfo{txInfoMint, txInfoOutputs} = checkAssetBurn && checkAssetMissingFromOutputs
-  where
-    checkAssetBurn = assetClassValueOf txInfoMint assetClass < 0
-    checkAssetMissingFromOutputs = traceIfFalse "NFT not burned" . not . any containsAsset $ txInfoOutputs
-      where
-        containsAsset TxOut{txOutValue} = assetClassValueOf txOutValue assetClass > 0
+{-# INLINEABLE checkBurn #-}
+checkBurn :: AssetClass -> TxInfo -> Bool
+checkBurn assetClass TxInfo{txInfoMint} = assetClassValueOf txInfoMint assetClass == -1
 
 {-# INLINEABLE checkUpgrade #-}
-checkUpgrade :: AssetClass -> Address -> ScriptHash -> [TxOut] -> Bool
-checkUpgrade assetClass sourceAddr destination outs = checkUpgradeToDifferentScript && checkNFTOutput outs
+checkUpgrade :: AssetClass -> ScriptHash -> [TxOut] -> Bool
+checkUpgrade assetClass destination = go
   where
-    checkUpgradeToDifferentScript =
-      case addressCredential sourceAddr of
-        ScriptCredential source -> traceIfFalse "Upgrade to the same script" $ source /= destination
-        _ -> trace "Source address not at script address" False
-    checkNFTOutput [] = trace "NFT not found in outputs" False
-    checkNFTOutput (TxOut{txOutAddress, txOutValue} : outputs)
+    go [] = trace "NFT not found in outputs" False
+    go (TxOut{txOutAddress, txOutValue} : outputs)
       | assetClassValueOf txOutValue assetClass == 1 =
           case addressCredential txOutAddress of
             ScriptCredential scriptHash ->
               traceIfFalse "NFT sent to incorrect script" $ destination == scriptHash
             _ -> trace "NFT sent to key hash address" False
-      | otherwise = checkNFTOutput outputs
+      | otherwise = go outputs
 
 {-# INLINEABLE wrapTwoArgsV2 #-}
 wrapTwoArgsV2

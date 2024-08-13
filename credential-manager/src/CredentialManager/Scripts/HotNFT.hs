@@ -46,9 +46,9 @@ hotNFTScript
   -> ScriptContext
   -> Bool
 hotNFTScript coldNFT hotNFT hotCred =
-  checkSpendingTx hotNFT \txInfo@TxInfo{txInfoOutputs, txInfoReferenceInputs, txInfoSignatories, txInfoVotes} inAddress inValue inRefScript datumIn -> \case
+  checkSpendingTx hotNFT \txInfo@TxInfo{txInfoOutputs, txInfoReferenceInputs, txInfoSignatories, txInfoVotes} inAddress inValue datumIn -> \case
     Vote ->
-      checkSelfPreservation inAddress inValue inRefScript txInfoOutputs datumIn
+      checkSelfPreservation inAddress inValue txInfoOutputs datumIn
         && checkMultiSig (votingUsers datumIn) txInfoSignatories
         && checkVote
       where
@@ -62,7 +62,6 @@ hotNFTScript coldNFT hotNFT hotCred =
         && checkContinuingTx
           inAddress
           inValue
-          inRefScript
           txInfoOutputs
           (checkResignation txInfoSignatories user votingUsers datumIn)
     RotateHot ->
@@ -71,17 +70,16 @@ hotNFTScript coldNFT hotNFT hotCred =
         && checkContinuingTx
           inAddress
           inValue
-          inRefScript
           txInfoOutputs
           (checkRotation txInfoSignatories votingUsers datumIn)
     BurnHot ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
         && checkNoVotes txInfoVotes
-        && checkBurnAll hotNFT txInfo
+        && checkBurn hotNFT txInfo
     UpgradeHot destination ->
       signedByDelegators txInfoSignatories txInfoReferenceInputs
         && checkNoVotes txInfoVotes
-        && checkUpgrade hotNFT inAddress destination txInfoOutputs
+        && checkUpgrade hotNFT destination txInfoOutputs
   where
     signedByDelegators signatories = go
       where

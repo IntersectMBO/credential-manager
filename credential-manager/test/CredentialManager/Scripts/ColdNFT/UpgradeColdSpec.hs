@@ -55,9 +55,6 @@ spec = do
   prop
     "Invariant UC5: UpgradeCold fails if token sent to wrong address"
     invariantUC5WrongAddress
-  prop
-    "Invariant UC6: UpgradeCold fails if upgrades to the same script"
-    invariantUC6SameScript
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \_ _ ctx ->
@@ -135,35 +132,6 @@ invariantUC5WrongAddress args@ValidArgs{..} =
     let ctx' =
           ctx
             { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs = outputs'
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        coldNFTScript coldNFT upgradeColdCredential ctx' === False
-
-invariantUC6SameScript :: ValidArgs -> Property
-invariantUC6SameScript args@ValidArgs{..} =
-  forAllValidScriptContexts args \_ _ ctx -> do
-    let destinationScriptCredential = case addressCredential upgradeScriptAddress of
-          ScriptCredential source -> source
-          _ -> error "ValidArgs should have a script address as a source"
-    destinationStakingCredential <- arbitrary
-    let destination =
-          Address
-            (ScriptCredential destinationScriptCredential)
-            destinationStakingCredential
-        tweakAddress TxOut{..}
-          | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
-              pure TxOut{txOutAddress = destination, ..}
-          | otherwise = pure TxOut{..}
-    outputs' <- traverse tweakAddress $ txInfoOutputs $ scriptContextTxInfo ctx
-    let redeemer = UpgradeCold destinationScriptCredential
-        ctx' =
-          ctx
-            { scriptContextRedeemer = Redeemer $ toBuiltinData redeemer
-            , scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs = outputs'
                   }

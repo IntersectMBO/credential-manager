@@ -63,9 +63,6 @@ spec = do
   prop
     "Invariant UH6: UpgradeHot fails if token sent to wrong address"
     invariantUH6WrongAddress
-  prop
-    "Invariant UH7: UpgradeHot fails if upgrades to the same script"
-    invariantUH7SameScript
   describe "ValidArgs" do
     prop "alwaysValid" \args@ValidArgs{..} ->
       forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx ->
@@ -196,35 +193,6 @@ invariantUH6WrongAddress args@ValidArgs{..} =
     let ctx' =
           ctx
             { scriptContextTxInfo =
-                (scriptContextTxInfo ctx)
-                  { txInfoOutputs = outputs'
-                  }
-            }
-    pure $
-      counterexample ("Context: " <> show ctx') $
-        hotNFTScript coldNFT hotNFT upgradeHotCredential ctx' === False
-
-invariantUH7SameScript :: ValidArgs -> Property
-invariantUH7SameScript args@ValidArgs{..} =
-  forAllValidScriptContexts args \coldNFT hotNFT _ _ _ ctx -> do
-    let destinationScriptCredential = case addressCredential upgradeScriptAddress of
-          ScriptCredential source -> source
-          _ -> error "ValidArgs should have a script address as a source"
-    destinationStakingCredential <- arbitrary
-    let destination =
-          Address
-            (ScriptCredential destinationScriptCredential)
-            destinationStakingCredential
-        tweakAddress TxOut{..}
-          | addressCredential txOutAddress == ScriptCredential upgradeDestination = do
-              pure TxOut{txOutAddress = destination, ..}
-          | otherwise = pure TxOut{..}
-    outputs' <- traverse tweakAddress $ txInfoOutputs $ scriptContextTxInfo ctx
-    let redeemer = UpgradeHot destinationScriptCredential
-        ctx' =
-          ctx
-            { scriptContextRedeemer = Redeemer $ toBuiltinData redeemer
-            , scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
                   { txInfoOutputs = outputs'
                   }
