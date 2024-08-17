@@ -21,7 +21,7 @@ cabalProject:
     pkgs.gnused
     # inputs.nixgl.packages.nixGLDefault
     inputs.cardano-node.packages.cardano-node
-    inputs.cardano-cli.packages."cardano-cli:exe:cardano-cli"
+    inputs.cardano-node.packages.cardano-cli
   ];
 
   preCommit = {
