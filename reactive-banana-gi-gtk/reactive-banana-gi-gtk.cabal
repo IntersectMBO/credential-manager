@@ -20,3 +20,4 @@ library
     , transformers
 
   default-language: Haskell2010
+  buildable:        False

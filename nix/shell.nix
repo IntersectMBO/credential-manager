@@ -28,7 +28,6 @@ cabalProject:
     cabal-fmt.enable = true;
     cabal-fmt.extraOptions = "--no-tabular";
     fourmolu.enable = true;
-    fourmolu.excludes = [ "^credential-manager/signing-tool/" ];
     hlint.enable = true;
     shellcheck.enable = true;
     nixpkgs-fmt.enable = true;
