@@ -46,7 +46,7 @@ and hashing it. We can use the `jsonld` CLI to help with this:
 .. code-block:: bash
 
    $ ANCHOR=https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json 
-   $ cardano-cli conway governance hash anchor-data \
+   $ cardano-cli hash anchor-data \
       --text "$(curl -s $ANCHOR)" \
       --out-file anchor.hash
 
@@ -130,49 +130,27 @@ is a vote file that we will add to the transaction to cast the vote:
 Step 3: Create the Vote Transaction
 -----------------------------------
 
-Now we have everything we need to build the transaction. Note that at the time
-of writing this documentation, there is a bug in ``cardano-cli conway
-transaction build`` which causes underestimation of vote script execution
-units. This unfortunately means that we will have to use ``build-raw`` instead
-of ``build`` for the time being. The main differences between the two are:
-
-1. ``build-raw`` does not balance the transaction for you - you must compute
-   your own change output.
-2. ``build-raw`` does not validate the transaction for you
-3. You need to compute fees and execution budgets for yourself. We make the job
-   easier here by massively overestimating both, but you could use more
-   conservative values if you wanted to.
-4. you need to download and pass the protocol parameters into the command
-   explicitly.
-
-With that out of the way, here is the command to build the transaction:
+Now we have everything we need to build the transaction.
 
 .. code-block:: bash
 
-   $ cardano-cli conway query protocol-parameters --out-file pparams.json
-   $ ORCHESTRATOR_STARTING_BALANCE=$(get-orchestrator-ada-only | jq -r '.value.value.lovelace')
-   $ FEE=5000000
-   $ ORCHESTRATOR_ENDING_BALANCE=$(($ORCHESTRATOR_STARTING_BALANCE - $FEE))
-   $ cardano-cli conway transaction build-raw \
+   $ cardano-cli conway transaction build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
-      --tx-in $(cardano-cli query utxo --address $(cat init-hot/nft.addr) --output-json | jq -r 'keys[0]') \
+      --tx-in $(jq -r 'keys[0]' hot-nft.utxo) \
       --tx-in-script-file init-hot/nft.plutus \
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file vote/redeemer.json \
-      --tx-in-execution-units "(3000000000, 4000000)" \
       --tx-out "$(cat vote/value)" \
       --tx-out-inline-datum-file vote/datum.json \
-      --tx-out "$(cat orchestrator.addr)+$ORCHESTRATOR_ENDING_BALANCE" \
-      --fee $FEE \
-      --protocol-params-file pparams.json \
       --required-signer-hash $(cat example-certificates/children/child-8/child-8.keyhash) \
       --required-signer-hash $(cat example-certificates/children/child-9/child-9.keyhash) \
       --vote-file vote/vote \
       --vote-script-file init-hot/credential.plutus \
       --vote-redeemer-value {} \
-      --vote-execution-units "(6000000000,4000000)" \
+      --change-address $(cat orchestrator.addr) \
       --out-file vote/body.json
+   Estimated transaction fee: Coin 702241
 
 Most of what we covered when building the hot credential authorization script
 also applies here, so we won't cover it again. The only difference is that we
