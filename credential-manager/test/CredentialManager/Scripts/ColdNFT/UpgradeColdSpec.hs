@@ -1,10 +1,16 @@
 module CredentialManager.Scripts.ColdNFT.UpgradeColdSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genNonAdaAssetClass,
+ )
 import CredentialManager.Scripts.ColdNFT
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
-import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonMembershipSigners,
+ )
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
@@ -258,12 +264,16 @@ data ValidArgs = ValidArgs
 instance Arbitrary ValidArgs where
   arbitrary = do
     destination <- arbitrary
-    ValidArgs
+    scriptAddress <-
+      arbitrary `suchThat` \addr -> case addressCredential addr of
+        (ScriptCredential source) -> source /= destination
+        _ -> False
+    coldNFT <- genNonAdaAssetClass
+    updradeValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT destination
       <$> arbitrary
-      <*> pure destination
-      <*> arbitrary
-      <*> arbitrary `suchThat` ((/= ScriptCredential destination) . addressCredential)
-      <*> arbitrary
+      <*> pure scriptAddress
+      <*> pure updradeValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

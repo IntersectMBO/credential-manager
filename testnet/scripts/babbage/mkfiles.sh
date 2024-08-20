@@ -6,6 +6,8 @@ set -e
 set -u
 set -o pipefail
 
+UNAME=$(uname -s)
+
 sprocket() {
   if [ "$UNAME" == "Windows_NT" ]; then
     # Named pipes names on Windows must have the structure: "\\.\pipe\PipeName"
@@ -21,7 +23,7 @@ NETWORK_MAGIC=42
 SECURITY_PARAM=10
 NUM_SPO_NODES=3
 INIT_SUPPLY=12000000
-START_TIME="$(${DATE} -d "now + 5 seconds" +%s)"
+START_TIME="$(date -d "now + 5 seconds" +%s)"
 ROOT=example
 mkdir -p "${ROOT}"
 

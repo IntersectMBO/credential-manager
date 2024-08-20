@@ -1,16 +1,25 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module CredentialManager.Scripts.ColdNFTSpec where
 
 import Control.Exception (evaluate)
 import CredentialManager.Api
-import CredentialManager.Gen (mkValue)
+import CredentialManager.Gen (genTxInfoMintForNFTBurn, mkValue)
 import CredentialManager.Scripts.ColdNFT
-import Data.Foldable (Foldable (..))
+import Data.Foldable (Foldable (..), for_)
 import Data.Function (on)
-import Data.List (nub, nubBy)
+import Data.Functor ((<&>))
+import Data.List (elemIndex, findIndex, nub, nubBy)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import Debug.Trace (trace)
 import GHC.Generics (Generic)
 import GHC.IO (catchAny, unsafePerformIO)
-import PlutusLedgerApi.V1.Value (AssetClass (..), assetClassValueOf)
+import PlutusLedgerApi.V1.Value (
+  AssetClass (..),
+  assetClassValue,
+  assetClassValueOf,
+ )
 import PlutusLedgerApi.V3 (
   Address (..),
   ColdCommitteeCredential,
@@ -30,6 +39,7 @@ import PlutusLedgerApi.V3 (
   TxOut (..),
   Value,
  )
+import PlutusTx.Monoid (Group (inv))
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -56,6 +66,9 @@ spec = do
   prop
     "Invariant 6: Valid transitions don't change the CA"
     invariant6CAPreservation
+  prop
+    "Invariant 7: Cold NFT is not present in own input"
+    invariant7TokenNotPresentInOwnInput
 
 invariant1BadPurpose :: ScriptArgs -> Property
 invariant1BadPurpose args@ScriptArgs{..} =
@@ -96,6 +109,76 @@ invariant5DelegationNonempty args =
 invariant6CAPreservation :: ScriptArgs -> Property
 invariant6CAPreservation args@ScriptArgs{..} =
   forAllValidTransitions args \_ -> on (===) certificateAuthority datum
+
+invariant7TokenNotPresentInOwnInput :: ScriptArgs -> Property
+invariant7TokenNotPresentInOwnInput args@ScriptArgs{..} =
+  forAllScriptContexts True args \ctx ->
+    wrapColdNFTScript coldNFT coldCredential ctx ==> do
+      let genIx len =
+            if len == 0
+              then pure Nothing
+              else
+                frequency
+                  [ (len - 1, Just <$> choose (0, len - 1))
+                  , (1, pure Nothing)
+                  ]
+          genInputIx = do
+            let otherInputsNumber = (length . txInfoInputs . scriptContextTxInfo $ ctx) - 1
+            genIx otherInputsNumber
+          genOutputIx = do
+            let otherOutputsNumber = (length . txInfoOutputs . scriptContextTxInfo $ ctx) - 1
+            genIx otherOutputsNumber
+          gen = (,) <$> genInputIx <*> genOutputIx
+
+      forAll gen \(possibleNewNFTInputTx, possibleNewNFTOutputTx) -> do
+        let ScriptContext{..} = ctx
+            TxInfo{txInfoInputs = inputs, txInfoOutputs = outputs} = scriptContextTxInfo
+            removeColdNFTFromOutput txOut@(TxOut{txOutValue}) =
+              txOut
+                { txOutValue =
+                    txOutValue
+                      <> inv (assetClassValue coldNFT (assetClassValueOf txOutValue coldNFT))
+                }
+            removeColdNFTFromInput txInInfo@TxInInfo{txInInfoResolved = txOut} = do
+              txInInfo{txInInfoResolved = removeColdNFTFromOutput txOut}
+            input' = removeColdNFTFromInput scriptInput
+            inputs' =
+              inputs <&> \input ->
+                if input == scriptInput
+                  then input'
+                  else input
+            output' = removeColdNFTFromOutput <$> scriptOutput
+            outputs' =
+              outputs <&> \output ->
+                if Just output == scriptOutput
+                  then fromMaybe output output'
+                  else output
+            addColdNFTToOutput txOut@(TxOut{txOutValue}) =
+              txOut{txOutValue = txOutValue <> assetClassValue coldNFT 1}
+            addColdNFTToInput txInInfo@TxInInfo{txInInfoResolved = txOut} = do
+              txInInfo{txInInfoResolved = addColdNFTToOutput txOut}
+            tweakElemSkipping :: forall a. Int -> Int -> [a] -> (a -> a) -> [a]
+            tweakElemSkipping ignoredIx targetIx elems f = do
+              let targetIx' = if targetIx < ignoredIx then targetIx else targetIx + 1
+              flip map (zip [0 ..] elems) \(i, e) ->
+                if i == targetIx'
+                  then f e
+                  else e
+            inputs'' = fromMaybe inputs' do
+              targetIx <- possibleNewNFTInputTx
+              ignoredIx <- elemIndex scriptInput inputs'
+              pure $ tweakElemSkipping ignoredIx targetIx inputs' addColdNFTToInput
+            outputs'' = fromMaybe outputs' do
+              targetIx <- possibleNewNFTOutputTx
+              ignoredIx <- output' >>= flip elemIndex outputs'
+              pure $ tweakElemSkipping ignoredIx targetIx outputs' addColdNFTToOutput
+            ctx' =
+              ScriptContext
+                { scriptContextTxInfo =
+                    scriptContextTxInfo{txInfoInputs = inputs'', txInfoOutputs = outputs''}
+                , ..
+                }
+         in wrapColdNFTScript coldNFT coldCredential ctx' === False
 
 forAllValidTransitions
   :: (Testable prop) => ScriptArgs -> (TxOut -> ColdLockDatum -> prop) -> Property
@@ -282,12 +365,15 @@ forAllScriptContexts onlyValid ScriptArgs{..} = forAllShrink gen shrink'
         Just output -> do
           extraOutputs <- importanceSampleExtraOutputs onlyValid output
           shuffle $ output : extraOutputs
+      mint <- case redeemer of
+        BurnCold -> genTxInfoMintForNFTBurn coldNFT
+        _ -> arbitrary
       txInfo <-
         TxInfo inputs
           <$> arbitrary
           <*> pure outputs
           <*> arbitrary
-          <*> arbitrary
+          <*> pure mint
           <*> pure certs
           <*> arbitrary
           <*> arbitrary
@@ -432,7 +518,9 @@ importanceSampleScriptOutput onlyValid TxOut{..} outDatum =
     <*> importanceSampleArbitrary
       onlyValid
       (pure $ OutputDatum $ Datum $ toBuiltinData outDatum)
-    <*> arbitrary
+    <*> importanceSampleArbitrary
+      onlyValid
+      (pure txOutReferenceScript)
 
 importanceSampleArbitrary :: (Arbitrary a) => Bool -> Gen a -> Gen a
 importanceSampleArbitrary True important = important

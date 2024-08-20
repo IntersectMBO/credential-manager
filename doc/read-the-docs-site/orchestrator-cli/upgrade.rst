@@ -12,6 +12,7 @@ Step 1: Upgrading the Hot NFT
 .. warning::
    If you need to upgrade both scripts, you should upgrade the hot script before you upgrade the cold script.
    If the cold script datum format changes, you won't be able to upgrade the hot script because it won't be able to decode the datum to get the delegation group.
+   Therefore, upgrading the cold script usually involved upgrading the hot script to a version that can decode the new cold datum format, and this must be done first.
 
 First we need a script to send it to. For demonstration purposes, we're going to send it to an always true native script.
 

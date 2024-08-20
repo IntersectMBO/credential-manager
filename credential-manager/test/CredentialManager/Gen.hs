@@ -15,9 +15,18 @@ import Data.Monoid (Sum (..))
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
-import PlutusLedgerApi.V1.Value (AssetClass (AssetClass))
+import PlutusLedgerApi.V1.Value (
+  AssetClass (AssetClass),
+  assetClass,
+  assetClassValue,
+  assetClassValueOf,
+  flattenValue,
+  lovelaceValue,
+  lovelaceValueOf,
+ )
 import PlutusLedgerApi.V3
 import qualified PlutusTx.AssocMap as AMap
+import PlutusTx.Prelude (Group (inv))
 import Test.QuickCheck
 
 newtype ArbitraryHash (n :: Nat) = ArbitraryHash {getArbitraryHash :: BuiltinByteString}
@@ -430,3 +439,37 @@ instance Arbitrary TxInfo where
 instance Arbitrary ScriptContext where
   arbitrary = ScriptContext <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
+
+-- Generate values which:
+--  * decrease the original Lovelace value
+--  * or change the original non-Lovelace value
+genIncorrectlyPreservedValue :: Value -> Gen Value
+genIncorrectlyPreservedValue = \v ->
+  oneof
+    [ decreaseAda v
+    , changeOtherTokens v
+    , decreaseAda =<< changeOtherTokens v
+    ]
+  where
+    decreaseAda v = (v <>) . lovelaceValue . negate . abs <$> arbitrary `suchThat` (/= 0)
+    changeOtherTokens v = do
+      modifications <- arbitrary `suchThat` containsNonAda
+      pure $ v <> modifications
+    containsNonAda = any nonAda . flattenValue
+    nonAda (_, _, 0) = False
+    nonAda (sym, tok, _) = sym /= adaSymbol || tok /= adaToken
+
+genTxInfoMintForNFTBurn :: AssetClass -> Gen Value
+genTxInfoMintForNFTBurn nft = do
+  baseMintValue <-
+    arbitrary `suchThat` \v ->
+      assetClassValueOf v nft == 0
+  pure $
+    baseMintValue
+      <> assetClassValue nft (-1)
+      <> inv (lovelaceValue (lovelaceValueOf baseMintValue))
+
+genNonAdaAssetClass :: Gen AssetClass
+genNonAdaAssetClass = do
+  let adaAssetClass = assetClass adaSymbol adaToken
+  arbitrary `suchThat` (/= adaAssetClass)

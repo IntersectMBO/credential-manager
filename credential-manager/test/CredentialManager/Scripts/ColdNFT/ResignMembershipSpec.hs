@@ -1,9 +1,13 @@
 module CredentialManager.Scripts.ColdNFT.ResignMembershipSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen ()
+import CredentialManager.Gen (
+  genIncorrectlyPreservedValue,
+  genNonAdaAssetClass,
+ )
 import CredentialManager.Scripts.ColdNFT
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
+import CredentialManager.Scripts.ColdNFTSpec (importanceSampleScriptValue)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub)
@@ -235,7 +239,7 @@ invariantRM8MultipleSelfOutputs args@ValidArgs{..} =
 invariantRM9ValueNotPreserved :: ValidArgs -> Property
 invariantRM9ValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts args \_ _ ctx -> do
-    newValue <- arbitrary `suchThat` (/= resignMembershipValue)
+    newValue <- genIncorrectlyPreservedValue resignMembershipValue
     let modifyValue TxOut{..}
           | txOutAddress == resignMembershipScriptAddress =
               TxOut{txOutValue = newValue, ..}
@@ -454,12 +458,13 @@ instance Arbitrary ValidArgs where
         [ (,) <$> listOf1 arbitrary <*> arbitrary
         , (,) <$> arbitrary <*> listOf1 arbitrary
         ]
-    ValidArgs
+    coldNFT <- genNonAdaAssetClass
+    resignMembershipValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT
       <$> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> pure resignMembershipValue
       <*> arbitrary `suchThat` (`notElem` membershipPre <> membershipPost)
       <*> arbitrary
       <*> arbitrary

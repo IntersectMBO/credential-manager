@@ -1,16 +1,23 @@
 module CredentialManager.Scripts.ColdNFT.BurnColdSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genNonAdaAssetClass,
+  genTxInfoMintForNFTBurn,
+ )
 import CredentialManager.Scripts.ColdNFT
 import CredentialManager.Scripts.ColdNFT.RotateColdSpec (updateDatum)
-import CredentialManager.Scripts.ColdNFTSpec (nonMembershipSigners)
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonMembershipSigners,
+ )
 import CredentialManager.Scripts.HotNFTSpec (hasToken)
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
-import PlutusLedgerApi.V1.Value (AssetClass, assetClassValue)
+import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
 import PlutusLedgerApi.V3 (
   Address,
   ColdCommitteeCredential,
@@ -96,20 +103,12 @@ invariantBC3EmptyMembership args@ValidArgs{..} =
 invariantBC4NotBurned :: ValidArgs -> Property
 invariantBC4NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \_ _ ctx -> do
-    baseValue <- arbitrary
-    let value = baseValue <> assetClassValue coldNFT 1
-    output <-
-      TxOut
-        <$> arbitrary
-        <*> pure value
-        <*> arbitrary
-        <*> arbitrary
-    outputs' <- shuffle $ output : txInfoOutputs (scriptContextTxInfo ctx)
+    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf v coldNFT /= -1
     let ctx' =
           ctx
             { scriptContextTxInfo =
                 (scriptContextTxInfo ctx)
-                  { txInfoOutputs = outputs'
+                  { txInfoMint = mintValue
                   }
             }
     pure $
@@ -130,6 +129,7 @@ forAllValidScriptContexts ValidArgs{..} f =
         listOf $ arbitrary `suchThat` ((/= burnScriptRef) . txInInfoOutRef)
       inputs <- shuffle $ input : additionalInputs
       outputs <- listOf $ arbitrary `suchThat` (not . hasToken coldNFT)
+      mint <- genTxInfoMintForNFTBurn coldNFT
       let maxSigners = length allSigners
       let minSigners = succ maxSigners `div` 2
       let Fraction excessFraction = burnExcessSignatureFraction
@@ -141,7 +141,7 @@ forAllValidScriptContexts ValidArgs{..} f =
           <$> arbitrary
           <*> pure outputs
           <*> arbitrary
-          <*> arbitrary
+          <*> pure mint
           <*> pure []
           <*> arbitrary
           <*> arbitrary
@@ -228,12 +228,13 @@ data ValidArgs = ValidArgs
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
-    ValidArgs
+  arbitrary = do
+    coldNFT <- genNonAdaAssetClass
+    burnValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> pure burnValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

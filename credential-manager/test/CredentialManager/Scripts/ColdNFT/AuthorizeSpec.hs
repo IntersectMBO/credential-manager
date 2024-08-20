@@ -1,9 +1,16 @@
 module CredentialManager.Scripts.ColdNFT.AuthorizeSpec where
 
 import CredentialManager.Api
-import CredentialManager.Gen (Fraction (..))
+import CredentialManager.Gen (
+  Fraction (..),
+  genIncorrectlyPreservedValue,
+  genNonAdaAssetClass,
+ )
 import CredentialManager.Scripts.ColdNFT
-import CredentialManager.Scripts.ColdNFTSpec (nonDelegationSigners)
+import CredentialManager.Scripts.ColdNFTSpec (
+  importanceSampleScriptValue,
+  nonDelegationSigners,
+ )
 import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
@@ -211,7 +218,7 @@ invariantA9AuthorizeMultipleSelfOutputs args@ValidArgs{..} =
 invariantA10AuthorizeValueNotPreserved :: ValidArgs -> Property
 invariantA10AuthorizeValueNotPreserved args@ValidArgs{..} =
   forAllValidScriptContexts pure args \_ _ ctx -> do
-    newValue <- arbitrary `suchThat` (/= authorizeValue)
+    newValue <- genIncorrectlyPreservedValue authorizeValue
     let modifyValue TxOut{..}
           | txOutAddress == authorizeScriptAddress = TxOut{txOutValue = newValue, ..}
           | otherwise = TxOut{..}
@@ -378,12 +385,13 @@ data ValidArgs = ValidArgs
   deriving (Show, Eq, Generic)
 
 instance Arbitrary ValidArgs where
-  arbitrary =
-    ValidArgs
+  arbitrary = do
+    coldNFT <- genNonAdaAssetClass
+    authorizeValue <- importanceSampleScriptValue True coldNFT
+    ValidArgs coldNFT
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> pure authorizeValue
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
