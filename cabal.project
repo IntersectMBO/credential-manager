@@ -69,3 +69,9 @@ package plutus-script-utils
   optimization: False
 package freer-extras
   optimization: False
+
+-- Recently introduced flag to be clever and use SIMD instructions.
+-- We don't need this and it causes problems in a few settings including
+-- cross-compilation.
+package bitvec
+  flags: -simd

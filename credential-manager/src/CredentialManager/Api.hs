@@ -21,17 +21,8 @@ module CredentialManager.Api (
   parsePrivateKeyFromPEMBytes,
 ) where
 
-import Cardano.Api (
-  AsType (..),
-  Hash,
-  Key (..),
-  PaymentKey,
-  SerialiseAsRawBytes (deserialiseFromRawBytes),
- )
-import Cardano.Api.Byron (Hash (unPaymentKeyHash))
-import Cardano.Api.Ledger (KeyHash (..), hashToBytes)
 import Control.Monad (unless)
-import Crypto.Hash (SHA256 (SHA256), hashWith)
+import Crypto.Hash (Blake2b_224 (..), SHA256 (..), hashWith)
 import Crypto.PubKey.Ed25519 (SecretKey)
 import Data.ASN1.BinaryEncoding (BER (..))
 import Data.ASN1.Encoding (decodeASN1')
@@ -119,28 +110,20 @@ parseIdentityFromPEMBytes pemBytes = do
   unless (pemName == "CERTIFICATE") do
     Left $ "Unexpected PEM name: " <> pemName
   Certificate{..} <- getCertificate <$> decodeSignedCertificate pemContent
-  pubKey <- x509PubKeyToPaymentKey certPubKey
-  let pubKeyHash = toPlutusPubKeyHash $ verificationKeyHash pubKey
+  pubKey <- case certPubKey of
+    PubKeyEd25519 pk -> pure pk
+    _ -> Left "Invalid public key algorithm"
+  let pubKeyHash =
+        PV3.PubKeyHash
+          . PV3.toBuiltin
+          . BA.convert @_ @BS.ByteString
+          $ hashWith Blake2b_224 pubKey
   let certificateHash = hashCertificate pemBytes
   pure Identity{..}
 
 hashCertificate :: BS.ByteString -> CertificateHash
 hashCertificate =
   CertificateHash . PV3.toBuiltin . BS.pack . BA.unpack . hashWith SHA256
-
-toPlutusPubKeyHash :: Hash PaymentKey -> PV3.PubKeyHash
-toPlutusPubKeyHash =
-  PV3.PubKeyHash . PV3.toBuiltin . hashToBytes . unKeyHash . unPaymentKeyHash
-  where
-    unKeyHash (KeyHash h) = h
-
-x509PubKeyToPaymentKey :: PubKey -> Either String (VerificationKey PaymentKey)
-x509PubKeyToPaymentKey (PubKeyEd25519 pk) =
-  first show $
-    deserialiseFromRawBytes (AsVerificationKey AsPaymentKey) $
-      BS.pack $
-        BA.unpack pk
-x509PubKeyToPaymentKey _ = Left "Invalid Public Key Algorithm"
 
 instance PlutusTx.Eq Identity where
   {-# INLINEABLE (==) #-}
