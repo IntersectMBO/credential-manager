@@ -47,7 +47,7 @@ let
 
     shellArgs = repoRoot.nix.shell;
 
-    includeMingwW64HydraJobs = false;
+    includeMingwW64HydraJobs = true;
 
     readTheDocs = {
       enable = true;

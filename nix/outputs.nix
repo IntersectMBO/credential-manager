@@ -4,6 +4,8 @@ let
 
   project = repoRoot.nix.project;
 
+  projectCross = project.cabalProject.projectCross;
+
   staticPkgs = project.cabalProject.projectCross.musl64.hsPkgs;
 
   static = staticPkgs.credential-manager.components.exes;
@@ -11,16 +13,7 @@ let
 in
 
 [
-  (
-    # Docs for project.flake: https://github.com/input-output-hk/iogx/blob/main/doc/api.md#mkhaskellprojectoutflake
-    lib.recursiveUpdate project.flake rec {
-      packages.signing-tool =
-        project.cabalProject.hsPkgs.credential-manager.components.exes.signing-tool.overrideAttrs
-          (final: prev: {
-            nativeBuildInputs = prev.nativeBuildInputs ++ [ pkgs.wrapGAppsHook4 ];
-          });
-    }
-  )
+  project.flake
   (lib.optionalAttrs pkgs.stdenv.isLinux {
     hydraJobs.static.orchestrator-cli = static.orchestrator-cli;
   })
