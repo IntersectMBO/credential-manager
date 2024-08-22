@@ -21,12 +21,6 @@ let
 
       compiler-nix-name = lib.mkDefault "ghc96";
 
-      flake.variants = {
-        ghc96 = { };
-        ghc98.compiler-nix-name = "ghc98";
-        ghc910.compiler-nix-name = "ghc910";
-      };
-
       modules =
         [
           {
