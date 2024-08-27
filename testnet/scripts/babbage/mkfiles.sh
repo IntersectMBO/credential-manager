@@ -245,16 +245,22 @@ done
 
 mkdir -p "${ROOT}/run"
 
-echo "#!/usr/bin/env bash" > "${ROOT}/run/all.sh"
-echo "" >> "${ROOT}/run/all.sh"
+RUN_ALL="${ROOT}/run/all.sh"
+
+cat > "${RUN_ALL}" <<EOF
+#!/usr/bin/env bash
+
+# Enables easy cleanup from the test suite
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+EOF
 
 for NODE in ${SPO_NODES}; do
-  echo "$ROOT/${NODE}.sh &" >> "${ROOT}/run/all.sh"
+  echo "$ROOT/${NODE}.sh &" >> "${RUN_ALL}"
 done
-echo "" >> "${ROOT}/run/all.sh"
-echo "wait" >> "${ROOT}/run/all.sh"
+echo "" >> "${RUN_ALL}"
+echo "wait" >> "${RUN_ALL}"
 
-chmod a+x "${ROOT}/run/all.sh"
+chmod a+x "${RUN_ALL}"
 
 echo "CARDANO_NODE_SOCKET_PATH=${ROOT}/node-spo1/node.sock "
 

@@ -12,6 +12,7 @@ cabalProject:
   name = "nix-shell";
 
   packages = [
+    pkgs.b2sum
     pkgs.scriv
     pkgs.jq
     pkgs.openssl
@@ -67,7 +68,8 @@ cabalProject:
 
         cd $(git rev-parse --show-toplevel)/testnet
         [ -d example ] || scripts/babbage/mkfiles.sh
-        example/run/all.sh
+        # We want to catch signals to shut down the nodes
+        source example/run/all.sh
       '';
     };
 
@@ -221,7 +223,8 @@ cabalProject:
   };
 
   shellHook = ''
-    export CARDANO_NODE_SOCKET_PATH="$(git rev-parse --show-toplevel)/testnet/example/node-spo1/node.sock"
+    export TESTNET_DIR="$(git rev-parse --show-toplevel)/testnet"
+    export CARDANO_NODE_SOCKET_PATH="${TESTNET_DIR}/example/node-spo1/node.sock"
     export XDG_DATA_DIRS=$XDG_DATA_DIRS:$GSETTINGS_SCHEMAS_PATH
   '';
 }
