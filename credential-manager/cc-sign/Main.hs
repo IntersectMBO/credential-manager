@@ -185,7 +185,7 @@ description :: InfoMod Options
 description =
   fold
     [ fullDesc
-    , progDesc "GTK GUI application for signing CC Credential Manager transactions."
+    , progDesc "CLI application for signing CC Credential Manager transactions."
     ]
 
 signingKeyFileParser :: Parser FilePath
