@@ -23,9 +23,9 @@ We can now use ``orchestrator-cli`` to initialize the script:
        --testnet \
        --cold-nft-policy-id "$(cat init-cold/minting.plutus.hash)" \
        --cold-nft-token-name "$(cat init-cold/nft-token-name)" \
-       --voting-cert example-certificates/children/child-7/child-7-cert.pem \
-       --voting-cert example-certificates/children/child-8/child-8-cert.pem \
-       --voting-cert example-certificates/children/child-9/child-9-cert.pem \
+       --voting-cert example-certificates/child-7.cert \
+       --voting-cert example-certificates/child-8.cert \
+       --voting-cert example-certificates/child-9.cert \
        -o init-hot
 
 Let's see what assets were created.
@@ -57,10 +57,10 @@ The files are very similar to what was covered in :ref:`init_cold`, so we will s
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+                       "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
                    },
                    {
-                       "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+                       "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
                    }
                ]
            },
@@ -68,10 +68,10 @@ The files are very similar to what was covered in :ref:`init_cold`, so we will s
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "a3c6cb93a32b02877c61f64ab1c66c4513f12788bf7c500ead7d941b"
+                       "bytes": "c6d6ffd8e93b1b8352c297d528c958b982098dc8a08025bbb8d864cf"
                    },
                    {
-                       "bytes": "9923f31c1ce14e2acbd505fa8eebd4ce677d1bcd96c6d71610f810f2008ecc3a"
+                       "bytes": "e3340359f5d25c051e4dd160e4cb4d75074c537905f07eb9a2e24db881246ee0"
                    }
                ]
            },
@@ -79,38 +79,15 @@ The files are very similar to what was covered in :ref:`init_cold`, so we will s
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "eda6befbe1a4cb8191752d97b67627a548bcc5f3e4653ecfdba7cdf0"
+                       "bytes": "2faaa04cee79d9abfa3149c814617e860567a8609bbfbd044566a5cd"
                    },
                    {
-                       "bytes": "ecd64beefcf59f01a975457b0a3623d2b03d5bcf71642a8d8d8275e4668aad31"
+                       "bytes": "ae8eef56d67350b247ab77be48dad121ae18d473386f59b3fda9fccbd665422a"
                    }
                ]
            }
        ]
    }
-
-We can, and should, sanity check that this datum contains the correct values:
-
-.. code-block:: bash
-
-   $ diff \
-      <(cat example-certificates/children/child-7/child-7.keyhash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[0].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-7/child-7-cert.hash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[0].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-8/child-8.keyhash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[1].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-8/child-8-cert.hash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[1].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-9/child-9.keyhash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[2].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-9/child-9-cert.hash) \
-      <(cat init-hot/nft.datum.json | jq -r '.list[2].fields[1].bytes')
 
 Step 2(b): Creating the assets (custom NFT lock script)
 -------------------------------------------------------
@@ -149,8 +126,8 @@ We can query the script address to verify the UTxO is there:
 
    $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json
    {
-       "6af542d6152060d2baf351c0e4fda7f5160b74dd535be1ec8485fd40cdb9e0b7#0": {
-           "address": "addr_test1wr4jyutztpjge37c2n377qzsnrkv67xp86lmahty4dhv5wqf2l99t",
+       "fca0a026d079b72f4870b794d2dbfb68f141ccd5049a15481086b6ee72700d36#0": {
+           "address": "addr_test1wzn8zkvkvaex4nnvften2aejpgt3calqwmgmrzwj95vukcs0map8t",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -158,10 +135,10 @@ We can query the script address to verify the UTxO is there:
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+                               "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
                            },
                            {
-                               "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+                               "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
                            }
                        ]
                    },
@@ -169,10 +146,10 @@ We can query the script address to verify the UTxO is there:
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "a3c6cb93a32b02877c61f64ab1c66c4513f12788bf7c500ead7d941b"
+                               "bytes": "c6d6ffd8e93b1b8352c297d528c958b982098dc8a08025bbb8d864cf"
                            },
                            {
-                               "bytes": "9923f31c1ce14e2acbd505fa8eebd4ce677d1bcd96c6d71610f810f2008ecc3a"
+                               "bytes": "e3340359f5d25c051e4dd160e4cb4d75074c537905f07eb9a2e24db881246ee0"
                            }
                        ]
                    },
@@ -180,20 +157,20 @@ We can query the script address to verify the UTxO is there:
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "eda6befbe1a4cb8191752d97b67627a548bcc5f3e4653ecfdba7cdf0"
+                               "bytes": "2faaa04cee79d9abfa3149c814617e860567a8609bbfbd044566a5cd"
                            },
                            {
-                               "bytes": "ecd64beefcf59f01a975457b0a3623d2b03d5bcf71642a8d8d8275e4668aad31"
+                               "bytes": "ae8eef56d67350b247ab77be48dad121ae18d473386f59b3fda9fccbd665422a"
                            }
                        ]
                    }
                ]
            },
-           "inlineDatumhash": "4601cb700ba4288f35fd71eb1d86ddd8207d16b195d5a1fa0e6a4897c21edf79",
+           "inlineDatumhash": "bcaef52050aed8a9720c1854860aee8625f3655fdeb8697a5650e257d7c56fc9",
            "referenceScript": null,
            "value": {
-               "76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3": {
-                   "5c94bfec2d9e8a0e0c536df3384e5001adf6d333216a2b546b6f043a2301": 1
+               "bf3bbf5a8539663eddd53364a9fd90e468c0182fcf6f0642ac16d65f": {
+                   "93fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c2301": 1
                },
                "lovelace": 5000000
            }

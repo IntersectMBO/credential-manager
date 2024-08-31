@@ -16,7 +16,7 @@ transaction assets to remove them, you can use the following commands:
    $ fetch-hot-nft-utxo
    $ orchestrator-cli resign-voting \
      --utxo-file hot-nft.utxo \
-     --voting-cert example-certificates/children/child-7/child-7-cert.pem \
+     --voting-cert example-certificates/child-7.cert \
      --out-dir resign-child-7
    WARNING: delegation group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
 
@@ -35,10 +35,10 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
    $ diff <(jq 'to_entries | .[0].value.inlineDatum' < hot-nft.utxo) <(jq '.' < resign-child-7/datum.json)
    7,17d6
-   <           "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+   <           "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
    <         },
    <         {
-   <           "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+   <           "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
    <         }
    <       ]
    <     },
@@ -46,7 +46,6 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
    <       "constructor": 0,
    <       "fields": [
    <         {
-
 
 In the datum, ``child-7`` has been removed, while the redeemer says to remove
 this user.
@@ -62,10 +61,10 @@ this user.
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+                       "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
                    },
                    {
-                       "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+                       "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
                    }
                ]
            }
@@ -86,7 +85,7 @@ Step 2: Create the Transaction
       --tx-in-redeemer-file resign-child-7/redeemer.json \
       --tx-out "$(cat resign-child-7/value)" \
       --tx-out-inline-datum-file resign-child-7/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-7/child-7.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-7/body.json
    Estimated transaction fee: Coin 486785
@@ -98,9 +97,9 @@ To build the transaction, we need to get a signature from the resignee.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file resign-child-7/body.json \
-      --signing-key-file example-certificates/children/child-7/child-7.skey \
+      --private-key-file example-certificates/children/child-7/child-7.private \
       --out-file resign-child-7/child-7.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file resign-child-7/body.json \
@@ -127,8 +126,8 @@ Step 5. Verify the voting member is removed
 
    $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json
    {
-       "86cb189a24ba03931d3879e16172ec4ad6a14e9ac3c7a8d5b69c4bb272020af4#0": {
-           "address": "addr_test1wp62yszlxmqvy9xecnevt63sr4escyh55nz95s8zh2x6mdq8dx74g",
+       "4532d145dc5d417950879d9316657ffe36a716e512c1f1d679b5a92b6a33d62f#0": {
+           "address": "addr_test1wzn8zkvkvaex4nnvften2aejpgt3calqwmgmrzwj95vukcs0map8t",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -136,10 +135,10 @@ Step 5. Verify the voting member is removed
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "a3c6cb93a32b02877c61f64ab1c66c4513f12788bf7c500ead7d941b"
+                               "bytes": "c6d6ffd8e93b1b8352c297d528c958b982098dc8a08025bbb8d864cf"
                            },
                            {
-                               "bytes": "9923f31c1ce14e2acbd505fa8eebd4ce677d1bcd96c6d71610f810f2008ecc3a"
+                               "bytes": "e3340359f5d25c051e4dd160e4cb4d75074c537905f07eb9a2e24db881246ee0"
                            }
                        ]
                    },
@@ -147,20 +146,20 @@ Step 5. Verify the voting member is removed
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "eda6befbe1a4cb8191752d97b67627a548bcc5f3e4653ecfdba7cdf0"
+                               "bytes": "2faaa04cee79d9abfa3149c814617e860567a8609bbfbd044566a5cd"
                            },
                            {
-                               "bytes": "ecd64beefcf59f01a975457b0a3623d2b03d5bcf71642a8d8d8275e4668aad31"
+                               "bytes": "ae8eef56d67350b247ab77be48dad121ae18d473386f59b3fda9fccbd665422a"
                            }
                        ]
                    }
                ]
            },
-           "inlineDatumhash": "20003d8b8a9526ab5daf6f9e31ef5f0ac8cfb97832d85492e49c8e1456424ade",
+           "inlineDatumhash": "a01fa0cf5747346e4eac82a18e4acb1bcfda06bbb088823bdb6fe03c546536d7",
            "referenceScript": null,
            "value": {
-               "76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3": {
-                   "5c94bfec2d9e8a0e0c536df3384e5001adf6d333216a2b546b6f043a2301": 1
+               "bf3bbf5a8539663eddd53364a9fd90e468c0182fcf6f0642ac16d65f": {
+                   "93fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c2301": 1
                },
                "lovelace": 5000000
            }

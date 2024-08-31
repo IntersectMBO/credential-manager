@@ -20,8 +20,8 @@ For the purposes of demonstration, let's reuse the same one from :ref:`voting <v
 .. code-block:: bash
 
    $ ANCHOR=https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json
-   $ cardano-cli conway governance hash anchor-data \
-     --text "$(curl -s $ANCHOR | jsonld canonize)" \
+   $ cardano-cli hash anchor-data \
+     --text "$(curl -s $ANCHOR)" \
      --out-file anchor.hash
    $ fetch-cold-nft-utxo
    $ orchestrator-cli resign-committee \
@@ -45,7 +45,7 @@ Once again, the output datum is the same as the input datum:
 
 .. code-block:: bash
 
-   diff <(jq '.inlineDatum' < cold-nft.utxo) <(jq '.' < resign/datum.json)
+   diff <(jq 'to_entries | .[0].value.inlineDatum' < cold-nft.utxo) <(jq '.' < resign/datum.json)
 
 And the redeemer instructs the script to perform the ``resign`` action.
 
@@ -65,7 +65,7 @@ We also have a new certificate, `resign.cert`:
    {
        "type": "CertificateConway",
        "description": "Constitution committee member hot key resignation",
-       "cborHex": "830f8201581c533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f2882785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58200a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d"
+       "cborHex": "830f8201581c533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f2882785668747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f63617264616e6f2d666f756e646174696f6e2f434950732f6d61737465722f4349502d303130302f6578616d706c652e6a736f6e58207b7d4a28a599bbb8c08b239be2645fa82d63a848320bf4760b07d86fcf1aabdc"
    }
 
 .. note::
@@ -98,8 +98,8 @@ The transaction must be signed by the membership group.
       --tx-in-redeemer-file resign/redeemer.json \
       --tx-out "$(cat resign/value)" \
       --tx-out-inline-datum-file resign/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --certificate-file resign/resign.cert \
       --certificate-script-file init-cold/credential.plutus \
       --certificate-redeemer-value {} \
@@ -118,13 +118,13 @@ sign.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file resign/body.json \
-      --signing-key-file example-certificates/children/child-4/child-4.skey \
+      --private-key-file example-certificates/children/child-4/child-4.private \
       --out-file resign/child-4.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file resign/body.json \
-      --signing-key-file example-certificates/children/child-5/child-5.skey \
+      --private-key-file example-certificates/children/child-5/child-5.private \
       --out-file resign/child-5.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file resign/body.json \
@@ -162,7 +162,7 @@ the node:
                "expiration": 50000,
                "hotCredsAuthStatus": {
                    "contents": {
-                       "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
+                       "dataHash": "7b7d4a28a599bbb8c08b239be2645fa82d63a848320bf4760b07d86fcf1aabdc",
                        "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
                    },
                    "tag": "MemberResigned"
@@ -173,7 +173,7 @@ the node:
                "status": "Active"
            }
        },
-       "epoch": 19,
+       "epoch": 1610,
        "threshold": 0
    }
 

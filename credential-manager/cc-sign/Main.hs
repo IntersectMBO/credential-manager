@@ -69,6 +69,8 @@ import CredentialManager.Api (
   parsePrivateKeyFromPEMBytes,
  )
 import Crypto.PubKey.Ed25519 (toPublic)
+import Data.BitSet (BitSet)
+import qualified Data.BitSet as BS
 import qualified Data.ByteArray as BA
 import Data.Char (toLower)
 import Data.Either (fromRight)
@@ -89,6 +91,7 @@ import System.Directory (doesFileExist)
 import System.Exit (die, exitFailure)
 import System.IO (hFlush, stdout)
 import System.Process (readProcess)
+import Witherable (Witherable (witherMap))
 
 main :: IO ()
 main = do
@@ -119,26 +122,26 @@ main = do
           . BA.convert
           . toPublic
           $ key
-  putStr "Checking transaction body file... "
+  unless (BS.member Quiet flags) $ putStr "Checking transaction body file... "
   txResult <- readFileTextEnvelope (AsTx AsConwayEra) (File txBodyFile)
   tx <- case txResult of
     Left err -> do
       renderError err
       exitFailure
     Right tx -> do
-      putStrLn "OK"
+      unless (BS.member Quiet flags) $ putStrLn "OK"
       pure tx
   let txBody = getTxBody tx
-  classification <- classifyTx txBody
-  promptToProceed "Is the transaction doing what you expect?"
-  promptCertificates <- summarizeCertificates txBody classification
-  when promptCertificates $ promptToProceed "Is this certificate correct?"
-  promptVotes <- summarizeVotes txBody classification
-  when promptVotes $ promptToProceed "Are these votes correct?"
-  summarizeOutputs classification txBody
-  checkExtraTxBodyFields txBody
-  summarizeSignatories pubKeyHash txBody
-  promptToProceed "Do you wish to sign this transaction?"
+  classification <- classifyTx flags txBody
+  promptToProceed flags "Is the transaction doing what you expect?"
+  promptCertificates <- summarizeCertificates flags txBody classification
+  when promptCertificates $ promptToProceed flags "Is this certificate correct?"
+  promptVotes <- summarizeVotes flags txBody classification
+  when promptVotes $ promptToProceed flags "Are these votes correct?"
+  summarizeOutputs flags pubKeyHash classification txBody
+  checkExtraTxBodyFields flags txBody
+  summarizeSignatories flags pubKeyHash txBody
+  promptToProceed flags "Do you wish to sign this transaction?"
   let witness =
         makeShelleyKeyWitness ShelleyBasedEraConway txBody $
           WitnessPaymentKey signingKey
@@ -146,17 +149,25 @@ main = do
     writeTxWitnessFileTextEnvelopeCddl ShelleyBasedEraConway (File outFile) witness
   case saveResult of
     Left err -> die $ show err
-    Right _ -> putStrLn $ "Saved witness to " <> outFile
+    Right _ -> unless (BS.member Quiet flags) $ putStrLn $ "Saved witness to " <> outFile
 
-promptToProceed :: String -> IO ()
-promptToProceed msg = do
-  putStr $ msg <> " (yN): "
-  hFlush stdout
-  response <- getLine
-  unless (fmap toLower response == "y") exitFailure
+promptToProceed :: BitSet Flags -> String -> IO ()
+promptToProceed flags msg
+  | BS.member Yes flags || BS.member Quiet flags = pure ()
+  | otherwise = do
+      putStr $ msg <> " (yN): "
+      hFlush stdout
+      response <- getLine
+      unless (fmap toLower response == "y") exitFailure
+
+data Flags
+  = Quiet
+  | Yes
+  deriving (Show, Eq, Ord, Enum)
 
 data Options = Options
-  { signingKeyFile :: FilePath
+  { flags :: BitSet Flags
+  , signingKeyFile :: FilePath
   , txBodyFile :: FilePath
   , outFile :: FilePath
   }
@@ -171,9 +182,39 @@ parser = helper <*> versionInfo <*> optionsParser
 optionsParser :: Parser Options
 optionsParser =
   Options
-    <$> signingKeyFileParser
+    <$> flagsParser
+    <*> signingKeyFileParser
     <*> txBodyFileParser
     <*> outFileParser
+
+flagsParser :: Parser (BitSet Flags)
+flagsParser =
+  witherMap
+    BS.fromList
+    id
+    [ quietParser
+    , yesParser
+    ]
+
+quietParser :: Parser (Maybe Flags)
+quietParser =
+  optional $
+    flag' Quiet $
+      fold
+        [ long "quiet"
+        , short 'q'
+        , help "Do not print summary output (implies -y)"
+        ]
+
+yesParser :: Parser (Maybe Flags)
+yesParser =
+  optional $
+    flag' Yes $
+      fold
+        [ long "yes"
+        , short 'y'
+        , help "Automatically confirm all prompts"
+        ]
 
 versionInfo :: Parser (Options -> Options)
 versionInfo =
@@ -221,20 +262,20 @@ outFileParser =
       , action "file"
       ]
 
-printIndented :: String -> IO ()
-printIndented s = putStrLn $ "  " <> s
+printIndented :: BitSet Flags -> String -> IO ()
+printIndented flags s = unless (BS.member Quiet flags) $ putStrLn $ "  " <> s
 
-printTitle :: String -> IO ()
-printTitle s = do
+printTitle :: BitSet Flags -> String -> IO ()
+printTitle flags s = unless (BS.member Quiet flags) $ do
   putStrLn ""
   putStrLn s
 
 dieIndented :: String -> IO a
 dieIndented s = die $ "  " <> s
 
-classifyTx :: TxBody ConwayEra -> IO TxClassification
-classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) = do
-  printTitle "Checking transaction purpose..."
+classifyTx :: BitSet Flags -> TxBody ConwayEra -> IO TxClassification
+classifyTx flags (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) = do
+  printTitle flags "Checking transaction purpose..."
   case scriptData of
     TxBodyNoScriptData -> dieIndented "Transaction does not execute any scripts."
     TxBodyScriptData AlonzoEraOnwardsConway _ (Redeemers redeemers) ->
@@ -242,55 +283,56 @@ classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) = do
         [] -> dieIndented "Transaction does not spend any script outputs."
         [(L.Data rdmr, _)] -> case rdmr of
           Constr 0 [fromData -> Just (HotCommitteeCredential hotCred)] -> do
-            printIndented "Hot credential authorization transaction."
+            printIndented flags "Hot credential authorization transaction."
             case hotCred of
               ScriptCredential hash ->
-                printIndented $ "Hot credential script hash: " <> show hash <> "."
+                printIndented flags $ "Hot credential script hash: " <> show hash <> "."
               PubKeyCredential hash -> do
-                printIndented $ "Hot credential pub key hash: " <> show hash <> "."
+                printIndented flags $ "Hot credential pub key hash: " <> show hash <> "."
                 printIndented
+                  flags
                   "WARNING: This is unusual, normally a script credential should be authorized."
             pure $ ColdTx $ AuthorizeHot $ HotCommitteeCredential hotCred
           Constr 1 [] -> do
-            printIndented "Constitutional committee resignation transaction."
+            printIndented flags "Constitutional committee resignation transaction."
             pure $ ColdTx ResignCold
           Constr 2 [fromData -> Just Identity{..}] -> do
-            printIndented "Membership resignation transaction."
-            printIndented $ "Resignee certificate hash: " <> show certificateHash
-            printIndented $ "Resignee public key hash: " <> show pubKeyHash
+            printIndented flags "Delegate resignation transaction."
+            printIndented flags $ "Resignee certificate hash: " <> show certificateHash
+            printIndented flags $ "Resignee public key hash: " <> show pubKeyHash
             pure $ ColdTx $ ResignDelegation Identity{..}
           Constr 3 [fromData -> Just Identity{..}] -> do
-            printIndented "Delegate resignation transaction."
-            printIndented $ "Resignee certificate hash: " <> show certificateHash
-            printIndented $ "Resignee public key hash: " <> show pubKeyHash
-            pure $ ColdTx $ ResignDelegation Identity{..}
+            printIndented flags "Membership resignation transaction."
+            printIndented flags $ "Resignee certificate hash: " <> show certificateHash
+            printIndented flags $ "Resignee public key hash: " <> show pubKeyHash
+            pure $ ColdTx $ ResignMembership Identity{..}
           Constr 4 [] -> do
-            printIndented "Cold credential key rotation transaction."
+            printIndented flags "Cold credential key rotation transaction."
             pure $ ColdTx RotateCold
           Constr 5 [] -> do
-            printIndented "Cold NFT burn transaction."
+            printIndented flags "Cold NFT burn transaction."
             pure $ ColdTx BurnCold
           Constr 6 [fromData -> Just scriptHash] -> do
-            printIndented "Cold NFT upgrade transaction."
-            printIndented $ "New lock script hash: " <> show scriptHash
+            printIndented flags "Cold NFT upgrade transaction."
+            printIndented flags $ "New lock script hash: " <> show scriptHash
             pure $ ColdTx $ UpgradeCold scriptHash
           Constr 7 [] -> do
-            printIndented "Vote transaction."
+            printIndented flags "Vote transaction."
             pure $ HotTx Vote
           Constr 8 [fromData -> Just Identity{..}] -> do
-            printIndented "Voter resignation transaction."
-            printIndented $ "Resignee certificate hash: " <> show certificateHash
-            printIndented $ "Resignee public key hash: " <> show pubKeyHash
+            printIndented flags "Voter resignation transaction."
+            printIndented flags $ "Resignee certificate hash: " <> show certificateHash
+            printIndented flags $ "Resignee public key hash: " <> show pubKeyHash
             pure $ HotTx $ ResignVoting Identity{..}
           Constr 9 [] -> do
-            printIndented "Hot credential key rotation transaction."
+            printIndented flags "Hot credential key rotation transaction."
             pure $ HotTx RotateHot
           Constr 10 [] -> do
-            printIndented "Hot NFT burn transaction."
+            printIndented flags "Hot NFT burn transaction."
             pure $ ColdTx BurnCold
           Constr 11 [fromData -> Just scriptHash] -> do
-            printIndented "Hot NFT upgrade transaction."
-            printIndented $ "New lock script hash: " <> show scriptHash
+            printIndented flags "Hot NFT upgrade transaction."
+            printIndented flags $ "New lock script hash: " <> show scriptHash
             pure $ ColdTx $ UpgradeCold scriptHash
           _ -> do
             die "Transaction has invalid redeemer datum."
@@ -302,9 +344,10 @@ data TxClassification
   | HotTx HotLockRedeemer
   deriving (Show)
 
-summarizeCertificates :: TxBody ConwayEra -> TxClassification -> IO Bool
-summarizeCertificates (TxBody TxBodyContent{..}) classification = do
-  printTitle "Check transaction certificates..."
+summarizeCertificates
+  :: BitSet Flags -> TxBody ConwayEra -> TxClassification -> IO Bool
+summarizeCertificates flags (TxBody TxBodyContent{..}) classification = do
+  printTitle flags "Check transaction certificates..."
   let certificatesExpected = case classification of
         ColdTx AuthorizeHot{} -> True
         ColdTx ResignCold -> True
@@ -314,54 +357,56 @@ summarizeCertificates (TxBody TxBodyContent{..}) classification = do
       | certificatesExpected -> do
           dieIndented "No certificates found"
       | otherwise -> do
-          printIndented "No certificates found, as expected"
+          printIndented flags "No certificates found, as expected"
           pure False
     TxCertificates _ [] _
       | certificatesExpected -> do
           dieIndented "No certificates found"
       | otherwise -> do
-          printIndented "No certificates found, as expected"
+          printIndented flags "No certificates found, as expected"
           pure False
     TxCertificates _ [certificate] _
       | certificatesExpected -> do
-          printCertificate certificate
+          printCertificate flags certificate
           pure True
       | otherwise -> do
-          printIndented "Unexpected certificate found:"
-          printCertificate certificate
+          printIndented flags "Unexpected certificate found:"
+          printCertificate flags certificate
           exitFailure
     TxCertificates{} -> do
       dieIndented "Unexpected multiple certificates found"
 
-printCertificate :: Certificate ConwayEra -> IO ()
-printCertificate (ShelleyRelatedCertificate era _) = case era of {}
-printCertificate (ConwayCertificate _ (ConwayTxCertDeleg delegCert)) = do
-  printIndented "Unexpected delegation certificate found"
+printCertificate :: BitSet Flags -> Certificate ConwayEra -> IO ()
+printCertificate _ (ShelleyRelatedCertificate era _) = case era of {}
+printCertificate flags (ConwayCertificate _ (ConwayTxCertDeleg delegCert)) = do
+  printIndented flags "Unexpected delegation certificate found"
   dieIndented $ show delegCert
-printCertificate (ConwayCertificate _ (ConwayTxCertPool poolCert)) = do
-  printIndented "Unexpected pool certificate found"
+printCertificate flags (ConwayCertificate _ (ConwayTxCertPool poolCert)) = do
+  printIndented flags "Unexpected pool certificate found"
   dieIndented $ show poolCert
-printCertificate (ConwayCertificate _ (ConwayTxCertGov govCert)) =
+printCertificate flags (ConwayCertificate _ (ConwayTxCertGov govCert)) =
   case govCert of
     ConwayAuthCommitteeHotKey coldCredential hotCredential -> do
-      printIndented "Authorize committee hot credential certificate found"
-      printIndented $ "Cold credential: " <> show coldCredential
-      printIndented $ "Hot credential: " <> show hotCredential
+      printIndented flags "Authorize committee hot credential certificate found"
+      printIndented flags $ "Cold credential: " <> show coldCredential
+      printIndented flags $ "Hot credential: " <> show hotCredential
     ConwayResignCommitteeColdKey coldCredential sAnchor -> do
       printIndented
+        flags
         "Constitutional committee cold credential resignation certificate found"
-      printIndented $ "Cold credential: " <> show coldCredential
+      printIndented flags $ "Cold credential: " <> show coldCredential
       case sAnchor of
         SNothing -> do
-          printIndented "WARNING: No anchor found"
-        SJust anchor -> printIndented $ "Anchor " <> show anchor
+          printIndented flags "WARNING: No anchor found"
+        SJust anchor -> printIndented flags $ "Anchor " <> show anchor
     _ -> do
-      printIndented "Unexpected gov certificate found"
+      printIndented flags "Unexpected gov certificate found"
       dieIndented $ show govCert
 
-summarizeVotes :: TxBody ConwayEra -> TxClassification -> IO Bool
-summarizeVotes (TxBody TxBodyContent{..}) classification = do
-  printTitle "Check transaction votes..."
+summarizeVotes
+  :: BitSet Flags -> TxBody ConwayEra -> TxClassification -> IO Bool
+summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
+  printTitle flags "Check transaction votes..."
   case classification of
     HotTx Vote ->
       case txVotingProcedures of
@@ -380,18 +425,18 @@ summarizeVotes (TxBody TxBodyContent{..}) classification = do
               | Map.null votes -> do
                   dieIndented "No votes cast"
               | otherwise -> do
-                  printIndented $ "Voting as: " <> show voter
-                  traverse_ (uncurry summarizeVote) (Map.toList votes)
+                  printIndented flags $ "Voting as: " <> show voter
+                  traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
                   pure True
             _ -> do
               dieIndented "Votes cast by multiple voters"
     _ ->
       case txVotingProcedures of
         Nothing -> do
-          printIndented "No votes cast, as expected"
+          printIndented flags "No votes cast, as expected"
           pure False
         Just (Featured ConwayEraOnwardsConway TxVotingProceduresNone) -> do
-          printIndented "No votes cast, as expected"
+          printIndented flags "No votes cast, as expected"
           pure False
         Just
           ( Featured
@@ -399,37 +444,44 @@ summarizeVotes (TxBody TxBodyContent{..}) classification = do
               (TxVotingProcedures (VotingProcedures voters) _)
             )
             | Map.null voters -> do
-                printIndented "No votes cast, as expected"
+                printIndented flags "No votes cast, as expected"
                 pure False
             | otherwise -> do
                 dieIndented "Transaction casts votes when not allowed to"
 
 summarizeVote
-  :: GovActionId L.StandardCrypto
+  :: BitSet Flags
+  -> GovActionId L.StandardCrypto
   -> VotingProcedure (L.ConwayEra StandardCrypto)
   -> IO ()
-summarizeVote govActionId (VotingProcedure vote mAnchor) = do
-  printIndented $ "Vote " <> show vote <> " on " <> show govActionId
+summarizeVote flags govActionId (VotingProcedure vote mAnchor) = do
+  printIndented flags $ "Vote " <> show vote <> " on " <> show govActionId
   case mAnchor of
-    SNothing -> printIndented "WARNING: No rationale file anchor included in vote"
-    SJust anchor -> printIndented $ "Rationale " <> show anchor
+    SNothing -> printIndented flags "WARNING: No rationale file anchor included in vote"
+    SJust anchor -> printIndented flags $ "Rationale " <> show anchor
 
-summarizeOutputs :: TxClassification -> TxBody ConwayEra -> IO ()
-summarizeOutputs classification (TxBody TxBodyContent{..}) =
+summarizeOutputs
+  :: BitSet Flags -> Hash PaymentKey -> TxClassification -> TxBody ConwayEra -> IO ()
+summarizeOutputs flags myKey classification (TxBody TxBodyContent{..}) =
   for_ (zip @Int [0 ..] txOuts) \(ix, txOut) -> do
-    printTitle $ "Check transaction output #" <> show ix <> "..."
-    summarizeOutput classification txOut
-    promptToProceed "Is this output OK?"
+    printTitle flags $ "Check transaction output #" <> show ix <> "..."
+    summarizeOutput flags myKey classification txOut
+    promptToProceed flags "Is this output OK?"
 
-summarizeOutput :: TxClassification -> TxOut CtxTx ConwayEra -> IO ()
-summarizeOutput classification (TxOut address outValue outDatum _refScript) = do
+summarizeOutput
+  :: BitSet Flags
+  -> Hash PaymentKey
+  -> TxClassification
+  -> TxOut CtxTx ConwayEra
+  -> IO ()
+summarizeOutput flags myKey classification (TxOut address outValue outDatum _refScript) = do
   let val = txOutValueToValue outValue
-  printIndented $ "Send to address " <> T.unpack (serialiseAddress address)
-  printIndented $ show (L.unCoin $ selectLovelace val) <> " Lovelace"
+  printIndented flags $ "Send to address " <> T.unpack (serialiseAddress address)
+  printIndented flags $ show (L.unCoin $ selectLovelace val) <> " Lovelace"
   for_ (valueToList val) \case
     (AdaAssetId, _) -> pure ()
     (AssetId p n, Quantity q) ->
-      printIndented $
+      printIndented flags $
         show q
           <> " "
           <> T.unpack (serialiseToRawBytesHexText p)
@@ -444,79 +496,96 @@ summarizeOutput classification (TxOut address outValue outDatum _refScript) = do
         "Unexpected output datum hash: "
           <> T.unpack (serialiseToRawBytesHexText scriptHash)
     TxOutDatumInTx _ datum ->
-      summarizeDatum classification datum
+      summarizeDatum flags myKey classification datum
     TxOutDatumInline _ datum ->
-      summarizeDatum classification datum
+      summarizeDatum flags myKey classification datum
 
-summarizeDatum :: TxClassification -> HashableScriptData -> IO ()
-summarizeDatum classification datum = do
+summarizeDatum
+  :: BitSet Flags
+  -> Hash PaymentKey
+  -> TxClassification
+  -> HashableScriptData
+  -> IO ()
+summarizeDatum flags myKey classification datum = do
   let plutusDatum = toPlutusData $ getScriptData datum
   case fromData plutusDatum of
     Just ColdLockDatum{..} -> do
-      printIndented "Cold NFT datum found"
+      printIndented flags "Cold NFT datum found"
       case classification of
         ColdTx RotateCold -> do
-          printIndented "New membership keys:"
-          for_ membershipUsers summarizeIdentity
-          printIndented "New delegation keys:"
-          for_ delegationUsers summarizeIdentity
+          printIndented flags "New membership keys:"
+          for_ membershipUsers $ summarizeIdentity flags myKey
+          printIndented flags "New delegation keys:"
+          for_ delegationUsers $ summarizeIdentity flags myKey
         ColdTx _ -> pure ()
         HotTx _ -> do
           dieIndented "Not expected in a hot credential transaction"
     Nothing -> case fromData plutusDatum of
       Just HotLockDatum{..} -> do
-        printIndented "Hot NFT datum found"
+        printIndented flags "Hot NFT datum found"
         case classification of
           HotTx RotateHot -> do
-            printIndented "New voting keys:"
-            for_ votingUsers summarizeIdentity
+            printIndented flags "New voting keys:"
+            for_ votingUsers $ summarizeIdentity flags myKey
           HotTx _ -> pure ()
           ColdTx _ -> do
             dieIndented "Not expected in a cold credential transaction"
       Nothing -> do
-        printIndented "Unrecognized datum in output"
+        printIndented flags "Unrecognized datum in output"
         dieIndented $ show datum
 
-summarizeIdentity :: Identity -> IO ()
-summarizeIdentity Identity{..} = do
-  printIndented $ "⋅ public key hash: " <> show pubKeyHash
-  printIndented $ "  certificate hash: " <> show certificateHash
+summarizeIdentity :: BitSet Flags -> Hash PaymentKey -> Identity -> IO ()
+summarizeIdentity flags myKey Identity{..} = do
+  let pubKeyString = show pubKeyHash
+  let canSign = pubKeyString == T.unpack (serialiseToRawBytesHexText myKey)
+  printIndented flags $
+    "⋅ public key hash: "
+      <> show pubKeyHash
+      <> if canSign
+        then " (this is your key)"
+        else ""
+  printIndented flags $ "  certificate hash: " <> show certificateHash
 
-checkExtraTxBodyFields :: TxBody ConwayEra -> IO ()
-checkExtraTxBodyFields (TxBody TxBodyContent{..}) = do
-  printTitle "Check extra tx body fields..."
+checkExtraTxBodyFields :: BitSet Flags -> TxBody ConwayEra -> IO ()
+checkExtraTxBodyFields flags (TxBody TxBodyContent{..}) = do
+  printTitle flags "Check extra tx body fields..."
   case txWithdrawals of
     TxWithdrawalsNone -> pure ()
     TxWithdrawals _ [] -> pure ()
     TxWithdrawals _ _ -> do
-      printIndented "WARNING: Transaction unexpectedly withdraws staking rewards."
-      promptToProceed "Are you OK with this?"
+      printIndented
+        flags
+        "WARNING: Transaction unexpectedly withdraws staking rewards."
+      promptToProceed flags "Are you OK with this?"
   case txMintValue of
     TxMintNone -> pure ()
     TxMintValue _ val _
       | val == mempty -> pure ()
       | otherwise -> do
-          printIndented "WARNING: Transaction unexpectedly mints or burns tokens."
-          promptToProceed "Are you OK with this?"
+          printIndented flags "WARNING: Transaction unexpectedly mints or burns tokens."
+          promptToProceed flags "Are you OK with this?"
   case txProposalProcedures of
     Nothing -> pure ()
     Just (Featured _ TxProposalProceduresNone) -> pure ()
     Just (Featured _ (TxProposalProcedures proposalProcedures _))
       | proposalProcedures == mempty -> pure ()
       | otherwise -> do
-          printIndented "WARNING Transaction unexpectedly submits governance actions."
-          promptToProceed "Are you OK with this?"
+          printIndented
+            flags
+            "WARNING Transaction unexpectedly submits governance actions."
+          promptToProceed flags "Are you OK with this?"
 
-summarizeSignatories :: Hash PaymentKey -> TxBody ConwayEra -> IO ()
-summarizeSignatories myKey (TxBody TxBodyContent{..}) = do
-  printTitle "Check transaction signatories..."
+summarizeSignatories
+  :: BitSet Flags -> Hash PaymentKey -> TxBody ConwayEra -> IO ()
+summarizeSignatories flags myKey (TxBody TxBodyContent{..}) = do
+  printTitle flags "Check transaction signatories..."
   case txExtraKeyWits of
     TxExtraKeyWitnessesNone -> dieIndented "This transaction requires no signatures"
     TxExtraKeyWitnesses _ signatories -> do
       canSign <-
         or <$> for signatories \pkh -> do
           let canSign = pkh == myKey
-          printIndented $
+          printIndented flags $
             "Requires signature from "
               <> T.unpack (serialiseToRawBytesHexText pkh)
               <> if canSign

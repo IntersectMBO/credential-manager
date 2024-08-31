@@ -57,7 +57,7 @@ As before, let's see what assets were prepared:
    {
        "type": "CertificateConway",
        "description": "Constitution committee member hot key registration",
-       "cborHex": "830e8201581c533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f288201581ced846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a"
+       "cborHex": "830e8201581c533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f288201581cb8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d"
    }
 
 We also have a datum for the new output (it should be identical to the input datum)
@@ -78,7 +78,7 @@ And a redeemer:
                "constructor": 1,
                "fields": [
                    {
-                       "bytes": "ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a"
+                       "bytes": "b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d"
                    }
                ]
            }
@@ -95,7 +95,7 @@ for building the transaction with ``cardano-cli``.
 .. code-block:: bash
 
    cat authorize/value
-   addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q+5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4
+   addr_test1wrd2665l5depddaeg9cke7w58de9tc0q0x03recs9cm9deqfkxg0v+5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4
 
 Step 4: Create the Authorization Transaction
 --------------------------------------------
@@ -113,8 +113,8 @@ Now we have everything we need to build the transaction:
      --tx-in-redeemer-file authorize/redeemer.json \
      --tx-out "$(cat authorize/value)" \
      --tx-out-inline-datum-file authorize/datum.json \
-     --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-     --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+     --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+     --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
      --certificate-file authorize/authorizeHot.cert \
      --certificate-script-file init-cold/credential.plutus \
      --certificate-redeemer-value {} \
@@ -160,8 +160,8 @@ The next lines tell the transaction that it must be signed by ``child-4`` and
 
 .. code-block:: bash
 
-   --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-   --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+   --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+   --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
 
 The need for these arguments reveals a bit of an incompatibility (or at least
 a point of awkwardness) between the requirements of the scripts and the
@@ -208,18 +208,66 @@ We now have an unsigned transaction body which we need our delegators to sign.
 Using the file transfer mechanism of your choice, send the transaction body
 file to all the signatories specified with ``--required-signer-hash`` options.
 In our example, we control all the keys anyway, so we can sign the transaction
-ourselves:
+ourselves. We can do so with the ``cc-sign`` tool which is provided by the nix
+shell. This allows us to sign using the encrypted private key files that were
+used to create the child CSRs. Note that you will have to provide a password to
+decrypt the private key files. For the example certificates, the password is
+the same as the child name (e.g. the password for ``child-4.private`` is
+``child-4``). If you want to sign without having to confirm when prompted, you
+can pass the ``-y`` flag, and if you want to silence the output you can pass
+the ``-q`` flag (which also implies ``-y``). Note you we still need to enter
+your password no matter what.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign \
       --tx-body-file authorize/body.json \
-      --signing-key-file example-certificates/children/child-4/child-4.skey \
+      --private-key-file example-certificates/children/child-4/child-4.private \
       --out-file authorize/child-4.witness
-   $ cardano-cli conway transaction witness \
+
+   Enter pass phrase for example-certificates/children/child-4/child-4.private:
+   Checking transaction body file... OK
+
+   Checking transaction purpose...
+   Hot credential authorization transaction.
+   Hot credential script hash: b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d.
+   Is the transaction doing what you expect? (yN): y
+
+   Check transaction certificates...
+   Authorize committee hot credential certificate found
+   Cold credential: ScriptHashObj (ScriptHash "533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f28")
+   Hot credential: ScriptHashObj (ScriptHash "b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d")
+   Is this certificate correct? (yN): y
+
+   Check transaction votes...
+   No votes cast, as expected
+
+   Check transaction output #0...
+   Send to address addr_test1wrd2665l5depddaeg9cke7w58de9tc0q0x03recs9cm9deqfkxg0v
+   5000000 Lovelace
+   1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4
+   Cold NFT datum found
+   Is this output OK? (yN): y
+
+   Check transaction output #1...
+   Send to address addr_test1vpaj9ejw5hgrl0af4frsryt9y78hj477hdm07wnmuh5paeswgza39
+   599988628714 Lovelace
+   Is this output OK? (yN): y
+
+   Check extra tx body fields...
+
+   Check transaction signatories...
+   Requires signature from 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c (you can sign)
+   Requires signature from a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4
+   Do you wish to sign this transaction? (yN): y
+   Saved witness to authorize/child-4.witness
+   $ cc-sign -q \
       --tx-body-file authorize/body.json \
-      --signing-key-file example-certificates/children/child-5/child-5.skey \
+      --private-key-file example-certificates/children/child-5/child-5.private \
       --out-file authorize/child-5.witness
+
+As you can see, the tool displays a summary of the relevant information from
+the transaction. It also looks for any abnormalities and warns if it finds any.
 
 Since we are spending an input from our own wallet to pay for fees, we also
 need to sign the transaction with our own signing key:
@@ -263,7 +311,7 @@ node:
                "expiration": 50000,
                "hotCredsAuthStatus": {
                    "contents": {
-                       "scriptHash": "ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a"
+                       "scriptHash": "b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d"
                    },
                    "tag": "MemberAuthorized"
                },
@@ -273,6 +321,6 @@ node:
                "status": "Active"
            }
        },
-       "epoch": 10,
+       "epoch": 20,
        "threshold": 0
    }
