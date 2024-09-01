@@ -116,10 +116,10 @@ is a vote file that we will add to the transaction to cast the vote:
 
    $ cardano-cli conway governance vote view --vote-file vote/vote
    {
-       "committee-scriptHash-ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a": {
-           "7d1233eccb44570bb7e5f418188af542edb3a68fda6d109bac8148cd8ec6ca47#0": {
+       "committee-scriptHash-b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d": {
+           "febe3bd850e2c34ec6612f32d6438c9ccf965ea3b1bcc843efe3c42331fd3fec#0": {
                "anchor": {
-                   "dataHash": "0a5479805b25fcfd7a35d4016747659f47c1f8558ea17f5aeabb684ed537950d",
+                   "dataHash": "7b7d4a28a599bbb8c08b239be2645fa82d63a848320bf4760b07d86fcf1aabdc",
                    "url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0100/example.json"
                },
                "decision": "VoteYes"
@@ -143,8 +143,8 @@ Now we have everything we need to build the transaction.
       --tx-in-redeemer-file vote/redeemer.json \
       --tx-out "$(cat vote/value)" \
       --tx-out-inline-datum-file vote/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-8/child-8.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-9/child-9.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
       --vote-file vote/vote \
       --vote-script-file init-hot/credential.plutus \
       --vote-redeemer-value {} \
@@ -164,13 +164,13 @@ We now have an unsigned transaction body which we need our voters to sign.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file vote/body.json \
-      --signing-key-file example-certificates/children/child-8/child-8.skey \
+      --private-key-file example-certificates/children/child-8/child-8.private \
       --out-file vote/child-8.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file vote/body.json \
-      --signing-key-file example-certificates/children/child-9/child-9.skey \
+      --private-key-file example-certificates/children/child-9/child-9.private \
       --out-file vote/child-9.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file vote/body.json \
@@ -204,13 +204,13 @@ We can see the results of our vote by querying the gov state from the node:
    {
      "actionId": {
        "govActionIx": 0,
-       "txId": "7d1233eccb44570bb7e5f418188af542edb3a68fda6d109bac8148cd8ec6ca47"
+       "txId": "febe3bd850e2c34ec6612f32d6438c9ccf965ea3b1bcc843efe3c42331fd3fec"
      },
      "committeeVotes": {
-       "scriptHash-ed846aa91731bfda6ea5e3b63db8de547b201f8dee5013de05accd3a": "VoteYes"
+       "scriptHash-b8928f246d726b59c51f33fc9d643b808dd273e5d9985762e464783d": "VoteYes"
      },
      "dRepVotes": {},
-     "expiresAfter": 111,
+     "expiresAfter": 121,
      "proposalProcedure": {
        "anchor": {
          "dataHash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -222,11 +222,11 @@ We can see the results of our vote by querying the gov state from the node:
        },
        "returnAddr": {
          "credential": {
-           "keyHash": "75d120c4fdb6f5a978357663ac3884074a8344e17964bcc7e3ec3d8e"
+           "keyHash": "9f2512df96406ee5033478c432c7f10622ebf4a3715c0a8d50096238"
          },
          "network": "Testnet"
        }
      },
-     "proposedIn": 11,
+     "proposedIn": 21,
      "stakePoolVotes": {}
    }

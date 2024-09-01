@@ -213,6 +213,18 @@ cabalProject:
         cabal run orchestrator-cli -- "$@"
       '';
     };
+
+    cc-sign = {
+      description = "Wrapper for CC sign executable";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cabal run cc-sign -- "$@"
+      '';
+    };
   };
 
   env = {

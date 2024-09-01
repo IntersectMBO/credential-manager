@@ -16,8 +16,8 @@ As usual, use ``orchestrator-cli`` to prepare the transaction assets:
    $ fetch-hot-nft-utxo
    $ orchestrator-cli rotate-hot \
      --utxo-file hot-nft.utxo \
-     --voting-cert example-certificates/children/child-7/child-7-cert.pem \
-     --voting-cert example-certificates/children/child-9/child-9-cert.pem \
+     --voting-cert example-certificates/child-7.cert \
+     --voting-cert example-certificates/child-9.cert \
      --out-dir rotate-hot
 
 As before, let's see what assets were prepared:
@@ -35,15 +35,13 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
    $ diff <(jq 'to_entries | .[0].value.inlineDatum' < hot-nft.utxo) <(jq '.' < rotate-hot/datum.json)
    7c7
-   <           "bytes": "a3c6cb93a32b02877c61f64ab1c66c4513f12788bf7c500ead7d941b"
+   <           "bytes": "c6d6ffd8e93b1b8352c297d528c958b982098dc8a08025bbb8d864cf"
    ---
-   >           "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+   >           "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
    10c10
-   <           "bytes": "9923f31c1ce14e2acbd505fa8eebd4ce677d1bcd96c6d71610f810f2008ecc3a"
+   <           "bytes": "e3340359f5d25c051e4dd160e4cb4d75074c537905f07eb9a2e24db881246ee0"
    ---
-   >           "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
-
-
+   >           "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
 
 In the datum, ``child-7`` has been added back, and ``child-8`` has been removed.
 The redeemer is less interesting, as it takes no arguments:
@@ -80,9 +78,9 @@ Otherwise, it is the same as it was for :ref:`cold-nft rotate <rotate_cold>`.
       --tx-in-redeemer-file rotate-hot/redeemer.json \
       --tx-out "$(cat rotate-hot/value)" \
       --tx-out-inline-datum-file rotate-hot/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-7/child-7.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-1.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-2.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-7.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file rotate-hot/body.json
    Estimated transaction fee: Coin 528607
@@ -96,17 +94,17 @@ Step 3. Distribute the Transaction to Signatories
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file rotate-hot/body.json \
-      --signing-key-file example-certificates/children/child-1/child-1.skey \
+      --private-key-file example-certificates/children/child-1/child-1.private \
       --out-file rotate-hot/child-1.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file rotate-hot/body.json \
-      --signing-key-file example-certificates/children/child-2/child-2.skey \
+      --private-key-file example-certificates/children/child-2/child-2.private \
       --out-file rotate-hot/child-2.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file rotate-hot/body.json \
-      --signing-key-file example-certificates/children/child-7/child-7.skey \
+      --private-key-file example-certificates/children/child-7/child-7.private \
       --out-file rotate-hot/child-7.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file rotate-hot/body.json \
@@ -135,8 +133,8 @@ Step 5. Verify the change on chain
 
    $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json
    {
-       "93724fe4224b26cb728f411ce8c444ae67e0b460603e375b01bc972b787b3f34#0": {
-           "address": "addr_test1wr4kx7wd9e5fmjpxlnuznhcy585jv7mc39vu0thll565zmgpu2jpe",
+       "7c96fe0d24c5bcc398c051569a5a079b1242ec8d6f18eede663f9fd6c4f54eac#0": {
+           "address": "addr_test1wzn8zkvkvaex4nnvften2aejpgt3calqwmgmrzwj95vukcs0map8t",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -144,10 +142,10 @@ Step 5. Verify the change on chain
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+                               "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
                            },
                            {
-                               "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+                               "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
                            }
                        ]
                    },
@@ -155,20 +153,20 @@ Step 5. Verify the change on chain
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "eda6befbe1a4cb8191752d97b67627a548bcc5f3e4653ecfdba7cdf0"
+                               "bytes": "2faaa04cee79d9abfa3149c814617e860567a8609bbfbd044566a5cd"
                            },
                            {
-                               "bytes": "ecd64beefcf59f01a975457b0a3623d2b03d5bcf71642a8d8d8275e4668aad31"
+                               "bytes": "ae8eef56d67350b247ab77be48dad121ae18d473386f59b3fda9fccbd665422a"
                            }
                        ]
                    }
                ]
            },
-           "inlineDatumhash": "c76a8897910eae665c54b888ad9ac64aa555478349af5f2322c5cb06a6b373c0",
+           "inlineDatumhash": "78e128e204031b114f7e3b3b4f4de71b547d5189d6166a3b43370a13bbe9fba5",
            "referenceScript": null,
            "value": {
-               "76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3": {
-                   "4844bfe98f124abc1d2203fc586a46140168d38777f46abd8c393c482301": 1
+               "bf3bbf5a8539663eddd53364a9fd90e468c0182fcf6f0642ac16d65f": {
+                   "93fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c2301": 1
                },
                "lovelace": 5000000
            }

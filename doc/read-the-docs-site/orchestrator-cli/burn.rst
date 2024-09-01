@@ -46,7 +46,7 @@ There is no NFT output so no datum or value file is written.
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "f6bbf7757b4dafaade2a943e2dfa2fcc174eb5b79f8a7ebd014d89a621725e28"
+                               "bytes": "42e381fc2d8e4cf65d4564be1545ce891cb80c952c2f51c60fa0460d66ff11ce"
                            }
                        ]
                    },
@@ -63,7 +63,7 @@ There is no NFT output so no datum or value file is written.
        "fields": []
    }
 
-The minting redeemer instructs the minting script to burn (``"constructor": 1``) all tokens in input ``f6bbf7757b4dafaade2a943e2dfa2fcc174eb5b79f8a7ebd014d89a621725e28#0``.
+The minting redeemer instructs the minting script to burn (``"constructor": 1``) all tokens in input ``42e381fc2d8e4cf65d4564be1545ce891cb80c952c2f51c60fa0460d66ff11ce#0``.
 
 The NFT redeemer contains no interesting information.
 
@@ -89,18 +89,18 @@ So, we have to do it in two transactions.
       --mint "-1 $(cat init-hot/minting.plutus.hash).$(cat init-hot/nft-token-name)" \
       --mint-script-file init-hot/minting.plutus \
       --mint-redeemer-file burn-hot/mint.redeemer.json \
-      --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file burn-hot/body.json
    Estimated transaction fee: Coin 667729
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file burn-hot/body.json \
-      --signing-key-file example-certificates/children/child-1/child-1.skey \
+      --private-key-file example-certificates/children/child-1/child-1.private \
       --out-file burn-hot/child-1.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file burn-hot/body.json \
-      --signing-key-file example-certificates/children/child-2/child-2.skey \
+      --private-key-file example-certificates/children/child-2/child-2.private \
       --out-file burn-hot/child-2.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file burn-hot/body.json \
@@ -165,8 +165,8 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
       --mint "-1 $(cat init-cold/minting.plutus.hash).$(cat init-cold/nft-token-name)" \
       --mint-script-file init-cold/minting.plutus \
       --mint-redeemer-file burn-cold/mint.redeemer.json \
-      --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file burn-cold/body.json
    Estimated transaction fee: Coin 667729
@@ -180,18 +180,18 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
       --tx-in-redeemer-file burn-cold/nft.redeemer.json \
       --mint "-1 $COLD_POLICY_ID" \
       --mint-script-file coldMint.native \
-      --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file burn-cold/body.json
    Estimated transaction fee: Coin 529119
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file burn-cold/body.json \
-      --signing-key-file example-certificates/children/child-4/child-4.skey \
+      --private-key-file example-certificates/children/child-4/child-4.private \
       --out-file burn-cold/child-4.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file burn-cold/body.json \
-      --signing-key-file example-certificates/children/child-5/child-5.skey \
+      --private-key-file example-certificates/children/child-5/child-5.private \
       --out-file burn-cold/child-5.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file burn-cold/body.json \

@@ -34,3 +34,4 @@ dist-newstyle/
 !hotMint.vkey
 !hotMint.skey
 !hotMint.hash
+!example-certificates/*

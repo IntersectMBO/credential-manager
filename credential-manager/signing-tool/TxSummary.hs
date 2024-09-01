@@ -256,12 +256,12 @@ classifyTx (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) =
               describe "Constitutional committee resignation transaction."
               pure $ ColdTx ResignCold
             Constr 2 [fromData -> Just Identity{..}] -> do
-              describe "Membership resignation transaction."
+              describe "Delegate resignation transaction."
               describe $ "Resignee certificate hash: " <> T.pack (show certificateHash)
               describe $ "Resignee public key hash: " <> T.pack (show pubKeyHash)
               pure $ ColdTx $ ResignDelegation Identity{..}
             Constr 3 [fromData -> Just Identity{..}] -> do
-              describe "Delegate resignation transaction."
+              describe "Membership resignation transaction."
               describe $ "Resignee certificate hash: " <> T.pack (show certificateHash)
               describe $ "Resignee public key hash: " <> T.pack (show pubKeyHash)
               pure $ ColdTx $ ResignDelegation Identity{..}

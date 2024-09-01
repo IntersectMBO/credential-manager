@@ -16,7 +16,7 @@ transaction assets to remove them, you can use the following commands:
    $ fetch-cold-nft-utxo
    $ orchestrator-cli resign-membership \
      --utxo-file cold-nft.utxo \
-     --membership-cert example-certificates/children/child-1/child-1-cert.pem \
+     --membership-cert example-certificates/child-1.cert \
      --out-dir resign-child-1
    WARNING: membership group has fewer than 3 members. This allows a single user to sign off on actions. The recommended minimum group size is 3.
 
@@ -38,10 +38,10 @@ We have the familiar ``datum.json``, ``redeemer.json``, and ``value`` files:
 
    $ diff <(jq 'to_entries | .[0].value.inlineDatum' < cold-nft.utxo) <(jq '.' < resign-child-1/datum.json)
    21,31d20
-   <               "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+   <               "bytes": "19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6"
    <             },
    <             {
-   <               "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+   <               "bytes": "0ab37eb812d864c903dc48ef99dd91eb71b805efe7286b0080cc1228570c5f96"
    <             }
    <           ]
    <         },
@@ -64,10 +64,10 @@ this user.
                "constructor": 0,
                "fields": [
                    {
-                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+                       "bytes": "19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6"
                    },
                    {
-                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+                       "bytes": "0ab37eb812d864c903dc48ef99dd91eb71b805efe7286b0080cc1228570c5f96"
                    }
                ]
            }
@@ -91,7 +91,7 @@ vote, the transaction is somewhat easier to build:
       --tx-in-redeemer-file resign-child-1/redeemer.json \
       --tx-out "$(cat resign-child-1/value)" \
       --tx-out-inline-datum-file resign-child-1/datum.json \
-      --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file resign-child-1/body.json
    Estimated transaction fee: Coin 562307
@@ -103,9 +103,9 @@ To build the transaction, we need to get a signature from the resignee.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file resign-child-1/body.json \
-      --signing-key-file example-certificates/children/child-1/child-1.skey \
+      --private-key-file example-certificates/children/child-1/child-1.private \
       --out-file resign-child-1/child-1.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file resign-child-1/body.json \
@@ -132,8 +132,8 @@ Step 5. Verify the membership member is removed
 
    $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "880167c58ca05f2acab09bb3de42274380befe0eec6f6b20c52d3ae9ded18e5d#0": {
-           "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
+       "a873157af9a562d2b9a4c0b312c5a24df7ce09e9744f7216e67bdfa127199188#0": {
+           "address": "addr_test1wrd2665l5depddaeg9cke7w58de9tc0q0x03recs9cm9deqfkxg0v",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -155,10 +155,10 @@ Step 5. Verify the membership member is removed
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "c2233827cca3a0cc2c49f91a66276c468be994db855d6b413005fa88"
+                                       "bytes": "2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d"
                                    },
                                    {
-                                       "bytes": "3b8536a38eea871cc8b2775deb5861ac4348ef61a84b9e9c643480ae5b88ffc3"
+                                       "bytes": "03452838656348992c11f383a3b17f520a2603ab5659d6c77ea650a1675610f4"
                                    }
                                ]
                            },
@@ -166,10 +166,10 @@ Step 5. Verify the membership member is removed
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "b23a02a308165c702ce00bf760a0eff33b27b12906e1805b7685125f"
+                                       "bytes": "95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366"
                                    },
                                    {
-                                       "bytes": "fdf913abfdb8f00997cca5c14ca0b82f3d08781015a061e91444425d6f777ffa"
+                                       "bytes": "c2367d7b1d649be1847bf2224bb33ce7252bc7cfa73bf740ea589b741ee70e0d"
                                    }
                                ]
                            }
@@ -181,10 +181,10 @@ Step 5. Verify the membership member is removed
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "fc6a114db76d31de585793749dcd6ad2d6c02a52ce9226820656bedd"
+                                       "bytes": "7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c"
                                    },
                                    {
-                                       "bytes": "7c9d1c732c313066ded1568dc24b1230cc782d331cb65465bc65ad5df6fbe832"
+                                       "bytes": "4e42c90371daf9c4a030bd7d161e44364c49f7f94ffe3daaf5843032ffd1c207"
                                    }
                                ]
                            },
@@ -192,10 +192,21 @@ Step 5. Verify the membership member is removed
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "168ff0600f6245812192fb84c1d5a72129ae0445a272acc65dc88fb3"
+                                       "bytes": "a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4"
                                    },
                                    {
-                                       "bytes": "c60e20be4ce0fa457a8c65ade01005475e71880e921c2ee40a6b51d42fd95e11"
+                                       "bytes": "521a9f8bbf35f0b228b686657e67a1b168e10eb20fb92a0d3203221a5bd6db88"
+                                   }
+                               ]
+                           },
+                           {
+                               "constructor": 0,
+                               "fields": [
+                                   {
+                                       "bytes": "b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325"
+                                   },
+                                   {
+                                       "bytes": "b4d674ccc1423bc429f737b786bae5201394daa208651d25a2339ef55e5ebdf8"
                                    }
                                ]
                            }
@@ -203,7 +214,7 @@ Step 5. Verify the membership member is removed
                    }
                ]
            },
-           "inlineDatumhash": "d4635e4d07c21ca9caa709ce7338cdd6d6772928855dcb95f1aabc4e84e63bff",
+           "inlineDatumhash": "57525734057e042349e4c130fa6e16b0c1046db7987c8c158fd46eb2de5967b7",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {

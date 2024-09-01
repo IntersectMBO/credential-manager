@@ -43,12 +43,12 @@ Once the seed input is chosen, we can use ``orchestrator-cli`` to initialize the
        --seed-input "$(get-orchestrator-ada-only | jq -r '.key')" \
        --testnet \
        --ca-cert example-certificates/ca-cert.pem \
-       --membership-cert example-certificates/children/child-1/child-1-cert.pem \
-       --membership-cert example-certificates/children/child-2/child-2-cert.pem \
-       --membership-cert example-certificates/children/child-3/child-3-cert.pem \
-       --delegation-cert example-certificates/children/child-4/child-4-cert.pem \
-       --delegation-cert example-certificates/children/child-5/child-5-cert.pem \
-       --delegation-cert example-certificates/children/child-6/child-6-cert.pem \
+       --membership-cert example-certificates/child-1.cert \
+       --membership-cert example-certificates/child-2.cert \
+       --membership-cert example-certificates/child-3.cert \
+       --delegation-cert example-certificates/child-4.cert \
+       --delegation-cert example-certificates/child-5.cert \
+       --delegation-cert example-certificates/child-6.cert \
        -o init-cold
 
 The ``-o`` option (or ``--out-dir`` in long form) specifies a directory to write the output assets to.
@@ -274,50 +274,6 @@ Finally, there are three files that relate to the NFT locking script, where the 
        ]
    }
 
-We can, and should, sanity check that this datum contains the correct values:
-
-.. code-block:: bash
-
-   $ diff \
-      <(cat example-certificates/ca-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[0].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-1/child-1.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[0].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-1/child-1-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[0].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-2/child-2.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[1].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-2/child-2-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[1].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-3/child-3.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[2].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-3/child-3-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[1].list[2].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-4/child-4.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[0].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-4/child-4-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[0].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-5/child-5.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[1].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-5/child-5-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[1].fields[1].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-6/child-6.keyhash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[2].fields[0].bytes')
-   $ diff \
-      <(cat example-certificates/children/child-6/child-6-cert.hash) \
-      <(cat init-cold/nft.datum.json | jq -r '.fields[2].list[2].fields[1].bytes')
-
 Now we need to build and submit the transaction to mint the cold NFT:
 
 .. code-block:: bash
@@ -408,12 +364,12 @@ To initialize the assets, we need to override the default minting policy and pro
        --token-name "" \
        --testnet \
        --ca-cert example-certificates/ca-cert.pem \
-       --membership-cert example-certificates/children/child-1/child-1-cert.pem \
-       --membership-cert example-certificates/children/child-2/child-2-cert.pem \
-       --membership-cert example-certificates/children/child-3/child-3-cert.pem \
-       --delegation-cert example-certificates/children/child-4/child-4-cert.pem \
-       --delegation-cert example-certificates/children/child-5/child-5-cert.pem \
-       --delegation-cert example-certificates/children/child-6/child-6-cert.pem \
+       --membership-cert example-certificates/child-1.cert \
+       --membership-cert example-certificates/child-2.cert \
+       --membership-cert example-certificates/child-3.cert \
+       --delegation-cert example-certificates/child-4.cert \
+       --delegation-cert example-certificates/child-5.cert \
+       --delegation-cert example-certificates/child-6.cert \
        -o init-cold
 
 Let's see what assets were created this time.
@@ -499,7 +455,7 @@ included in the conway genesis config):
                "status": "Active"
            }
        },
-       "epoch": 38,
+       "epoch": 3,
        "threshold": 0
    }
 
@@ -509,8 +465,8 @@ We can also query the script address to verify the UTxO is there:
 
    $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "6b59eed85c94bfec2d9e8a0e0c536df3384e5001adf6d333216a2b546b6f043a#0": {
-           "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
+       "1e016be093fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c#0": {
+           "address": "addr_test1wrd2665l5depddaeg9cke7w58de9tc0q0x03recs9cm9deqfkxg0v",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -532,10 +488,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+                                       "bytes": "19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6"
                                    },
                                    {
-                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+                                       "bytes": "0ab37eb812d864c903dc48ef99dd91eb71b805efe7286b0080cc1228570c5f96"
                                    }
                                ]
                            },
@@ -543,10 +499,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "c2233827cca3a0cc2c49f91a66276c468be994db855d6b413005fa88"
+                                       "bytes": "2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d"
                                    },
                                    {
-                                       "bytes": "3b8536a38eea871cc8b2775deb5861ac4348ef61a84b9e9c643480ae5b88ffc3"
+                                       "bytes": "03452838656348992c11f383a3b17f520a2603ab5659d6c77ea650a1675610f4"
                                    }
                                ]
                            },
@@ -554,10 +510,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "b23a02a308165c702ce00bf760a0eff33b27b12906e1805b7685125f"
+                                       "bytes": "95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366"
                                    },
                                    {
-                                       "bytes": "fdf913abfdb8f00997cca5c14ca0b82f3d08781015a061e91444425d6f777ffa"
+                                       "bytes": "c2367d7b1d649be1847bf2224bb33ce7252bc7cfa73bf740ea589b741ee70e0d"
                                    }
                                ]
                            }
@@ -569,10 +525,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "fc6a114db76d31de585793749dcd6ad2d6c02a52ce9226820656bedd"
+                                       "bytes": "7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c"
                                    },
                                    {
-                                       "bytes": "7c9d1c732c313066ded1568dc24b1230cc782d331cb65465bc65ad5df6fbe832"
+                                       "bytes": "4e42c90371daf9c4a030bd7d161e44364c49f7f94ffe3daaf5843032ffd1c207"
                                    }
                                ]
                            },
@@ -580,10 +536,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "168ff0600f6245812192fb84c1d5a72129ae0445a272acc65dc88fb3"
+                                       "bytes": "a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4"
                                    },
                                    {
-                                       "bytes": "c60e20be4ce0fa457a8c65ade01005475e71880e921c2ee40a6b51d42fd95e11"
+                                       "bytes": "521a9f8bbf35f0b228b686657e67a1b168e10eb20fb92a0d3203221a5bd6db88"
                                    }
                                ]
                            },
@@ -591,10 +547,10 @@ We can also query the script address to verify the UTxO is there:
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "c530a8b72dd72e320e7f4883fcb98d0058e70efcf4e7e0871ce13eb7"
+                                       "bytes": "b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325"
                                    },
                                    {
-                                       "bytes": "ce75748d37a55ef1faec7219708059479197965a5927a7f9901c6bc9707eeaa1"
+                                       "bytes": "b4d674ccc1423bc429f737b786bae5201394daa208651d25a2339ef55e5ebdf8"
                                    }
                                ]
                            }
@@ -602,7 +558,7 @@ We can also query the script address to verify the UTxO is there:
                    }
                ]
            },
-           "inlineDatumhash": "7e002022f74e980b99812b2948879ef5ee205c036e9e94a6e8434c1da298b2f1",
+           "inlineDatumhash": "6e39a7e639b2401c929de368c0db6c777f1d93aee6cf0065c835127797e473db",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {

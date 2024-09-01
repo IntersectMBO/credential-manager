@@ -75,18 +75,18 @@ We need to send the NFT to the new script and require the delegation group to si
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file upgrade-hot/redeemer.json \
       --tx-out "$(cat alwaysTrue.addr)+5000000 + 1 $(cat init-hot/minting.plutus.hash).$(cat init-hot/nft-token-name)" \
-      --required-signer-hash $(cat example-certificates/children/child-1/child-1.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-2/child-2.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file upgrade-hot/body.json
    Estimated transaction fee: Coin 501866
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file upgrade-hot/body.json \
-      --signing-key-file example-certificates/children/child-1/child-1.skey \
+      --private-key-file example-certificates/children/child-1/child-1.private \
       --out-file upgrade-hot/child-1.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file upgrade-hot/body.json \
-      --signing-key-file example-certificates/children/child-2/child-2.skey \
+      --private-key-file example-certificates/children/child-2/child-2.private \
       --out-file upgrade-hot/child-2.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file upgrade-hot/body.json \
@@ -112,7 +112,8 @@ Step 3. Verify the change on chain
    $ cardano-cli conway query utxo --address $(cat alwaysTrue.addr)
                               TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   514e368aed2218a9a3a4ca64955112382af1dfc2fcd4efd464047985689eca44     0        5000000 lovelace + 1 76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3.4844bfe98f124abc1d2203fc586a46140168d38777f46abd8c393c482301 + TxOutDatumNone
+   9c771fabd3898b8101980c8ac49d499f46c66b9bc0b7e2d87c333cbc667daa3b     0        5000000 lovelace + 1 bf3bbf5a8539663eddd53364a9fd90e468c0182fcf6f0642ac16d65f.93fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c 2301 + TxOutDatumNone
+
 
 Step 4. Send the NFT back to the hot lock script
 ------------------------------------------------
@@ -138,8 +139,8 @@ To continue this guide, we need the NFT to be held in the original lock script, 
    Transaction successfully submitted.
    $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json
    {
-       "f6bbf7757b4dafaade2a943e2dfa2fcc174eb5b79f8a7ebd014d89a621725e28#0": {
-           "address": "addr_test1wr4kx7wd9e5fmjpxlnuznhcy585jv7mc39vu0thll565zmgpu2jpe",
+       "42e381fc2d8e4cf65d4564be1545ce891cb80c952c2f51c60fa0460d66ff11ce#0": {
+           "address": "addr_test1wzn8zkvkvaex4nnvften2aejpgt3calqwmgmrzwj95vukcs0map8t",
            "datum": null,
            "inlineDatum": {
                "list": [
@@ -147,10 +148,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "fb5e0be4801aea73135efe43f4a3a6d08147af523112986dd5e7d13b"
+                               "bytes": "c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab"
                            },
                            {
-                               "bytes": "57f5530e057e20b726b78aa31104d415cb2bce58c669829a44d009c1b1005bcd"
+                               "bytes": "e50384c655f9a33cabf64e41df7282e765a242aef182130f1db01bce8859e0aa"
                            }
                        ]
                    },
@@ -158,20 +159,20 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                        "constructor": 0,
                        "fields": [
                            {
-                               "bytes": "eda6befbe1a4cb8191752d97b67627a548bcc5f3e4653ecfdba7cdf0"
+                               "bytes": "2faaa04cee79d9abfa3149c814617e860567a8609bbfbd044566a5cd"
                            },
                            {
-                               "bytes": "ecd64beefcf59f01a975457b0a3623d2b03d5bcf71642a8d8d8275e4668aad31"
+                               "bytes": "ae8eef56d67350b247ab77be48dad121ae18d473386f59b3fda9fccbd665422a"
                            }
                        ]
                    }
                ]
            },
-           "inlineDatumhash": "c76a8897910eae665c54b888ad9ac64aa555478349af5f2322c5cb06a6b373c0",
+           "inlineDatumhash": "78e128e204031b114f7e3b3b4f4de71b547d5189d6166a3b43370a13bbe9fba5",
            "referenceScript": null,
            "value": {
-               "76edba602a94ee8d0e81a59ff6470bc490cb1649066e0678143b4bf3": {
-                   "4844bfe98f124abc1d2203fc586a46140168d38777f46abd8c393c482301": 1
+               "bf3bbf5a8539663eddd53364a9fd90e468c0182fcf6f0642ac16d65f": {
+                   "93fdf1b28aefd28ed13b268653c03dd86872063d58434a2c83d68e6c2301": 1
                },
                "lovelace": 5000000
            }
@@ -207,18 +208,18 @@ We need to send the NFT to the new script and require the membership group to si
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file upgrade-cold/redeemer.json \
       --tx-out "$(cat alwaysTrue.addr)+5000000 + 1 $(cat init-cold/minting.plutus.hash).$(cat init-cold/nft-token-name)" \
-      --required-signer-hash $(cat example-certificates/children/child-4/child-4.keyhash) \
-      --required-signer-hash $(cat example-certificates/children/child-5/child-5.keyhash) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file upgrade-cold/body.json
    Estimated transaction fee: Coin 534756
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file upgrade-cold/body.json \
-      --signing-key-file example-certificates/children/child-4/child-4.skey \
+      --private-key-file example-certificates/children/child-4/child-4.private \
       --out-file upgrade-cold/child-4.witness
-   $ cardano-cli conway transaction witness \
+   $ cc-sign -q \
       --tx-body-file upgrade-cold/body.json \
-      --signing-key-file example-certificates/children/child-5/child-5.skey \
+      --private-key-file example-certificates/children/child-5/child-5.private \
       --out-file upgrade-cold/child-5.witness
    $ cardano-cli conway transaction witness \
       --tx-body-file upgrade-cold/body.json \
@@ -244,7 +245,7 @@ Step 7. Verify the change on chain
    $ cardano-cli conway query utxo --address $(cat alwaysTrue.addr)
                               TxHash                                 TxIx        Amount
    --------------------------------------------------------------------------------------
-   5f63a38edcec6e0b33995419aab10a4ea8bce91e0bd331b7e0d428f8e1c506f3     0        5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4 + TxOutDatumNone
+   d5df9c7067f9e085bd6003c513cf7b15e43779dd6df1f7cffef69a6726b98ec0     0        5000000 lovelace + 1 c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4 + TxOutDatumNone
 
 
 Step 8. Send the NFT back to the cold lock script
@@ -271,8 +272,8 @@ To continue this guide, we need the NFT to be held in the original lock script, 
    Transaction successfully submitted.
    $ cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json
    {
-       "946249cbf47b7f09be605280e6358a32a15505353185184cb576da6e7a9b9b07#0": {
-           "address": "addr_test1wpy9h326p4caud25k8qs665ts97uht7pmvlm8hd2d84vsxqjudz4q",
+       "2939bdc7d195642f31cc0b4ce9e61deb8748989a662a775f0385eeeb769358e4#0": {
+           "address": "addr_test1wrd2665l5depddaeg9cke7w58de9tc0q0x03recs9cm9deqfkxg0v",
            "datum": null,
            "inlineDatum": {
                "constructor": 0,
@@ -294,10 +295,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "fc6a114db76d31de585793749dcd6ad2d6c02a52ce9226820656bedd"
+                                       "bytes": "7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c"
                                    },
                                    {
-                                       "bytes": "7c9d1c732c313066ded1568dc24b1230cc782d331cb65465bc65ad5df6fbe832"
+                                       "bytes": "4e42c90371daf9c4a030bd7d161e44364c49f7f94ffe3daaf5843032ffd1c207"
                                    }
                                ]
                            },
@@ -305,10 +306,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "168ff0600f6245812192fb84c1d5a72129ae0445a272acc65dc88fb3"
+                                       "bytes": "a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4"
                                    },
                                    {
-                                       "bytes": "c60e20be4ce0fa457a8c65ade01005475e71880e921c2ee40a6b51d42fd95e11"
+                                       "bytes": "521a9f8bbf35f0b228b686657e67a1b168e10eb20fb92a0d3203221a5bd6db88"
                                    }
                                ]
                            }
@@ -320,10 +321,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "ff7a6c9f3ebf80ab457cca7813842aa2150d0dad341a7956a334c76d"
+                                       "bytes": "19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6"
                                    },
                                    {
-                                       "bytes": "1a82818b488574c156f1fa8941bad9b4b4976ba21cfaede1ab33a30de39f7edd"
+                                       "bytes": "0ab37eb812d864c903dc48ef99dd91eb71b805efe7286b0080cc1228570c5f96"
                                    }
                                ]
                            },
@@ -331,10 +332,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "c2233827cca3a0cc2c49f91a66276c468be994db855d6b413005fa88"
+                                       "bytes": "2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d"
                                    },
                                    {
-                                       "bytes": "3b8536a38eea871cc8b2775deb5861ac4348ef61a84b9e9c643480ae5b88ffc3"
+                                       "bytes": "03452838656348992c11f383a3b17f520a2603ab5659d6c77ea650a1675610f4"
                                    }
                                ]
                            },
@@ -342,10 +343,10 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                                "constructor": 0,
                                "fields": [
                                    {
-                                       "bytes": "b23a02a308165c702ce00bf760a0eff33b27b12906e1805b7685125f"
+                                       "bytes": "95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366"
                                    },
                                    {
-                                       "bytes": "fdf913abfdb8f00997cca5c14ca0b82f3d08781015a061e91444425d6f777ffa"
+                                       "bytes": "c2367d7b1d649be1847bf2224bb33ce7252bc7cfa73bf740ea589b741ee70e0d"
                                    }
                                ]
                            }
@@ -353,7 +354,7 @@ To continue this guide, we need the NFT to be held in the original lock script, 
                    }
                ]
            },
-           "inlineDatumhash": "50841fe8863d612edd1c29eaceb68fdc5c8016580c509b5e1ff2636b23dc3aec",
+           "inlineDatumhash": "fcaf84f8b6ca0b0b3f4dfe5fedf83138ed91a4009cd322f09232af26dc73959f",
            "referenceScript": null,
            "value": {
                "c8aa0de384ad34d844dc479085c3ed00deb1306afb850a2cde6281f4": {
