@@ -28,6 +28,8 @@ nix profile install github:IntersectMBO/credential-manager#cc-sign
 
 ### MacOS (Non-nix)
 
+Open a terminal window and run the following command:
+
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-mac-os.sh)"
 ```
