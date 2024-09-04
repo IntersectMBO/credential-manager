@@ -20,6 +20,10 @@ The `cc-sign` tool is a simplified CLI tool for signing transaction with
 encrypted openssl private keys. Installation instructions are listed per system
 below:
 
+### Prerequisites
+
+You must have `openssl` installed to use this tool.
+
 ### Via Nix
 
 ```bash
@@ -41,11 +45,27 @@ Pending
 ### Linux (Non-nix, x64)
 
 Download the executable from https://github.com/IntersectMBO/credential-manager/releases/download/0.1.1.0/cc-sign-linux-x64 and
-put it in a directory in your PATH (e.g. /usr/local/bin).
+put it in a directory in your PATH (e.g. /usr/local/bin or /usr/bin).
 
-## Prerequisites
+## Using the cc-sign tool
 
-You must have `openssl` installed to use this tool.
+To use cc-sign, open a new terminal window (or PowerShell on Windows). The
+command has the following usage pattern:
+
+```bash
+cc-sign --private-key-file PRIVATE_KEY_FILE --tx-body-file TX_BODY_FILE --out-file FILE_TO_WRITE_WITNESS_TO
+```
+
+The three files (written in all-caps) you need to provide are:
+
+1. `PRIVATE_KEY_FILE` replace this with the filepath of your (encrypted) private key file (e.g. `~/private-keys/my-key.private`)
+2. `TX_BODY_FILE` replace this with the filepath where you saved the tx body file (e.g. `~/Downloads/my-tx.body`)
+    [!TIP]
+    If you downloaded this file from a web browser (e.g. a Gmail attachment) or from slack, it will likely be in `~/Downloads` on MacOS or Linux and `C:\Users\Your Name\Downloads` on Windows.
+2. `FILE_TO_WRITE_WITNESS_TO` this is the file path where the resulting witness will be saved (e.g. `~/my-tx.witness`)
+    [!TIP]
+    It is a good idea to give the witness file a name that associates it with A) who signed it and B) the transaction.
+    For example, if your name is John Doe and the tx body file you signed was `my-tx.body` then name the file `my-tx-john-doe.witness`.
 
 ## Documentation
 
