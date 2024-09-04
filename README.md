@@ -49,6 +49,8 @@ put it in a directory in your PATH (e.g. /usr/local/bin or /usr/bin).
 
 ## Using the cc-sign tool
 
+Before you use the tool, you need to have downloaded the tx body file that needs signing to a known location.
+
 To use cc-sign, open a new terminal window (or PowerShell on Windows). The
 command has the following usage pattern:
 
@@ -66,6 +68,12 @@ The three files (written in all-caps) you need to provide are:
     [!TIP]
     It is a good idea to give the witness file a name that associates it with A) who signed it and B) the transaction.
     For example, if your name is John Doe and the tx body file you signed was `my-tx.body` then name the file `my-tx-john-doe.witness`.
+
+The tool will first prompt you to enter the pass phrase for your private key file in order to decrypt it. Type the password and hit Enter/return.
+It will then print a sequence of summary items that describes what the transaction does and prompt you to confirm each one.
+To confirm, type the letter `y` and hit enter/return. Finally it will prompt you if you want to sign.
+Type `y` once more and hit enter and it will write your signature to the file you provided for the `--out-file` argument.
+Send this witness file back to the orchestrator who sent you the transaction.
 
 ## Documentation
 
