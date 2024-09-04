@@ -89,7 +89,7 @@ import PlutusLedgerApi.Common (Data (..), fromData)
 import PlutusLedgerApi.V3 (Credential (..), HotCommitteeCredential (..))
 import System.Directory (doesFileExist)
 import System.Exit (die, exitFailure)
-import System.IO (hFlush, stdout)
+import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.Process (readProcess)
 import Witherable (Witherable (witherMap))
 
@@ -101,7 +101,17 @@ main = do
         unless exists $ die $ "File " <> file <> " does not exist"
   checkExists signingKeyFile
   checkExists txBodyFile
-  decryptedPEMContent <- readProcess "openssl" ["pkey", "-in", signingKeyFile] ""
+  putStr $ "Enter pass phrase for " <> signingKeyFile <> ": "
+  hFlush stdout
+  hSetEcho stdin False
+  password <- getLine
+  putStrLn ""
+  hSetEcho stdin True
+  decryptedPEMContent <-
+    readProcess
+      "openssl"
+      ["pkey", "-in", signingKeyFile, "-passin", "stdin"]
+      password
   key <-
     either die pure $ parsePrivateKeyFromPEMBytes $ fromString decryptedPEMContent
   let signingKey =
@@ -139,7 +149,7 @@ main = do
   promptVotes <- summarizeVotes flags txBody classification
   when promptVotes $ promptToProceed flags "Are these votes correct?"
   summarizeOutputs flags pubKeyHash classification txBody
-  checkExtraTxBodyFields flags txBody
+  checkExtraTxBodyFields classification flags txBody
   summarizeSignatories flags pubKeyHash txBody
   promptToProceed flags "Do you wish to sign this transaction?"
   let witness =
@@ -342,7 +352,7 @@ classifyTx flags (ShelleyTxBody ShelleyBasedEraConway _ _ scriptData _ _) = do
 data TxClassification
   = ColdTx ColdLockRedeemer
   | HotTx HotLockRedeemer
-  deriving (Show)
+  deriving (Show, Eq)
 
 summarizeCertificates
   :: BitSet Flags -> TxBody ConwayEra -> TxClassification -> IO Bool
@@ -546,8 +556,9 @@ summarizeIdentity flags myKey Identity{..} = do
         else ""
   printIndented flags $ "  certificate hash: " <> show certificateHash
 
-checkExtraTxBodyFields :: BitSet Flags -> TxBody ConwayEra -> IO ()
-checkExtraTxBodyFields flags (TxBody TxBodyContent{..}) = do
+checkExtraTxBodyFields
+  :: TxClassification -> BitSet Flags -> TxBody ConwayEra -> IO ()
+checkExtraTxBodyFields classification flags (TxBody TxBodyContent{..}) = do
   printTitle flags "Check extra tx body fields..."
   case txWithdrawals of
     TxWithdrawalsNone -> pure ()
@@ -560,7 +571,10 @@ checkExtraTxBodyFields flags (TxBody TxBodyContent{..}) = do
   case txMintValue of
     TxMintNone -> pure ()
     TxMintValue _ val _
-      | val == mempty -> pure ()
+      | val == mempty
+          || classification == ColdTx BurnCold
+          || classification == HotTx BurnHot ->
+          pure ()
       | otherwise -> do
           printIndented flags "WARNING: Transaction unexpectedly mints or burns tokens."
           promptToProceed flags "Are you OK with this?"
