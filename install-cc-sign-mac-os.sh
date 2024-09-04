@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+#
 ARCH="$(arch)"
 if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "i386" ]];
 then
