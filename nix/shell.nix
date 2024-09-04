@@ -154,7 +154,8 @@ cabalProject:
         set -o pipefail
 
         cd $(git rev-parse --show-toplevel)
-        cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json > cold-nft.utxo
+        cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json \
+         | jq '[to_entries | .[] | select(.value.value["'"$(cat init-cold/minting.plutus.hash)"'"]["'"$(cat init-cold/nft-token-name)"'"])] | from_entries' > cold-nft.utxo
       '';
     };
 
@@ -167,7 +168,8 @@ cabalProject:
         set -o pipefail
 
         cd $(git rev-parse --show-toplevel)
-        cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json > hot-nft.utxo
+        cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json \
+         | jq '[to_entries | .[] | select(.value.value["'"$(cat init-hot/minting.plutus.hash)"'"]["'"$(cat init-hot/nft-token-name)"'"])] | from_entries' > hot-nft.utxo
       '';
     };
 
