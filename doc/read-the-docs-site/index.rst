@@ -41,3 +41,4 @@ This documentation site includes an overview of the system, a user manual for ea
    background/index.rst
    system-overview/index.rst
    orchestrator-cli/index
+   cc-sign/index
