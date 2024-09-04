@@ -35,12 +35,17 @@ nix profile install github:IntersectMBO/credential-manager#cc-sign
 Open a terminal window and run the following command:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-mac-os.sh)"
+sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-mac-os.sh)"
 ```
 
 ### Windows
 
-Pending
+Open a PowerShell window and run the following commands:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+Invoke-RestMethod -Uri https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-windows.sh | Invoke-Expression
+```
 
 ### Linux (Non-nix, x64)
 
