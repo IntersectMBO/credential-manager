@@ -549,7 +549,7 @@ summarizeIdentity flags myKey Identity{..} = do
   let pubKeyString = show pubKeyHash
   let canSign = pubKeyString == T.unpack (serialiseToRawBytesHexText myKey)
   printIndented flags $
-    "⋅ public key hash: "
+    "- public key hash: "
       <> show pubKeyHash
       <> if canSign
         then " (this is your key)"
@@ -623,7 +623,7 @@ renderError :: FileError TextEnvelopeError -> IO ()
 renderError = \case
   FileError _ (TextEnvelopeTypeError expected (TextEnvelopeType received)) -> do
     putStrLn "Text envelope \"type\" field invalid. Expected one of:"
-    traverse_ (putStrLn . ("⋅ " <>) . fromString . unTextEnvelopeType) expected
+    traverse_ (putStrLn . ("- " <>) . fromString . unTextEnvelopeType) expected
     putStrLn $ "But got " <> fromString received
   FileError _ (TextEnvelopeDecodeError err) -> do
     putStrLn "Text envelope file contains invalid tx body binary data. Details:"
