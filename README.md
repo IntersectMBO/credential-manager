@@ -46,7 +46,7 @@ Open a PowerShell window and run the following commands:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-Invoke-RestMethod -Uri https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-windows.sh | Invoke-Expression
+Invoke-RestMethod -Uri https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-windows.ps1 | Invoke-Expression
 ```
 
 ### Linux (Non-nix, x64)
