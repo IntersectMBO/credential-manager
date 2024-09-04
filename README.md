@@ -38,6 +38,8 @@ Open a terminal window and run the following command:
 sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-mac-os.sh)"
 ```
 
+Note that the use of `sudo` will require you to enter your password (your user account password, not your private key pass phrase).
+
 ### Windows
 
 Open a PowerShell window and run the following commands:
