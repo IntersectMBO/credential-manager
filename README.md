@@ -14,6 +14,37 @@ with an X.509 certificate chain. It provides the following features:
 * Key rotation without modifying registered committee credentials
 * Publicly verifiable authorization of on-chain activity via certificates
 
+## Installing the cc-sign tool
+
+The `cc-sign` tool is a simplified CLI tool for signing transaction with
+encrypted openssl private keys. Installation instructions are listed per system
+below:
+
+### Via Nix
+
+```bash
+nix profile install github:IntersectMBO/credential-manager#cc-sign
+```
+
+### MacOS (Non-nix)
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/IntersectMBO/credential-manager/main/install-cc-sign-mac-os.sh)"
+```
+
+### Windows
+
+Pending
+
+### Linux (Non-nix, x64)
+
+Download the executable from https://github.com/IntersectMBO/credential-manager/releases/download/0.1.1.0/cc-sign-linux-x64 and
+put it in a directory in your PATH (e.g. /usr/local/bin).
+
+## Prerequisites
+
+You must have `openssl` installed to use this tool.
+
 ## Documentation
 
 User manual: https://credential-manager.readthedocs.io
