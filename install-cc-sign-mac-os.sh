@@ -10,7 +10,9 @@ fi
 
 curl -L --output /tmp/cc-sign.zip $ZIP_URL
 unzip /tmp/cc-sign.zip -d /tmp
+mkdir -p /usr/local/lib
 cp -n /tmp/result/bin/*.dylib /usr/local/lib
 chmod +w /tmp/result/bin/cc-sign
+mkdir -p /usr/local/bin
 cp /tmp/result/bin/cc-sign /usr/local/bin
 rm -rf /tmp/result
