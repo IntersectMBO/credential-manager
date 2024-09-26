@@ -1,0 +1,15 @@
+# Change Log
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [PVP](https://pvp.haskell.org/).
+
+## [0.1.1.0] - 2024-09-04
+
+### Added
+
+- Setup cross compilation by @jhbertra in #18
+- New Signing CLI Tool by @jhbertra in #19
+
+### Fixed
+
+- Implement audit findings by @paluh in #17
