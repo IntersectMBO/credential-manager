@@ -22,6 +22,7 @@ index-state:
 packages:
   credential-manager
   reactive-banana-gi-gtk
+  tx-dynamic
 
 tests: True
 
