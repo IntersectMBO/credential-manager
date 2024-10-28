@@ -14,6 +14,7 @@ import Cardano.Api (
   HasTypeProxy (proxyToAsType),
   Hash,
   IsShelleyBasedEra,
+  MonadTrans (..),
   NetworkId (Mainnet),
   PaymentCredential (..),
   PaymentKey,
@@ -32,6 +33,8 @@ import Cardano.Api (
   lovelaceToTxOutValue,
   makeShelleyAddress,
   readFileTextEnvelope,
+  runExceptT,
+  throwE,
  )
 import qualified Cardano.Api as C
 import Cardano.Api.Ledger (KeyHash (..), StandardCrypto)
@@ -50,6 +53,8 @@ import Cardano.Crypto.Hash (
   hashToPackedBytes,
  )
 import Codec.Serialise (deserialiseOrFail, serialise)
+import Control.Monad (unless, when)
+import Control.Monad.ST (runST)
 import Data.Aeson (decodeFileStrict')
 import Data.Array.Byte (ByteArray (ByteArray))
 import Data.Binary (
@@ -69,6 +74,9 @@ import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import Data.Reflection (give)
 import Data.SOP.NonEmpty (NonEmpty (..))
+import Data.STRef (modifySTRef, newSTRef, readSTRef)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Time (
   UTCTime (UTCTime),
   nominalDiffTimeToSeconds,
@@ -78,6 +86,7 @@ import Data.Time (
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Traversable (for)
+import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as M
 import Data.Vector.Unboxed (Vector)
@@ -166,6 +175,50 @@ data TxBundle era = TxBundle
   , tbTxBody :: TxBody era
   }
   deriving (Show, Eq)
+
+data GroupError
+  = GroupIndexOutOufBounds Word16
+  | SignatoryIndexOutOufBounds Word16
+  | GroupSizeWrong Word16 Int
+  deriving (Show, Eq)
+
+signatureCombinations
+  :: TxBundle era -> Either GroupError (Set (Set (Hash PaymentKey)))
+signatureCombinations TxBundle{..} = do
+  groups <- runST $ runExceptT do
+    groups <- lift $ V.replicateM (U.length tbGroupTab) $ newSTRef Set.empty
+    let groupCount = U.length tbGroupTab
+    let sigCount = U.length tbSigTab
+    U.forM_ tbGroupMemTab \GroupMemHeader{..} -> do
+      let groupIx = fromIntegral gmGroup
+      let sigIx = fromIntegral gmSig
+      when (groupIx >= groupCount) $ throwE $ GroupIndexOutOufBounds gmGroup
+      when (sigIx >= sigCount) $ throwE $ SignatoryIndexOutOufBounds gmSig
+      let groupRef = groups V.! groupIx
+      let pkh = tbSigTab U.! sigIx
+      lift $ modifySTRef groupRef $ Set.insert pkh
+    Map.fromListWith max <$> for [0 .. groupCount - 1] \i -> do
+      let GroupHeader{..} = tbGroupTab U.! i
+      let groupRef = groups V.! i
+      group <- lift $ readSTRef groupRef
+      unless (Set.size group == fromIntegral grpSize) $
+        throwE $
+          GroupSizeWrong grpSize $
+            Set.size group
+      pure (group, fromIntegral grpThreshold)
+  pure $ Map.foldlWithKey' mergeCombinations (Set.singleton mempty) groups
+
+mergeCombinations
+  :: Set (Set (Hash PaymentKey))
+  -> Set (Hash PaymentKey)
+  -> Int
+  -> Set (Set (Hash PaymentKey))
+mergeCombinations prev group threshold =
+  Set.map (uncurry Set.union) $
+    Set.cartesianProduct prev (groupCombinations group threshold)
+
+groupCombinations :: Set (Hash PaymentKey) -> Int -> Set (Set (Hash PaymentKey))
+groupCombinations keys threshold = Set.filter (\s -> Set.size s >= threshold) $ Set.powerSet keys
 
 testBundle :: TxBundle ConwayEra
 testBundle =
