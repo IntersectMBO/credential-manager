@@ -11,22 +11,35 @@ import Cardano.Api (
   PaymentKey,
   SerialiseAsRawBytes,
   ShelleyBasedEra (..),
-  TxBody,
+  ToCardanoEra (toCardanoEra),
+  TxBody (..),
+  TxBodyContent (..),
+  TxExtraKeyWitnesses (..),
   deserialiseFromRawBytesHex,
   getTxBody,
   readFileTextEnvelopeAnyOf,
+  serialiseToRawBytesHexText,
  )
+import Cardano.CLI.Json.Friendly (
+  friendlyTxBody,
+  viewOutputFormatToFriendlyFormat,
+ )
+import Cardano.CLI.Types.Common (ViewOutputFormat (..))
 import Cardano.TxDynamic (
+  GroupError (..),
   GroupHeader (..),
   GroupMemHeader (..),
   SomeTxBundle (SomeTxBundle),
   TxBundle (..),
+  signatureCombinations,
  )
-import Control.Monad (foldM, join)
+import Control.Monad (foldM, guard, join, unless)
 import Data.Bifunctor (Bifunctor (..))
-import Data.Binary (encodeFile)
-import Data.Foldable (Foldable (..))
+import Data.Binary (decodeFile, encodeFile)
+import Data.Foldable (Foldable (..), asum)
+import Data.Functor (void)
 import Data.List (nub)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector.Unboxed as U
@@ -41,6 +54,8 @@ import Options.Applicative (
   auto,
   eitherReader,
   execParser,
+  flag,
+  flag',
   fullDesc,
   help,
   helper,
@@ -56,9 +71,20 @@ import Options.Applicative (
 import Options.Applicative.Builder (command)
 import Options.Applicative.Extra (hsubparser)
 import Paths_tx_dynamic (version)
-import Prettyprinter (Pretty (..), vsep, (<+>))
-import Prettyprinter.Render.Terminal (AnsiStyle, hPutDoc)
-import System.Directory.Internal.Prelude (exitFailure)
+import Prettyprinter (
+  Pretty (..),
+  brackets,
+  comma,
+  emptyDoc,
+  encloseSep,
+  hang,
+  indent,
+  vsep,
+  (<+>),
+ )
+import Prettyprinter.Render.Terminal (AnsiStyle, hPutDoc, putDoc)
+import System.Directory.Internal.Prelude (exitFailure, hPutStrLn)
+import System.Exit (die)
 import System.IO (stderr)
 import Text.Printf (printf)
 
@@ -81,6 +107,7 @@ rootParser =
   hsubparser $
     fold
       [ command "build" $ runBuildCommand <$> buildCommandParser
+      , command "info" $ runInfoCommand <$> infoCommandParser
       ]
 
 -- * Build command
@@ -164,7 +191,19 @@ runBuildCommand BuildCommand{..} = do
           , tbGroupMemTab = U.empty
           , tbTxBody
           }
-  encodeFile bcOutFile . SomeTxBundle era =<< foldM processGroup bundle bcGroups
+  bundle' <- foldM processGroup bundle bcGroups
+  case tbTxBody of
+    TxBody TxBodyContent{txExtraKeyWits} -> case txExtraKeyWits of
+      TxExtraKeyWitnessesNone ->
+        hPutStrLn
+          stderr
+          "WARNING: The template transaction was assembled without extra key witnesses. The transaction may not validate if any are added."
+      TxExtraKeyWitnesses _ keys -> unless (all (`U.elem` tbSigTab bundle') keys) do
+        hPutStrLn
+          stderr
+          "WARNING: The template transaction was assembled without all extra key witnesses. Transaction fees and execution units may be higher than calculated."
+
+  encodeFile bcOutFile $ SomeTxBundle era bundle'
 
 processGroup :: TxBundle era -> Group -> IO (TxBundle era)
 processGroup bundle Group{..}
@@ -194,6 +233,150 @@ processGroupMember count TxBundle{..} sig =
     (gmSig, sigTab') = case U.findIndex (== sig) tbSigTab of
       Nothing -> (fromIntegral $ U.length tbSigTab, U.snoc tbSigTab sig)
       Just ix -> (fromIntegral ix, tbSigTab)
+
+-- * Info command
+
+data InfoTarget
+  = TargetBundle
+  | TargetGroups
+  | TargetGroup Int
+  | TargetSignatory (Hash PaymentKey)
+  | TargetTx ViewOutputFormat
+
+data InfoCommand = InfoCommand
+  { icTarget :: InfoTarget
+  , icTxBundleFile :: FilePath
+  }
+
+infoCommandParser :: ParserInfo InfoCommand
+infoCommandParser = info parser description
+  where
+    parser = InfoCommand <$> infoTargetParser <*> txBundleFileParser
+    description = progDesc "Print transaction bundle information"
+
+infoTargetParser :: Parser InfoTarget
+infoTargetParser =
+  asum
+    [ flag' TargetGroups . fold $
+        [ long "groups"
+        , help "Print info about signatory groups"
+        ]
+    , flag'
+        TargetTx
+        ( fold
+            [ long "tx"
+            , help "Print info about the template transaction."
+            ]
+        )
+        <*> asum
+          [ flag' ViewOutputFormatJson . fold $
+              [ long "json"
+              , help "Render tx as JSON (default)"
+              ]
+          , flag' ViewOutputFormatYaml . fold $
+              [ long "yaml"
+              , help "Render tx as YAML"
+              ]
+          , pure ViewOutputFormatJson
+          ]
+    , fmap TargetGroup . option auto . fold $
+        [ long "group"
+        , help "Print info about a specific signatory group"
+        ]
+    , fmap TargetSignatory . hexOption (AsHash AsPaymentKey) . fold $
+        [ long "signatory"
+        , help "Print info about a specific signatory"
+        ]
+    , flag TargetBundle TargetBundle . fold $
+        [ long "bundle"
+        , help "Print top-level bundle information"
+        ]
+    ]
+
+txBundleFileParser :: Parser FilePath
+txBundleFileParser =
+  strOption . fold $
+    [ long "tx-bundle-file"
+    , metavar "FILE"
+    , help "A file containing a tx bundle."
+    ]
+
+runInfoCommand :: InfoCommand -> IO ()
+runInfoCommand InfoCommand{..} = do
+  SomeTxBundle era TxBundle{..} <- decodeFile icTxBundleFile
+  case icTarget of
+    TargetBundle -> do
+      combos <- unwrapOrCrash renderGroupError $ signatureCombinations TxBundle{..}
+      putDoc . vsep $
+        [ "Transaction era:" <+> pretty era
+        , "Signatory group count:" <+> pretty (U.length tbGroupTab)
+        , "Signatory count:" <+> pretty (U.length tbSigTab)
+        , "Total possible transaction count:" <+> pretty (Set.size combos)
+        ]
+    TargetGroups -> do
+      putDoc $ vsep $ flip fmap [0 .. U.length tbGroupTab - 1] \i ->
+        let GroupHeader{..} = tbGroupTab U.! i
+         in hang 2 . vsep $
+              [ "Group" <> brackets (pretty i) <> ":"
+              , "Group size:" <+> pretty grpSize
+              , "Group threshold:" <+> pretty grpThreshold
+              ]
+    TargetGroup i -> do
+      GroupHeader{..} <- case tbGroupTab U.!? i of
+        Nothing -> die "Invalid group index"
+        Just tab -> pure tab
+      signatories <- flip U.mapMaybeM tbGroupMemTab \GroupMemHeader{..} -> do
+        if fromIntegral gmGroup == i
+          then case tbSigTab U.!? fromIntegral gmSig of
+            Nothing -> crash renderGroupError $ SignatoryIndexOutOufBounds gmSig
+            Just sig -> pure $ Just sig
+          else pure Nothing
+      putDoc . vsep $
+        [ "Group size:" <+> pretty grpSize
+        , "Group threshold:" <+> pretty grpThreshold
+        , "Group members:"
+        , indent 2 $ vsep $ pretty . serialiseToRawBytesHexText <$> U.toList signatories
+        ]
+    TargetSignatory sig -> do
+      i <- case U.findIndex (== sig) tbSigTab of
+        Nothing -> die "Signatory not in any group"
+        Just i -> pure i
+      combos <- unwrapOrCrash renderGroupError $ signatureCombinations TxBundle{..}
+      let groups = flip U.mapMaybe tbGroupMemTab \GroupMemHeader{..} -> do
+            guard $ fromIntegral gmSig == i
+            pure gmGroup
+      putDoc . vsep $
+        [ "Signatory index:" <+> pretty i
+        , "Signatory groups:"
+            <+> encloseSep emptyDoc emptyDoc comma (pretty <$> U.toList groups)
+        , "Total possible transactions:"
+            <+> pretty (Set.size $ Set.filter (Set.member sig) combos)
+        ]
+    TargetTx format -> do
+      void $
+        friendlyTxBody
+          (viewOutputFormatToFriendlyFormat format)
+          Nothing
+          (toCardanoEra era)
+          tbTxBody
+  putStrLn ""
+
+renderGroupError :: GroupError -> Doc AnsiStyle
+renderGroupError = \case
+  GroupIndexOutOufBounds group -> "Group index out of bounds: " <+> pretty group
+  SignatoryIndexOutOufBounds sig -> "Signatory index out of bounds: " <+> pretty sig
+  GroupSizeWrong expected actual ->
+    vsep
+      [ "Group size wrong"
+      , "Expected:" <+> pretty expected
+      , "Actual:" <+> pretty actual
+      ]
+  GroupThresholdTooHigh threshold size ->
+    vsep
+      [ "Group threshold too high."
+      , "Threshold:" <+> pretty threshold
+      , "Group size:" <+> pretty size
+      ]
 
 -- * Helpers
 

@@ -93,6 +93,7 @@ executable tx-bundle
     , bytestring
     , cardano-api
     , cardano-binary
+    , cardano-cli
     , cardano-ledger-conway
     , cardano-ledger-core
     , cborg
