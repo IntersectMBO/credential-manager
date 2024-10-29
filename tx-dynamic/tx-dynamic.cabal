@@ -94,6 +94,7 @@ executable tx-bundle
     , cardano-api
     , cardano-binary
     , cardano-cli
+    , cardano-crypto-class
     , cardano-ledger-conway
     , cardano-ledger-core
     , cborg

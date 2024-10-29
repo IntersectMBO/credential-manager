@@ -141,7 +141,7 @@ data GroupError
   | GroupThresholdTooHigh Word16 Word16
   deriving (Show, Eq)
 
-data SignBundleError era
+data SignBundleError
   = SignGroupError GroupError
   | SignBadEra
   deriving (Show, Eq)
@@ -156,7 +156,7 @@ signBundle
   :: forall era
    . SigningKey PaymentKey
   -> TxBundle era
-  -> Either (SignBundleError era) WitnessBundle
+  -> Either SignBundleError WitnessBundle
 signBundle sk bundle@TxBundle{..} = do
   combinations <- first SignGroupError $ signatureCombinations bundle
   let vk = getVerificationKey sk
@@ -178,7 +178,7 @@ setSigners
   :: ShelleyBasedEra era
   -> Set (Hash PaymentKey)
   -> L.TxBody (ShelleyLedgerEra era)
-  -> Either (SignBundleError era) (L.TxBody (ShelleyLedgerEra era))
+  -> Either SignBundleError (L.TxBody (ShelleyLedgerEra era))
 setSigners era signers = case era of
   ShelleyBasedEraShelley -> const $ Left SignBadEra
   ShelleyBasedEraAllegra -> const $ Left SignBadEra

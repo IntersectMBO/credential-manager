@@ -8,6 +8,7 @@ import Cardano.Api (
   FromSomeType (FromSomeType),
   Hash,
   InAnyShelleyBasedEra (InAnyShelleyBasedEra),
+  Key (..),
   PaymentKey,
   SerialiseAsRawBytes,
   ShelleyBasedEra (..),
@@ -15,8 +16,10 @@ import Cardano.Api (
   TxBody (..),
   TxBodyContent (..),
   TxExtraKeyWitnesses (..),
+  TxId,
   deserialiseFromRawBytesHex,
   getTxBody,
+  readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
   serialiseToRawBytesHexText,
  )
@@ -25,23 +28,32 @@ import Cardano.CLI.Json.Friendly (
   viewOutputFormatToFriendlyFormat,
  )
 import Cardano.CLI.Types.Common (ViewOutputFormat (..))
+import Cardano.Crypto.DSIGN (SigDSIGN (..))
+import Cardano.Crypto.PinnedSizedBytes (psbToByteString)
 import Cardano.TxDynamic (
   GroupError (..),
   GroupHeader (..),
   GroupMemHeader (..),
-  SomeTxBundle (SomeTxBundle),
+  SignBundleError (..),
+  SomeTxBundle (..),
   TxBundle (..),
+  WitnessBundle (..),
+  signBundle,
   signatureCombinations,
  )
 import Control.Monad (foldM, guard, join, unless)
+import Data.Base16.Types (extractBase16)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Binary (decodeFile, encodeFile)
-import Data.Foldable (Foldable (..), asum)
+import Data.ByteString.Base16 (encodeBase16)
+import Data.Foldable (Foldable (..), asum, for_)
 import Data.Functor (void)
 import Data.List (nub)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as T
 import qualified Data.Vector.Unboxed as U
 import Data.Version (showVersion)
 import Data.Word (Word16)
@@ -107,7 +119,9 @@ rootParser =
   hsubparser $
     fold
       [ command "build" $ runBuildCommand <$> buildCommandParser
+      , command "witness" $ runWitnessCommand <$> witnessCommandParser
       , command "info" $ runInfoCommand <$> infoCommandParser
+      , command "witness-info" $ runWitnessInfoCommand <$> witnessInfoCommandParser
       ]
 
 -- * Build command
@@ -378,6 +392,105 @@ renderGroupError = \case
       , "Group size:" <+> pretty size
       ]
 
+-- * Witness command
+
+data WitnessCommand = WitnessCommand
+  { wcSigningKeyFile :: FilePath
+  , wcTxBundleFile :: FilePath
+  , wcOutFile :: FilePath
+  }
+
+witnessCommandParser :: ParserInfo WitnessCommand
+witnessCommandParser = info parser description
+  where
+    parser =
+      WitnessCommand
+        <$> signingKeyFileParser
+        <*> txBundleFileParser
+        <*> outFileParser "witness bundle"
+    description = progDesc "Create a witness bundle file for a signing key"
+
+signingKeyFileParser :: Parser FilePath
+signingKeyFileParser =
+  strOption . fold $
+    [ long "signing-key-file"
+    , metavar "FILE"
+    , help "A file containing a signing key."
+    ]
+
+runWitnessCommand :: WitnessCommand -> IO ()
+runWitnessCommand WitnessCommand{..} = do
+  SomeTxBundle _ bundle <- decodeFile wcTxBundleFile
+  sk <- readSigningKey wcSigningKeyFile
+  witnessBundle <- unwrapOrCrash renderSignBundleError $ signBundle sk bundle
+  encodeFile wcOutFile witnessBundle
+
+renderSignBundleError :: SignBundleError -> Doc AnsiStyle
+renderSignBundleError = \case
+  SignGroupError ge -> renderGroupError ge
+  SignBadEra -> "Unsupported transaction era"
+
+-- * Witness Info command
+
+data WitnessInfoTarget
+  = WitTargetBundle
+  | WitTargetTxs
+  | WitTargetTx TxId
+
+data WitnessInfoCommand = WitnessInfoCommand
+  { wicTarget :: WitnessInfoTarget
+  , wicBundleFile :: FilePath
+  }
+
+witnessInfoCommandParser :: ParserInfo WitnessInfoCommand
+witnessInfoCommandParser = info parser description
+  where
+    parser = WitnessInfoCommand <$> witnessInfoTargetParser <*> witnessBundleFileParser
+    description = progDesc "Print witness bundle information"
+
+witnessInfoTargetParser :: Parser WitnessInfoTarget
+witnessInfoTargetParser =
+  asum
+    [ flag' WitTargetTxs . fold $
+        [ long "ls"
+        , help "Print the IDs of the transactions witnessed by the bundle"
+        ]
+    , fmap WitTargetTx . hexOption AsTxId . fold $
+        [ long "tx"
+        , help "Print the signature for a specific transaction"
+        ]
+    , flag WitTargetBundle WitTargetBundle . fold $
+        [ long "bundle"
+        , help "Print top-level witness bundle information"
+        ]
+    ]
+
+witnessBundleFileParser :: Parser FilePath
+witnessBundleFileParser =
+  strOption . fold $
+    [ long "witness-bundle-file"
+    , metavar "FILE"
+    , help "A file containing a witness bundle."
+    ]
+
+runWitnessInfoCommand :: WitnessInfoCommand -> IO ()
+runWitnessInfoCommand WitnessInfoCommand{..} = do
+  WitnessBundle{..} <- decodeFile wicBundleFile
+  case wicTarget of
+    WitTargetBundle -> do
+      putDoc . vsep $
+        [ "Verification key:" <+> pretty (serialiseToRawBytesHexText wbVerificationKey)
+        , "Signature count:" <+> pretty (Map.size wbSignatures)
+        ]
+      putStrLn ""
+    WitTargetTx txId -> do
+      case Map.lookup txId wbSignatures of
+        Nothing -> die "Tx ID not found in witness bundle."
+        Just (SigEd25519DSIGN bytes) ->
+          T.putStr $ extractBase16 $ encodeBase16 $ psbToByteString bytes
+    WitTargetTxs ->
+      for_ (Map.keysSet wbSignatures) $ T.putStrLn . serialiseToRawBytesHexText
+
 -- * Helpers
 
 readTxBody :: FilePath -> IO (InAnyShelleyBasedEra TxBody)
@@ -392,6 +505,11 @@ readTxBody filePath = do
           InAnyShelleyBasedEra ShelleyBasedEraConway . getTxBody
       ]
       (File filePath)
+  unwrapOrCrash prettyError result
+
+readSigningKey :: FilePath -> IO (SigningKey PaymentKey)
+readSigningKey filePath = do
+  result <- readFileTextEnvelope (AsSigningKey AsPaymentKey) (File filePath)
   unwrapOrCrash prettyError result
 
 unwrapOrCrash :: (a -> Doc AnsiStyle) -> Either a b -> IO b
