@@ -9,54 +9,59 @@ import Cardano.Api (
   AnyShelleyBasedEra (..),
   AsType (..),
   ConwayEra,
-  CtxUTxO,
-  EpochNo (..),
   HasTypeProxy (proxyToAsType),
   Hash,
   IsShelleyBasedEra,
+  Key (..),
   MonadTrans (..),
   NetworkId (Mainnet),
   PaymentCredential (..),
   PaymentKey,
   SerialiseAsCBOR (deserialiseFromCBOR, serialiseToCBOR),
   ShelleyBasedEra (..),
-  SlotNo (..),
+  SigningKey (..),
   StakeAddressReference (NoStakeAddress),
-  SystemStart (..),
   TxBody,
   TxId (..),
-  TxIn (..),
   TxIx (..),
-  TxOut (..),
-  TxOutDatum (TxOutDatumNone),
-  UTxO (..),
-  lovelaceToTxOutValue,
+  VerificationKey (..),
   makeShelleyAddress,
   readFileTextEnvelope,
   runExceptT,
   throwE,
  )
 import qualified Cardano.Api as C
-import Cardano.Api.Ledger (KeyHash (..), StandardCrypto)
+import Cardano.Api.Ledger (KeyHash (..), StandardCrypto, VKey (..), extractHash)
 import Cardano.Api.Shelley (
   Hash (..),
-  LedgerProtocolParameters (..),
-  ReferenceScript (..),
-  fromShelleyTxOut,
-  toShelleyTxOut,
+  ShelleyLedgerEra,
  )
-import Cardano.Binary (DecoderError, decodeFull', serialize')
+import Cardano.Crypto.DSIGN (
+  DSIGNAlgorithm (..),
+  Ed25519DSIGN,
+  SigDSIGN (SigEd25519DSIGN),
+  VerKeyDSIGN (VerKeyEd25519DSIGN),
+ )
 import Cardano.Crypto.Hash (
   PackedBytes (..),
   hashFromPackedBytes,
   hashToBytesShort,
   hashToPackedBytes,
  )
-import Codec.Serialise (deserialiseOrFail, serialise)
+import Cardano.Crypto.Libsodium.C (CRYPTO_SIGN_ED25519_PUBLICKEYBYTES)
+import Cardano.Crypto.Libsodium.Constants (CRYPTO_SIGN_ED25519_BYTES)
+import Cardano.Crypto.PinnedSizedBytes (PinnedSizedBytes, psbToByteString)
+import Cardano.Ledger.Alonzo.Tx (AlonzoTxBody (..))
+import qualified Cardano.Ledger.Api as L
+import Cardano.Ledger.Babbage.Tx (BabbageTxBody (..))
+import Cardano.Ledger.Conway.TxBody (ConwayTxBody (..))
+import Cardano.Ledger.Core (EraIndependentTxBody)
+import qualified Cardano.Ledger.Keys as Shelley
+import Cardano.Ledger.SafeHash (HashAnnotated (..))
 import Control.Monad (unless, when)
 import Control.Monad.ST (runST)
-import Data.Aeson (decodeFileStrict')
 import Data.Array.Byte (ByteArray (ByteArray))
+import Data.Bifunctor (Bifunctor (..))
 import Data.Binary (
   Binary (..),
   Get,
@@ -67,24 +72,14 @@ import Data.Binary.Get (getByteString)
 import Data.Binary.Put (putByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Short (ShortByteString (..))
+import qualified Data.ByteString.Short as SBS
 import Data.Coerce (coerce)
 import Data.Data (Proxy (..), Typeable)
-import Data.Foldable (traverse_)
+import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
-import Data.Reflection (give)
-import Data.SOP.NonEmpty (NonEmpty (..))
 import Data.STRef (modifySTRef, newSTRef, readSTRef)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Time (
-  UTCTime (UTCTime),
-  nominalDiffTimeToSeconds,
-  secondsToDiffTime,
-  secondsToNominalDiffTime,
- )
-import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Traversable (for)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
@@ -94,25 +89,9 @@ import qualified Data.Vector.Unboxed as U
 import Data.Word (Word16, Word32, Word64)
 import Data.Word.Extra (indexWord32BE, indexWord64BE)
 import GHC.Generics (Generic)
-import Ouroboros.Consensus.Block (
-  EpochSize (EpochSize),
-  GenesisWindow (GenesisWindow),
- )
-import Ouroboros.Consensus.BlockchainTime (
-  RelativeTime (RelativeTime),
-  mkSlotLength,
- )
-import Ouroboros.Consensus.Cardano.Block (CardanoEras)
-import Ouroboros.Consensus.HardFork.History (
-  Bound (..),
-  EraEnd (..),
-  EraParams (EraParams, eraEpochSize, eraGenesisWin, eraSafeZone, eraSlotLength),
-  EraParamsFormat (..),
-  EraSummary (..),
-  SafeZone (UnsafeIndefiniteSafeZone),
-  Summary (..),
- )
+import GHC.TypeLits (natVal)
 import System.IO.Unsafe (unsafePerformIO)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | Header in a tx bundle file
 data TxBundleHeader = TxBundleHeader
@@ -124,12 +103,6 @@ data TxBundleHeader = TxBundleHeader
   -- ^ The length of the signatory table (in rows)
   , hGroupMemTabSize :: Word16
   -- ^ The length of the group membership table (in rows)
-  , hUtxoTabSize :: Word16
-  -- ^ The length of the utxo table (in rows)
-  , hSummarySize :: Int
-  -- ^ The size of the Summary (in bytes)
-  , hPParamsSize :: Int
-  -- ^ The size of the protocol parameters (in bytes)
   , hTxBodySize :: Int
   -- ^ The size of the tx body (in bytes)
   }
@@ -153,25 +126,10 @@ data GroupMemHeader = GroupMemHeader
   }
   deriving (Show, Eq, Generic, Binary)
 
--- | A row in the UTxO table
-data UtxoHeader = UtxoHeader
-  { utxoTxId :: TxId
-  -- ^ The ID of th transaction that produced the output
-  , utxoTxIx :: TxIx
-  -- ^ The index of the output within the producing transaction
-  , utxoTxOutSize :: Int
-  -- ^ The size of the tx out (in bytes)
-  }
-  deriving (Show, Eq, Generic, Binary)
-
 data TxBundle era = TxBundle
   { tbGroupTab :: Vector GroupHeader
   , tbSigTab :: Vector (Hash PaymentKey)
   , tbGroupMemTab :: Vector GroupMemHeader
-  , tbSystemStart :: SystemStart
-  , tbSummary :: Summary (CardanoEras StandardCrypto)
-  , tbPParams :: LedgerProtocolParameters era
-  , tbUtxo :: UTxO era
   , tbTxBody :: TxBody era
   }
   deriving (Show, Eq)
@@ -180,7 +138,69 @@ data GroupError
   = GroupIndexOutOufBounds Word16
   | SignatoryIndexOutOufBounds Word16
   | GroupSizeWrong Word16 Int
+  | GroupThresholdTooHigh Word16 Word16
   deriving (Show, Eq)
+
+data SignBundleError era
+  = SignGroupError GroupError
+  | SignBadEra
+  deriving (Show, Eq)
+
+data WitnessBundle = WitnessBundle
+  { wbVerificationKey :: VerificationKey PaymentKey
+  , wbSignatures :: Map TxId (SigDSIGN Ed25519DSIGN)
+  }
+  deriving (Show, Eq, Generic, Binary)
+
+signBundle
+  :: forall era
+   . SigningKey PaymentKey
+  -> TxBundle era
+  -> Either (SignBundleError era) WitnessBundle
+signBundle sk bundle@TxBundle{..} = do
+  combinations <- first SignGroupError $ signatureCombinations bundle
+  let vk = getVerificationKey sk
+  let pkh = verificationKeyHash vk
+  let filtered = Set.filter (Set.member pkh) combinations
+  let C.ShelleyTxBody era ledgerBody scripts scriptData auxData validity = tbTxBody
+  WitnessBundle vk . Map.fromList <$> for (Set.toList filtered) \signers -> do
+    ledgerBody' <- setSigners era signers ledgerBody
+    let txBody = C.ShelleyTxBody era ledgerBody' scripts scriptData auxData validity
+    let txHash :: Shelley.Hash StandardCrypto EraIndependentTxBody
+        txHash =
+          C.shelleyBasedEraConstraints era $
+            extractHash @StandardCrypto $
+              hashAnnotated ledgerBody'
+    case sk of
+      PaymentSigningKey sk' -> pure (C.getTxId txBody, signDSIGN () txHash sk')
+
+setSigners
+  :: ShelleyBasedEra era
+  -> Set (Hash PaymentKey)
+  -> L.TxBody (ShelleyLedgerEra era)
+  -> Either (SignBundleError era) (L.TxBody (ShelleyLedgerEra era))
+setSigners era signers = case era of
+  ShelleyBasedEraShelley -> const $ Left SignBadEra
+  ShelleyBasedEraAllegra -> const $ Left SignBadEra
+  ShelleyBasedEraMary -> const $ Left SignBadEra
+  ShelleyBasedEraAlonzo -> \AlonzoTxBody{..} ->
+    pure
+      AlonzoTxBody
+        { atbReqSignerHashes = Set.mapMonotonic coerce signers
+        , ..
+        }
+  ShelleyBasedEraBabbage -> \BabbageTxBody{..} ->
+    pure
+      BabbageTxBody
+        { btbReqSignerHashes = Set.mapMonotonic coerce signers
+        , ..
+        }
+  ShelleyBasedEraConway -> \ConwayTxBody{..} ->
+    pure
+      ConwayTxBody
+        { ctbReqSignerHashes = Set.mapMonotonic coerce signers
+        , ..
+        }
 
 signatureCombinations
   :: TxBundle era -> Either GroupError (Set (Set (Hash PaymentKey)))
@@ -205,6 +225,9 @@ signatureCombinations TxBundle{..} = do
         throwE $
           GroupSizeWrong grpSize $
             Set.size group
+      when (grpThreshold > grpSize) $
+        throwE $
+          GroupThresholdTooHigh grpThreshold grpSize
       pure (group, fromIntegral grpThreshold)
   pure $ Map.foldlWithKey' mergeCombinations (Set.singleton mempty) groups
 
@@ -215,10 +238,10 @@ mergeCombinations
   -> Set (Set (Hash PaymentKey))
 mergeCombinations prev group threshold =
   Set.map (uncurry Set.union) $
-    Set.cartesianProduct prev (groupCombinations group threshold)
+    Set.cartesianProduct prev (groupCombinations threshold group)
 
-groupCombinations :: Set (Hash PaymentKey) -> Int -> Set (Set (Hash PaymentKey))
-groupCombinations keys threshold = Set.filter (\s -> Set.size s >= threshold) $ Set.powerSet keys
+groupCombinations :: Int -> Set (Hash PaymentKey) -> Set (Set (Hash PaymentKey))
+groupCombinations threshold = Set.filter (\s -> Set.size s >= threshold) . Set.powerSet
 
 testBundle :: TxBundle ConwayEra
 testBundle =
@@ -231,7 +254,14 @@ testBundle =
           ]
     , tbSigTab =
         U.fromList
-          [ PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 0
+          [ PaymentKeyHash $
+              KeyHash $
+                hashFromPackedBytes $
+                  PackedBytes28
+                    0x3b3c8374dd851fb0
+                    0xc84d234e2085af62
+                    0xf759e914f34e039f
+                    0x0dcfb1f3
           , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 1
           , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 2
           , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 4
@@ -243,39 +273,6 @@ testBundle =
           , GroupMemHeader 1 2
           , GroupMemHeader 1 3
           , GroupMemHeader 2 2
-          ]
-    , tbSystemStart =
-        SystemStart $ UTCTime (fromOrdinalDate 2024 0) $ secondsToDiffTime 0
-    , tbSummary =
-        Summary
-          . NonEmptyCons eraSummary
-          . NonEmptyCons eraSummary
-          . NonEmptyCons eraSummary
-          . NonEmptyCons eraSummary
-          . NonEmptyCons eraSummary
-          . NonEmptyCons eraSummary
-          $ NonEmptyOne eraSummary
-    , tbPParams =
-        unsafePerformIO $
-          LedgerProtocolParameters . fromJust <$> decodeFileStrict' "../pparams.json"
-    , tbUtxo =
-        UTxO . Map.fromList $
-          [
-            ( TxIn (TxId $ hashFromPackedBytes $ PackedBytes32 0 0 0 0) (TxIx 0)
-            , TxOut
-                addr1
-                (lovelaceToTxOutValue ShelleyBasedEraConway 10)
-                TxOutDatumNone
-                ReferenceScriptNone
-            )
-          ,
-            ( TxIn (TxId $ hashFromPackedBytes $ PackedBytes32 0 0 0 0) (TxIx 1)
-            , TxOut
-                addr1
-                (lovelaceToTxOutValue ShelleyBasedEraConway 20)
-                TxOutDatumNone
-                ReferenceScriptNone
-            )
           ]
     , tbTxBody =
         either (error . show) C.getTxBody . unsafePerformIO $
@@ -295,25 +292,6 @@ addr1 =
       )
       NoStakeAddress
 
-eraSummary :: EraSummary
-eraSummary =
-  EraSummary
-    { eraStart =
-        Bound
-          { boundTime = RelativeTime 0
-          , boundSlot = SlotNo 0
-          , boundEpoch = EpochNo 0
-          }
-    , eraEnd = EraUnbounded
-    , eraParams =
-        EraParams
-          { eraEpochSize = EpochSize 0
-          , eraSlotLength = mkSlotLength 1
-          , eraSafeZone = UnsafeIndefiniteSafeZone
-          , eraGenesisWin = GenesisWindow 0
-          }
-    }
-
 data SomeTxBundle where
   SomeTxBundle
     :: (Typeable era) => ShelleyBasedEra era -> TxBundle era -> SomeTxBundle
@@ -324,42 +302,12 @@ instance Binary SomeTxBundle where
     let hGroupTabSize = fromIntegral $ U.length tbGroupTab
     let hSigTabSize = fromIntegral $ U.length tbSigTab
     let hGroupMemTabSize = fromIntegral $ U.length tbGroupMemTab
-    let utxo = unUTxO tbUtxo
-    let hUtxoTabSize = fromIntegral $ Map.size utxo
-    let summaryBytes = BS.toStrict $ give EraParamsWithGenesisWindow $ serialise tbSummary
-    let pparamsBytes = case era of
-          ShelleyBasedEraConway -> serialize' $ unLedgerProtocolParameters tbPParams
-          ShelleyBasedEraBabbage -> serialize' $ unLedgerProtocolParameters tbPParams
-          ShelleyBasedEraAlonzo -> serialize' $ unLedgerProtocolParameters tbPParams
-          ShelleyBasedEraMary -> serialize' $ unLedgerProtocolParameters tbPParams
-          ShelleyBasedEraAllegra -> serialize' $ unLedgerProtocolParameters tbPParams
-          ShelleyBasedEraShelley -> serialize' $ unLedgerProtocolParameters tbPParams
     let txBodyBytes = withShelleyBasedEra era $ serialiseToCBOR tbTxBody
-    let hSummarySize = BS.length summaryBytes
-    let hPParamsSize = BS.length pparamsBytes
     let hTxBodySize = BS.length txBodyBytes
     put TxBundleHeader{..}
     U.mapM_ put tbGroupTab
     U.mapM_ put tbSigTab
     U.mapM_ put tbGroupMemTab
-    utxoBytes <- for (Map.toAscList utxo) \(TxIn utxoTxId utxoTxIx, txOut) -> do
-      let txOutBytes = case era of
-            ShelleyBasedEraConway -> serialize' $ toShelleyTxOut era txOut
-            ShelleyBasedEraBabbage -> serialize' $ toShelleyTxOut era txOut
-            ShelleyBasedEraAlonzo -> serialize' $ toShelleyTxOut era txOut
-            ShelleyBasedEraMary -> serialize' $ toShelleyTxOut era txOut
-            ShelleyBasedEraAllegra -> serialize' $ toShelleyTxOut era txOut
-            ShelleyBasedEraShelley -> serialize' $ toShelleyTxOut era txOut
-      let utxoTxOutSize = BS.length txOutBytes
-      put UtxoHeader{..}
-      pure txOutBytes
-    put $
-      nominalDiffTimeToSeconds $
-        utcTimeToPOSIXSeconds $
-          getSystemStart tbSystemStart
-    putByteString summaryBytes
-    putByteString pparamsBytes
-    traverse_ putByteString utxoBytes
     putByteString txBodyBytes
   get = do
     TxBundleHeader{..} <- get
@@ -367,44 +315,8 @@ instance Binary SomeTxBundle where
     tbGroupTab <- U.replicateM (fromIntegral hGroupTabSize) get
     tbSigTab <- U.replicateM (fromIntegral hSigTabSize) get
     tbGroupMemTab <- U.replicateM (fromIntegral hGroupMemTabSize) get
-    utxoTab <- U.replicateM (fromIntegral hUtxoTabSize) get
-    tbSystemStart <-
-      SystemStart . posixSecondsToUTCTime . secondsToNominalDiffTime <$> get
-    tbSummary <- give EraParamsWithGenesisWindow do
-      bytes <- getByteString hSummarySize
-      either (fail . show) pure $ deserialiseOrFail $ BS.fromStrict bytes
-    tbPParams <- getPParams era hPParamsSize
-    tbUtxo <- UTxO . Map.fromList <$> traverse (getUtxo era) (U.toList utxoTab)
     tbTxBody <- getTxBody era hTxBodySize
     pure $ SomeTxBundle era TxBundle{..}
-
-getPParams
-  :: forall era. ShelleyBasedEra era -> Int -> Get (LedgerProtocolParameters era)
-getPParams era size = do
-  bytes <- getByteString size
-  let txOutResult :: Either DecoderError (LedgerProtocolParameters era)
-      txOutResult = case era of
-        ShelleyBasedEraConway -> LedgerProtocolParameters <$> decodeFull' bytes
-        ShelleyBasedEraBabbage -> LedgerProtocolParameters <$> decodeFull' bytes
-        ShelleyBasedEraAlonzo -> LedgerProtocolParameters <$> decodeFull' bytes
-        ShelleyBasedEraMary -> LedgerProtocolParameters <$> decodeFull' bytes
-        ShelleyBasedEraAllegra -> LedgerProtocolParameters <$> decodeFull' bytes
-        ShelleyBasedEraShelley -> LedgerProtocolParameters <$> decodeFull' bytes
-  either (fail . show) pure txOutResult
-
-getUtxo
-  :: forall era. ShelleyBasedEra era -> UtxoHeader -> Get (TxIn, TxOut CtxUTxO era)
-getUtxo era UtxoHeader{..} = do
-  bytes <- getByteString utxoTxOutSize
-  let txOutResult :: Either DecoderError (TxOut CtxUTxO era)
-      txOutResult = case era of
-        ShelleyBasedEraConway -> fromShelleyTxOut ShelleyBasedEraConway <$> decodeFull' bytes
-        ShelleyBasedEraBabbage -> fromShelleyTxOut ShelleyBasedEraBabbage <$> decodeFull' bytes
-        ShelleyBasedEraAlonzo -> fromShelleyTxOut ShelleyBasedEraAlonzo <$> decodeFull' bytes
-        ShelleyBasedEraMary -> fromShelleyTxOut ShelleyBasedEraMary <$> decodeFull' bytes
-        ShelleyBasedEraAllegra -> fromShelleyTxOut ShelleyBasedEraAllegra <$> decodeFull' bytes
-        ShelleyBasedEraShelley -> fromShelleyTxOut ShelleyBasedEraShelley <$> decodeFull' bytes
-  either (fail . show) (pure . (TxIn utxoTxId utxoTxIx,)) txOutResult
 
 getTxBody :: forall era. ShelleyBasedEra era -> Int -> Get (TxBody era)
 getTxBody era size = do
@@ -566,66 +478,6 @@ instance G.Vector Vector GroupMemHeader where
 
 instance U.Unbox GroupMemHeader
 
-newtype instance U.MVector s UtxoHeader = MV_UtxoHeader (U.MVector s (TxId, TxIx, Int))
-newtype instance U.Vector UtxoHeader = V_UtxoHeader (U.Vector (TxId, TxIx, Int))
-
-instance M.MVector U.MVector UtxoHeader where
-  {-# INLINE basicLength #-}
-  {-# INLINE basicUnsafeSlice #-}
-  {-# INLINE basicOverlaps #-}
-  {-# INLINE basicUnsafeNew #-}
-  {-# INLINE basicInitialize #-}
-  {-# INLINE basicClear #-}
-  {-# INLINE basicUnsafeCopy #-}
-  {-# INLINE basicUnsafeMove #-}
-  {-# INLINE basicUnsafeGrow #-}
-  basicLength = coerce $ M.basicLength @U.MVector @(TxId, TxIx, Int)
-  basicUnsafeSlice = coerce $ M.basicUnsafeSlice @U.MVector @(TxId, TxIx, Int)
-  basicOverlaps = coerce $ M.basicOverlaps @U.MVector @(TxId, TxIx, Int)
-  basicUnsafeNew = coerce $ M.basicUnsafeNew @U.MVector @(TxId, TxIx, Int)
-  basicInitialize = coerce $ M.basicInitialize @U.MVector @(TxId, TxIx, Int)
-  basicUnsafeCopy = coerce $ M.basicUnsafeCopy @U.MVector @(TxId, TxIx, Int)
-  basicUnsafeMove = coerce $ M.basicUnsafeMove @U.MVector @(TxId, TxIx, Int)
-  basicUnsafeGrow = coerce $ M.basicUnsafeGrow @U.MVector @(TxId, TxIx, Int)
-  basicClear = coerce $ M.basicClear @U.MVector @(TxId, TxIx, Int)
-  {-# INLINE basicUnsafeReplicate #-}
-  {-# INLINE basicUnsafeRead #-}
-  {-# INLINE basicUnsafeWrite #-}
-  {-# INLINE basicSet #-}
-  basicUnsafeReplicate n UtxoHeader{..} =
-    MV_UtxoHeader <$> M.basicUnsafeReplicate n (utxoTxId, utxoTxIx, utxoTxOutSize)
-  basicUnsafeRead (MV_UtxoHeader v) i =
-    uncurry3 UtxoHeader <$> M.basicUnsafeRead v i
-  basicUnsafeWrite (MV_UtxoHeader v) i UtxoHeader{..} =
-    M.basicUnsafeWrite v i (utxoTxId, utxoTxIx, utxoTxOutSize)
-  basicSet (MV_UtxoHeader v) UtxoHeader{..} =
-    M.basicSet v (utxoTxId, utxoTxIx, utxoTxOutSize)
-
-instance G.Vector Vector UtxoHeader where
-  {-# INLINE basicUnsafeFreeze #-}
-  {-# INLINE basicUnsafeThaw #-}
-  {-# INLINE basicLength #-}
-  {-# INLINE basicUnsafeSlice #-}
-  {-# INLINE basicUnsafeCopy #-}
-  basicUnsafeFreeze = coerce $ G.basicUnsafeFreeze @Vector @(TxId, TxIx, Int)
-  basicUnsafeThaw = coerce $ G.basicUnsafeThaw @Vector @(TxId, TxIx, Int)
-  basicLength = coerce $ G.basicLength @Vector @(TxId, TxIx, Int)
-  basicUnsafeSlice = coerce $ G.basicUnsafeSlice @Vector @(TxId, TxIx, Int)
-  basicUnsafeCopy = coerce $ G.basicUnsafeCopy @Vector @(TxId, TxIx, Int)
-  {-# INLINE basicUnsafeIndexM #-}
-  {-# INLINE elemseq #-}
-  basicUnsafeIndexM (V_UtxoHeader v) i =
-    uncurry3 UtxoHeader <$> G.basicUnsafeIndexM v i
-  elemseq _ UtxoHeader{..} z =
-    G.elemseq (undefined :: Vector TxId) utxoTxId $
-      G.elemseq (undefined :: Vector TxIx) utxoTxIx $
-        G.elemseq (undefined :: Vector Int) utxoTxOutSize z
-
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f (a, b, c) = f a b c
-
-instance U.Unbox UtxoHeader
-
 type Blake2b_244_Unpacked = (Word64, Word64, Word64, Word32)
 
 newtype instance U.MVector s (Hash PaymentKey)
@@ -780,3 +632,31 @@ newtype instance U.Vector TxIx = V_TxIx (U.Vector Word)
 deriving newtype instance M.MVector U.MVector TxIx
 deriving newtype instance G.Vector Vector TxIx
 instance U.Unbox TxIx
+
+instance Binary (VerificationKey PaymentKey) where
+  put (PaymentVerificationKey (VKey (VerKeyEd25519DSIGN bytes))) = do
+    putByteString $ psbToByteString bytes
+  get = do
+    SBS bytes <-
+      SBS.toShort
+        <$> getByteString (fromInteger $ natVal $ Proxy @CRYPTO_SIGN_ED25519_PUBLICKEYBYTES)
+    pure
+      . PaymentVerificationKey
+      . VKey
+      . VerKeyEd25519DSIGN
+      $ ( unsafeCoerce
+            :: (ByteArray -> PinnedSizedBytes CRYPTO_SIGN_ED25519_PUBLICKEYBYTES)
+        )
+      $ ByteArray bytes
+
+instance Binary (SigDSIGN Ed25519DSIGN) where
+  put (SigEd25519DSIGN bytes) = do
+    putByteString $ psbToByteString bytes
+  get = do
+    SBS bytes <-
+      SBS.toShort
+        <$> getByteString (fromInteger $ natVal $ Proxy @CRYPTO_SIGN_ED25519_BYTES)
+    pure
+      . SigEd25519DSIGN
+      $ (unsafeCoerce :: (ByteArray -> PinnedSizedBytes CRYPTO_SIGN_ED25519_BYTES))
+      $ ByteArray bytes
