@@ -75,6 +75,7 @@ library
     , cardano-ledger-conway
     , cardano-ledger-core
     , containers
+    , lens
     , vector
 
 executable tx-bundle

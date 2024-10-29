@@ -21,25 +21,37 @@ import Cardano.Api (
   ShelleyBasedEra (..),
   SigningKey (..),
   StakeAddressReference (NoStakeAddress),
+  Tx,
   TxBody,
   TxId (..),
   TxIx (..),
+  TxScriptValidity,
   VerificationKey (..),
   makeShelleyAddress,
   readFileTextEnvelope,
   runExceptT,
   throwE,
+  txScriptValidityToScriptValidity,
  )
 import qualified Cardano.Api as C
-import Cardano.Api.Ledger (KeyHash (..), StandardCrypto, VKey (..), extractHash)
+import Cardano.Api.Ledger (
+  KeyHash (..),
+  StandardCrypto,
+  VKey (..),
+  extractHash,
+  maybeToStrictMaybe,
+ )
+import qualified Cardano.Api.Ledger as Ledger
 import Cardano.Api.Shelley (
   Hash (..),
   ShelleyLedgerEra,
+  Tx (ShelleyTx),
  )
 import Cardano.Crypto.DSIGN (
   DSIGNAlgorithm (..),
   Ed25519DSIGN,
   SigDSIGN (SigEd25519DSIGN),
+  SignedDSIGN (..),
   VerKeyDSIGN (VerKeyEd25519DSIGN),
  )
 import Cardano.Crypto.Hash (
@@ -51,13 +63,24 @@ import Cardano.Crypto.Hash (
 import Cardano.Crypto.Libsodium.C (CRYPTO_SIGN_ED25519_PUBLICKEYBYTES)
 import Cardano.Crypto.Libsodium.Constants (CRYPTO_SIGN_ED25519_BYTES)
 import Cardano.Crypto.PinnedSizedBytes (PinnedSizedBytes, psbToByteString)
-import Cardano.Ledger.Alonzo.Tx (AlonzoTxBody (..))
-import qualified Cardano.Ledger.Api as L
+import Cardano.Ledger.Alonzo.Core (
+  AlonzoEraTxWits (..),
+  hashScript,
+  rdmrsTxWitsL,
+ )
+import Cardano.Ledger.Alonzo.Tx (
+  AlonzoEraTx (..),
+  AlonzoTxBody (..),
+  IsValid (..),
+ )
+import Cardano.Ledger.Alonzo.TxWits (Redeemers (..))
 import Cardano.Ledger.Babbage.Tx (BabbageTxBody (..))
 import Cardano.Ledger.Conway.TxBody (ConwayTxBody (..))
-import Cardano.Ledger.Core (EraIndependentTxBody)
+import Cardano.Ledger.Core (EraIndependentTxBody, EraTx)
+import qualified Cardano.Ledger.Core as L
 import qualified Cardano.Ledger.Keys as Shelley
 import Cardano.Ledger.SafeHash (HashAnnotated (..))
+import Control.Lens ((.~))
 import Control.Monad (unless, when)
 import Control.Monad.ST (runST)
 import Data.Array.Byte (ByteArray (ByteArray))
@@ -75,6 +98,8 @@ import Data.ByteString.Short (ShortByteString (..))
 import qualified Data.ByteString.Short as SBS
 import Data.Coerce (coerce)
 import Data.Data (Proxy (..), Typeable)
+import Data.Function ((&))
+import Data.Functor (void)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.STRef (modifySTRef, newSTRef, readSTRef)
@@ -146,11 +171,120 @@ data SignBundleError
   | SignBadEra
   deriving (Show, Eq)
 
+data AssembleError
+  = AssembleGroupError GroupError
+  | AssembleBadEra
+  | TooFewSignatures
+  | MissingSignature (Hash PaymentKey) TxId
+  deriving (Show, Eq)
+
 data WitnessBundle = WitnessBundle
   { wbVerificationKey :: VerificationKey PaymentKey
   , wbSignatures :: Map TxId (SigDSIGN Ed25519DSIGN)
   }
   deriving (Show, Eq, Generic, Binary)
+
+assemble :: [WitnessBundle] -> TxBundle era -> Either AssembleError (Tx era)
+assemble witBundles bundle = do
+  groups <- first AssembleGroupError $ getSigningGroups bundle
+  let signers = foldMap (Set.singleton . verificationKeyHash . wbVerificationKey) witBundles
+  void $ flip Map.traverseWithKey groups \group threshold ->
+    when (Set.size (Set.intersection group signers) < threshold) $
+      Left TooFewSignatures
+  txBody <- setSigners AssembleBadEra signers $ tbTxBody bundle
+  let txId = C.getTxId txBody
+  makeSignedTransaction txBody <$> for witBundles \WitnessBundle{..} -> do
+    let pkh = verificationKeyHash wbVerificationKey
+    let PaymentVerificationKey (VKey vkey) = wbVerificationKey
+    case Map.lookup txId wbSignatures of
+      Nothing -> Left $ MissingSignature pkh txId
+      Just signature -> pure $ Shelley.WitVKey (VKey vkey) (SignedDSIGN signature)
+
+-- We need to copy this from cardano-api because it doesn't expose KeyWitness
+-- constructors.
+makeSignedTransaction
+  :: forall era
+   . TxBody era
+  -> [Shelley.WitVKey Shelley.Witness StandardCrypto]
+  -> Tx era
+makeSignedTransaction
+  ( C.ShelleyTxBody
+      sbe
+      txBody
+      txScripts
+      txScriptData
+      txMetadata
+      scriptValidity
+    )
+  witnesses =
+    case sbe of
+      ShelleyBasedEraShelley -> shelleySignedTransaction
+      ShelleyBasedEraAllegra -> shelleySignedTransaction
+      ShelleyBasedEraMary -> shelleySignedTransaction
+      ShelleyBasedEraAlonzo -> alonzoSignedTransaction
+      ShelleyBasedEraBabbage -> alonzoSignedTransaction
+      ShelleyBasedEraConway -> alonzoSignedTransaction
+    where
+      txCommon
+        :: forall lEra
+         . (ShelleyLedgerEra era ~ lEra)
+        => (L.EraCrypto lEra ~ StandardCrypto)
+        => (EraTx lEra)
+        => L.Tx lEra
+      txCommon =
+        L.mkBasicTx txBody
+          & L.witsTxL
+            .~ ( L.mkBasicTxWits
+                  & L.addrTxWitsL
+                    .~ Set.fromList witnesses
+                  & L.scriptTxWitsL
+                    .~ Map.fromList
+                      [ (hashScript @lEra sw, sw)
+                      | sw <- txScripts
+                      ]
+               )
+          & L.auxDataTxL
+            .~ maybeToStrictMaybe txMetadata
+
+      shelleySignedTransaction
+        :: forall lEra
+         . (ShelleyLedgerEra era ~ lEra)
+        => (Ledger.EraCrypto lEra ~ StandardCrypto)
+        => (EraTx lEra)
+        => Tx era
+      shelleySignedTransaction = ShelleyTx sbe txCommon
+
+      alonzoSignedTransaction
+        :: forall lEra
+         . (ShelleyLedgerEra era ~ lEra)
+        => (Ledger.EraCrypto lEra ~ StandardCrypto)
+        => (AlonzoEraTx lEra)
+        => Tx era
+      alonzoSignedTransaction =
+        ShelleyTx
+          sbe
+          ( txCommon
+              & L.witsTxL
+                . datsTxWitsL
+                .~ datums
+              & L.witsTxL
+                . rdmrsTxWitsL
+                .~ redeemers
+              & isValidTxL
+                .~ txScriptValidityToIsValid scriptValidity
+          )
+        where
+          (datums, redeemers) =
+            case txScriptData of
+              C.TxBodyScriptData _ ds rs -> (ds, rs)
+              C.TxBodyNoScriptData -> (mempty, Redeemers mempty)
+
+txScriptValidityToIsValid :: TxScriptValidity era -> IsValid
+txScriptValidityToIsValid = scriptValidityToIsValid . txScriptValidityToScriptValidity
+
+scriptValidityToIsValid :: C.ScriptValidity -> IsValid
+scriptValidityToIsValid C.ScriptInvalid = IsValid False
+scriptValidityToIsValid C.ScriptValid = IsValid True
 
 signBundle
   :: forall era
@@ -162,10 +296,9 @@ signBundle sk bundle@TxBundle{..} = do
   let vk = getVerificationKey sk
   let pkh = verificationKeyHash vk
   let filtered = Set.filter (Set.member pkh) combinations
-  let C.ShelleyTxBody era ledgerBody scripts scriptData auxData validity = tbTxBody
   WitnessBundle vk . Map.fromList <$> for (Set.toList filtered) \signers -> do
-    ledgerBody' <- setSigners era signers ledgerBody
-    let txBody = C.ShelleyTxBody era ledgerBody' scripts scriptData auxData validity
+    txBody <- setSigners SignBadEra signers tbTxBody
+    let C.ShelleyTxBody era ledgerBody' _ _ _ _ = txBody
     let txHash :: Shelley.Hash StandardCrypto EraIndependentTxBody
         txHash =
           C.shelleyBasedEraConstraints era $
@@ -175,37 +308,51 @@ signBundle sk bundle@TxBundle{..} = do
       PaymentSigningKey sk' -> pure (C.getTxId txBody, signDSIGN () txHash sk')
 
 setSigners
-  :: ShelleyBasedEra era
+  :: e
   -> Set (Hash PaymentKey)
-  -> L.TxBody (ShelleyLedgerEra era)
-  -> Either SignBundleError (L.TxBody (ShelleyLedgerEra era))
-setSigners era signers = case era of
-  ShelleyBasedEraShelley -> const $ Left SignBadEra
-  ShelleyBasedEraAllegra -> const $ Left SignBadEra
-  ShelleyBasedEraMary -> const $ Left SignBadEra
-  ShelleyBasedEraAlonzo -> \AlonzoTxBody{..} ->
-    pure
-      AlonzoTxBody
-        { atbReqSignerHashes = Set.mapMonotonic coerce signers
-        , ..
-        }
-  ShelleyBasedEraBabbage -> \BabbageTxBody{..} ->
-    pure
-      BabbageTxBody
-        { btbReqSignerHashes = Set.mapMonotonic coerce signers
-        , ..
-        }
-  ShelleyBasedEraConway -> \ConwayTxBody{..} ->
-    pure
-      ConwayTxBody
-        { ctbReqSignerHashes = Set.mapMonotonic coerce signers
-        , ..
-        }
+  -> TxBody era
+  -> Either e (TxBody era)
+setSigners err signers (C.ShelleyTxBody era ledgerBody scripts scriptData auxData validity) = do
+  ledgerBody' <- case era of
+    ShelleyBasedEraShelley -> Left err
+    ShelleyBasedEraAllegra -> Left err
+    ShelleyBasedEraMary -> Left err
+    ShelleyBasedEraAlonzo ->
+      case ledgerBody of
+        AlonzoTxBody{..} ->
+          pure
+            AlonzoTxBody
+              { atbReqSignerHashes = Set.mapMonotonic coerce signers
+              , ..
+              }
+    ShelleyBasedEraBabbage ->
+      case ledgerBody of
+        BabbageTxBody{..} ->
+          pure
+            BabbageTxBody
+              { btbReqSignerHashes = Set.mapMonotonic coerce signers
+              , ..
+              }
+    ShelleyBasedEraConway ->
+      case ledgerBody of
+        ConwayTxBody{..} ->
+          pure
+            ConwayTxBody
+              { ctbReqSignerHashes = Set.mapMonotonic coerce signers
+              , ..
+              }
+  pure $ C.ShelleyTxBody era ledgerBody' scripts scriptData auxData validity
 
 signatureCombinations
   :: TxBundle era -> Either GroupError (Set (Set (Hash PaymentKey)))
-signatureCombinations TxBundle{..} = do
-  groups <- runST $ runExceptT do
+signatureCombinations bundle = do
+  groups <- getSigningGroups bundle
+  pure $ Map.foldlWithKey' mergeCombinations (Set.singleton mempty) groups
+
+getSigningGroups
+  :: TxBundle era -> Either GroupError (Map (Set (Hash PaymentKey)) Int)
+getSigningGroups TxBundle{..} = do
+  runST $ runExceptT do
     groups <- lift $ V.replicateM (U.length tbGroupTab) $ newSTRef Set.empty
     let groupCount = U.length tbGroupTab
     let sigCount = U.length tbSigTab
@@ -229,7 +376,6 @@ signatureCombinations TxBundle{..} = do
         throwE $
           GroupThresholdTooHigh grpThreshold grpSize
       pure (group, fromIntegral grpThreshold)
-  pure $ Map.foldlWithKey' mergeCombinations (Set.singleton mempty) groups
 
 mergeCombinations
   :: Set (Set (Hash PaymentKey))

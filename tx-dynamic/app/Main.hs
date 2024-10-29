@@ -22,6 +22,7 @@ import Cardano.Api (
   readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
   serialiseToRawBytesHexText,
+  writeTxFileTextEnvelopeCddl,
  )
 import Cardano.CLI.Json.Friendly (
   friendlyTxBody,
@@ -31,6 +32,7 @@ import Cardano.CLI.Types.Common (ViewOutputFormat (..))
 import Cardano.Crypto.DSIGN (SigDSIGN (..))
 import Cardano.Crypto.PinnedSizedBytes (psbToByteString)
 import Cardano.TxDynamic (
+  AssembleError (..),
   GroupError (..),
   GroupHeader (..),
   GroupMemHeader (..),
@@ -38,6 +40,7 @@ import Cardano.TxDynamic (
   SomeTxBundle (..),
   TxBundle (..),
   WitnessBundle (..),
+  assemble,
   signBundle,
   signatureCombinations,
  )
@@ -122,6 +125,7 @@ rootParser =
       , command "witness" $ runWitnessCommand <$> witnessCommandParser
       , command "info" $ runInfoCommand <$> infoCommandParser
       , command "witness-info" $ runWitnessInfoCommand <$> witnessInfoCommandParser
+      , command "assemble" $ runAssembleCommand <$> assembleCommandParser
       ]
 
 -- * Build command
@@ -490,6 +494,44 @@ runWitnessInfoCommand WitnessInfoCommand{..} = do
           T.putStr $ extractBase16 $ encodeBase16 $ psbToByteString bytes
     WitTargetTxs ->
       for_ (Map.keysSet wbSignatures) $ T.putStrLn . serialiseToRawBytesHexText
+
+-- * Assemble command
+
+data AssembleCommand = AssembleCommand
+  { acWitnessBundleFiles :: [FilePath]
+  , acTxBundleFile :: FilePath
+  , acOutFile :: FilePath
+  }
+
+assembleCommandParser :: ParserInfo AssembleCommand
+assembleCommandParser = info parser description
+  where
+    parser =
+      AssembleCommand
+        <$> some witnessBundleFileParser
+        <*> txBundleFileParser
+        <*> outFileParser "signed transaction"
+    description = progDesc "Create a signed transaction by combining several witness bundles."
+
+runAssembleCommand :: AssembleCommand -> IO ()
+runAssembleCommand AssembleCommand{..} = do
+  SomeTxBundle era bundle <- decodeFile acTxBundleFile
+  witnessBundles <- traverse decodeFile acWitnessBundleFiles
+  tx <- unwrapOrCrash renderAssembleError $ assemble witnessBundles bundle
+  unwrapOrCrash prettyError
+    =<< writeTxFileTextEnvelopeCddl era (File acOutFile) tx
+
+renderAssembleError :: AssembleError -> Doc AnsiStyle
+renderAssembleError = \case
+  AssembleGroupError ge -> renderGroupError ge
+  AssembleBadEra -> "Unsupported transaction era"
+  TooFewSignatures -> "Too few signatures"
+  MissingSignature pkh txId ->
+    vsep
+      [ "Missing signature"
+      , "TxId:" <+> pretty (serialiseToRawBytesHexText txId)
+      , "Signatory:" <+> pretty (serialiseToRawBytesHexText pkh)
+      ]
 
 -- * Helpers
 
