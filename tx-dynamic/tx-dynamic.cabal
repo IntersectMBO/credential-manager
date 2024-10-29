@@ -70,7 +70,6 @@ library
     , cardano-api
     , cardano-crypto-class
     , cardano-ledger-alonzo
-    , cardano-ledger-api
     , cardano-ledger-babbage
     , cardano-ledger-conway
     , cardano-ledger-core
@@ -84,31 +83,15 @@ executable tx-bundle
   main-is:        Main.hs
   other-modules:  Paths_tx_dynamic
   build-depends:
-    , aeson
-    , aeson-pretty
-    , asn1-encoding
-    , asn1-types
     , base
     , base16
     , binary
-    , bytestring
     , cardano-api
-    , cardano-binary
     , cardano-cli
     , cardano-crypto-class
-    , cardano-ledger-conway
-    , cardano-ledger-core
-    , cborg
     , containers
-    , crypton
-    , crypton-x509
     , directory
-    , filepath
-    , memory
     , optparse-applicative
-    , pem
-    , plutus-ledger-api
-    , plutus-tx
     , prettyprinter
     , prettyprinter-ansi-terminal
     , text
