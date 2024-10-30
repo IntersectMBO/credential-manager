@@ -143,6 +143,7 @@ Now we have everything we need to build the transaction.
       --tx-in-redeemer-file vote/redeemer.json \
       --tx-out "$(cat vote/value)" \
       --tx-out-inline-datum-file vote/datum.json \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
       --vote-file vote/vote \
@@ -151,6 +152,15 @@ Now we have everything we need to build the transaction.
       --change-address $(cat orchestrator.addr) \
       --out-file vote/body.json
    Estimated transaction fee: Coin 702241
+   $ tx-bundle build \
+     --tx-body-file vote/body.json \
+     --group-name voting \
+     --group-threshold 2 \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
+     --out-file vote/body.txbundle
+
 
 Most of what we covered when building the hot credential authorization script
 also applies here, so we won't cover it again. The only difference is that we
@@ -165,17 +175,18 @@ We now have an unsigned transaction body which we need our voters to sign.
 .. code-block:: bash
 
    $ cc-sign -q \
-      --tx-body-file vote/body.json \
+      --tx-bundle-file vote/body.txbundle \
       --private-key-file example-certificates/children/child-8/child-8.private \
-      --out-file vote/child-8.witness
+      --out-file vote/child-8.witbundle
    $ cc-sign -q \
-      --tx-body-file vote/body.json \
+      --tx-bundle-file vote/body.txbundle \
       --private-key-file example-certificates/children/child-9/child-9.private \
-      --out-file vote/child-9.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file vote/body.json \
+      --out-file vote/child-9.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file vote/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file vote/orchestrator.witness
+      --out-file vote/orchestrator.witbundle
 
 Step 5. Assemble and Submit the Transaction
 -------------------------------------------
@@ -184,11 +195,11 @@ Finally, we can put everything together to submit the transaction:
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file vote/body.json \
-      --witness-file vote/child-8.witness \
-      --witness-file vote/child-9.witness \
-      --witness-file vote/orchestrator.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file vote/body.txbundle \
+      --witness-bundle-file vote/child-8.witbundle \
+      --witness-bundle-file vote/child-9.witbundle \
+      --witness-bundle-file vote/orchestrator.witbundle \
       --out-file vote/tx.json
    $ cardano-cli conway transaction submit --tx-file vote/tx.json
    Transaction successfully submitted.

@@ -17,9 +17,9 @@ import Cardano.Api (
   TxBodyContent (..),
   TxExtraKeyWitnesses (..),
   TxId,
+  castSigningKey,
   deserialiseFromRawBytesHex,
   getTxBody,
-  readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
   serialiseToRawBytesHexText,
   writeTxFileTextEnvelopeCddl,
@@ -42,6 +42,7 @@ import Cardano.TxDynamic (
   WitnessBundle (..),
   assemble,
   signBundle,
+  signBundleAll,
   signatureCombinations,
  )
 import Control.Monad (foldM, guard, join, unless)
@@ -54,12 +55,14 @@ import Data.Functor (void)
 import Data.List (nub)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
+import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Data.Version (showVersion)
-import Data.Word (Word16)
+import Data.Word (Word8)
 import Options.Applicative (
   Alternative (..),
   Mod,
@@ -82,13 +85,13 @@ import Options.Applicative (
   progDesc,
   short,
   strOption,
+  switch,
  )
 import Options.Applicative.Builder (command)
 import Options.Applicative.Extra (hsubparser)
 import Paths_tx_dynamic (version)
 import Prettyprinter (
   Pretty (..),
-  brackets,
   comma,
   emptyDoc,
   encloseSep,
@@ -131,7 +134,8 @@ rootParser =
 -- * Build command
 
 data Group = Group
-  { groupThreshold :: Word16
+  { groupName :: Text
+  , groupThreshold :: Word8
   , groupMembers :: [Hash PaymentKey]
   }
   deriving (Show, Eq)
@@ -165,15 +169,28 @@ groupsParser :: Parser [Group]
 groupsParser = nub <$> some groupParser
 
 groupParser :: Parser Group
-groupParser = Group <$> groupThresholdParser <*> fmap nub (some groupMemberParser)
+groupParser =
+  Group
+    <$> groupNameParser
+    <*> groupThresholdParser
+    <*> fmap nub (some groupMemberParser)
 
-groupThresholdParser :: Parser Word16
+groupNameParser :: Parser Text
+groupNameParser =
+  strOption . fold $
+    [ long "group-name"
+    , metavar "TEXT"
+    , help
+        "Starts a new group. The name of the group."
+    ]
+
+groupThresholdParser :: Parser Word8
 groupThresholdParser =
   option auto . fold $
     [ long "group-threshold"
     , metavar "INT"
     , help
-        "Starts a new group. The minimum number of signers from the group that must sign the transaction"
+        "The minimum number of signers from the group that must sign the transaction"
     ]
 
 groupMemberParser :: Parser (Hash PaymentKey)
@@ -207,6 +224,7 @@ runBuildCommand BuildCommand{..} = do
           { tbGroupTab = U.empty
           , tbSigTab = U.empty
           , tbGroupMemTab = U.empty
+          , tbGroupNameTab = V.empty
           , tbTxBody
           }
   bundle' <- foldM processGroup bundle bcGroups
@@ -234,10 +252,14 @@ processGroup bundle Group{..}
   | otherwise = do
       let (grpSize, bundle') = foldl' (uncurry processGroupMember) (0, bundle) groupMembers
       let grpThreshold = groupThreshold
-      pure bundle'{tbGroupTab = U.snoc (tbGroupTab bundle) $ GroupHeader{..}}
+      pure
+        bundle'
+          { tbGroupTab = U.snoc (tbGroupTab bundle) $ GroupHeader{..}
+          , tbGroupNameTab = V.snoc (tbGroupNameTab bundle) groupName
+          }
 
 processGroupMember
-  :: Word16 -> TxBundle era -> Hash PaymentKey -> (Word16, TxBundle era)
+  :: Word8 -> TxBundle era -> Hash PaymentKey -> (Word8, TxBundle era)
 processGroupMember count TxBundle{..} sig =
   ( succ count
   , TxBundle
@@ -257,7 +279,7 @@ processGroupMember count TxBundle{..} sig =
 data InfoTarget
   = TargetBundle
   | TargetGroups
-  | TargetGroup Int
+  | TargetGroup Text
   | TargetSignatory (Hash PaymentKey)
   | TargetTx ViewOutputFormat
 
@@ -297,8 +319,9 @@ infoTargetParser =
               ]
           , pure ViewOutputFormatJson
           ]
-    , fmap TargetGroup . option auto . fold $
+    , fmap TargetGroup . strOption . fold $
         [ long "group"
+        , metavar "NAME"
         , help "Print info about a specific signatory group"
         ]
     , fmap TargetSignatory . hexOption (AsHash AsPaymentKey) . fold $
@@ -335,14 +358,14 @@ runInfoCommand InfoCommand{..} = do
       putDoc $ vsep $ flip fmap [0 .. U.length tbGroupTab - 1] \i ->
         let GroupHeader{..} = tbGroupTab U.! i
          in hang 2 . vsep $
-              [ "Group" <> brackets (pretty i) <> ":"
+              [ pretty (tbGroupNameTab V.! i) <> ":"
               , "Group size:" <+> pretty grpSize
               , "Group threshold:" <+> pretty grpThreshold
               ]
-    TargetGroup i -> do
-      GroupHeader{..} <- case tbGroupTab U.!? i of
+    TargetGroup name -> do
+      (GroupHeader{..}, i) <- case V.findIndex (== name) tbGroupNameTab of
         Nothing -> die "Invalid group index"
-        Just tab -> pure tab
+        Just i -> pure (tbGroupTab U.! i, i)
       signatories <- flip U.mapMaybeM tbGroupMemTab \GroupMemHeader{..} -> do
         if fromIntegral gmGroup == i
           then case tbSigTab U.!? fromIntegral gmSig of
@@ -399,7 +422,8 @@ renderGroupError = \case
 -- * Witness command
 
 data WitnessCommand = WitnessCommand
-  { wcSigningKeyFile :: FilePath
+  { wcAll :: Bool
+  , wcSigningKeyFile :: FilePath
   , wcTxBundleFile :: FilePath
   , wcOutFile :: FilePath
   }
@@ -409,10 +433,20 @@ witnessCommandParser = info parser description
   where
     parser =
       WitnessCommand
-        <$> signingKeyFileParser
+        <$> allParser
+        <*> signingKeyFileParser
         <*> txBundleFileParser
         <*> outFileParser "witness bundle"
     description = progDesc "Create a witness bundle file for a signing key"
+
+allParser :: Parser Bool
+allParser =
+  switch . fold $
+    [ long "all"
+    , short 'a'
+    , help
+        "Sign all possible transactions even if not in a signing group. Useful for adding witnesses for non-script related purposes."
+    ]
 
 signingKeyFileParser :: Parser FilePath
 signingKeyFileParser =
@@ -426,13 +460,20 @@ runWitnessCommand :: WitnessCommand -> IO ()
 runWitnessCommand WitnessCommand{..} = do
   SomeTxBundle _ bundle <- decodeFile wcTxBundleFile
   sk <- readSigningKey wcSigningKeyFile
-  witnessBundle <- unwrapOrCrash renderSignBundleError $ signBundle sk bundle
+  witnessBundle <-
+    unwrapOrCrash
+      renderSignBundleError
+      if wcAll
+        then signBundleAll sk bundle
+        else signBundle sk bundle
   encodeFile wcOutFile witnessBundle
 
 renderSignBundleError :: SignBundleError -> Doc AnsiStyle
 renderSignBundleError = \case
   SignGroupError ge -> renderGroupError ge
   SignBadEra -> "Unsupported transaction era"
+  SignNoTransactions ->
+    "Your signature is not required (hint: to forcibly sign all possible transaction combinations, for instance if you need to sign for non-script-related reasons, use the --all flag)."
 
 -- * Witness Info command
 
@@ -551,7 +592,12 @@ readTxBody filePath = do
 
 readSigningKey :: FilePath -> IO (SigningKey PaymentKey)
 readSigningKey filePath = do
-  result <- readFileTextEnvelope (AsSigningKey AsPaymentKey) (File filePath)
+  result <-
+    readFileTextEnvelopeAnyOf
+      [ FromSomeType (AsSigningKey AsPaymentKey) id
+      , FromSomeType (AsSigningKey AsGenesisUTxOKey) castSigningKey
+      ]
+      (File filePath)
   unwrapOrCrash prettyError result
 
 unwrapOrCrash :: (a -> Doc AnsiStyle) -> Either a b -> IO b

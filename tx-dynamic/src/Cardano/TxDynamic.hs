@@ -4,31 +4,23 @@
 module Cardano.TxDynamic where
 
 import Cardano.Api (
-  AddressInEra (AddressInEra),
-  AddressTypeInEra (ShelleyAddressInEra),
   AnyShelleyBasedEra (..),
   AsType (..),
-  ConwayEra,
   HasTypeProxy (proxyToAsType),
   Hash,
   IsShelleyBasedEra,
   Key (..),
   MonadTrans (..),
-  NetworkId (Mainnet),
-  PaymentCredential (..),
   PaymentKey,
   SerialiseAsCBOR (deserialiseFromCBOR, serialiseToCBOR),
   ShelleyBasedEra (..),
   SigningKey (..),
-  StakeAddressReference (NoStakeAddress),
   Tx,
   TxBody,
   TxId (..),
   TxIx (..),
   TxScriptValidity,
   VerificationKey (..),
-  makeShelleyAddress,
-  readFileTextEnvelope,
   runExceptT,
   throwE,
   txScriptValidityToScriptValidity,
@@ -98,6 +90,7 @@ import Data.ByteString.Short (ShortByteString (..))
 import qualified Data.ByteString.Short as SBS
 import Data.Coerce (coerce)
 import Data.Data (Proxy (..), Typeable)
+import Data.Foldable (traverse_)
 import Data.Function ((&))
 import Data.Functor (void)
 import Data.Map (Map)
@@ -105,28 +98,28 @@ import qualified Data.Map as Map
 import Data.STRef (modifySTRef, newSTRef, readSTRef)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import Data.Traversable (for)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as M
 import Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed as U
-import Data.Word (Word16, Word32, Word64)
+import Data.Word (Word32, Word64, Word8)
 import Data.Word.Extra (indexWord32BE, indexWord64BE)
 import GHC.Generics (Generic)
 import GHC.TypeLits (natVal)
-import System.IO.Unsafe (unsafePerformIO)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Header in a tx bundle file
 data TxBundleHeader = TxBundleHeader
   { hEra :: AnyShelleyBasedEra
   -- ^ The era of the transaction
-  , hGroupTabSize :: Word16
+  , hGroupTabSize :: Word8
   -- ^ The length of the group table (in rows)
-  , hSigTabSize :: Word16
+  , hSigTabSize :: Word8
   -- ^ The length of the signatory table (in rows)
-  , hGroupMemTabSize :: Word16
+  , hGroupMemTabSize :: Word8
   -- ^ The length of the group membership table (in rows)
   , hTxBodySize :: Int
   -- ^ The size of the tx body (in bytes)
@@ -135,18 +128,18 @@ data TxBundleHeader = TxBundleHeader
 
 -- | A row in the group table
 data GroupHeader = GroupHeader
-  { grpSize :: Word16
+  { grpSize :: Word8
   -- ^ The number of signatories in the group
-  , grpThreshold :: Word16
+  , grpThreshold :: Word8
   -- ^ The minimum number of signatures required from the group
   }
   deriving (Show, Eq, Generic, Binary)
 
 -- | A row in the group membership table
 data GroupMemHeader = GroupMemHeader
-  { gmGroup :: Word16
+  { gmGroup :: Word8
   -- ^ The group to which the signatory belongs
-  , gmSig :: Word16
+  , gmSig :: Word8
   -- ^ The signatory that belongs to the group
   }
   deriving (Show, Eq, Generic, Binary)
@@ -155,20 +148,22 @@ data TxBundle era = TxBundle
   { tbGroupTab :: Vector GroupHeader
   , tbSigTab :: Vector (Hash PaymentKey)
   , tbGroupMemTab :: Vector GroupMemHeader
+  , tbGroupNameTab :: V.Vector Text
   , tbTxBody :: TxBody era
   }
   deriving (Show, Eq)
 
 data GroupError
-  = GroupIndexOutOufBounds Word16
-  | SignatoryIndexOutOufBounds Word16
-  | GroupSizeWrong Word16 Int
-  | GroupThresholdTooHigh Word16 Word16
+  = GroupIndexOutOufBounds Word8
+  | SignatoryIndexOutOufBounds Word8
+  | GroupSizeWrong Word8 Int
+  | GroupThresholdTooHigh Word8 Word8
   deriving (Show, Eq)
 
 data SignBundleError
   = SignGroupError GroupError
   | SignBadEra
+  | SignNoTransactions
   deriving (Show, Eq)
 
 data AssembleError
@@ -187,11 +182,14 @@ data WitnessBundle = WitnessBundle
 assemble :: [WitnessBundle] -> TxBundle era -> Either AssembleError (Tx era)
 assemble witBundles bundle = do
   groups <- first AssembleGroupError $ getSigningGroups bundle
-  let signers = foldMap (Set.singleton . verificationKeyHash . wbVerificationKey) witBundles
+  let allGroupSigners = U.foldMap Set.singleton $ tbSigTab bundle
+  let signedGroupSigners =
+        Set.intersection allGroupSigners $
+          foldMap (Set.singleton . verificationKeyHash . wbVerificationKey) witBundles
   void $ flip Map.traverseWithKey groups \group threshold ->
-    when (Set.size (Set.intersection group signers) < threshold) $
+    when (Set.size (Set.intersection group signedGroupSigners) < threshold) $
       Left TooFewSignatures
-  txBody <- setSigners AssembleBadEra signers $ tbTxBody bundle
+  txBody <- setSigners AssembleBadEra signedGroupSigners $ tbTxBody bundle
   let txId = C.getTxId txBody
   makeSignedTransaction txBody <$> for witBundles \WitnessBundle{..} -> do
     let pkh = verificationKeyHash wbVerificationKey
@@ -296,7 +294,27 @@ signBundle sk bundle@TxBundle{..} = do
   let vk = getVerificationKey sk
   let pkh = verificationKeyHash vk
   let filtered = Set.filter (Set.member pkh) combinations
+  when (Set.null filtered) $ Left SignNoTransactions
   WitnessBundle vk . Map.fromList <$> for (Set.toList filtered) \signers -> do
+    txBody <- setSigners SignBadEra signers tbTxBody
+    let C.ShelleyTxBody era ledgerBody' _ _ _ _ = txBody
+    let txHash :: Shelley.Hash StandardCrypto EraIndependentTxBody
+        txHash =
+          C.shelleyBasedEraConstraints era $
+            extractHash @StandardCrypto $
+              hashAnnotated ledgerBody'
+    case sk of
+      PaymentSigningKey sk' -> pure (C.getTxId txBody, signDSIGN () txHash sk')
+
+signBundleAll
+  :: forall era
+   . SigningKey PaymentKey
+  -> TxBundle era
+  -> Either SignBundleError WitnessBundle
+signBundleAll sk bundle@TxBundle{..} = do
+  combinations <- first SignGroupError $ signatureCombinations bundle
+  let vk = getVerificationKey sk
+  WitnessBundle vk . Map.fromList <$> for (Set.toList combinations) \signers -> do
     txBody <- setSigners SignBadEra signers tbTxBody
     let C.ShelleyTxBody era ledgerBody' _ _ _ _ = txBody
     let txHash :: Shelley.Hash StandardCrypto EraIndependentTxBody
@@ -389,55 +407,6 @@ mergeCombinations prev group threshold =
 groupCombinations :: Int -> Set (Hash PaymentKey) -> Set (Set (Hash PaymentKey))
 groupCombinations threshold = Set.filter (\s -> Set.size s >= threshold) . Set.powerSet
 
-testBundle :: TxBundle ConwayEra
-testBundle =
-  TxBundle
-    { tbGroupTab =
-        U.fromList
-          [ GroupHeader 1 1
-          , GroupHeader 3 2
-          , GroupHeader 1 1
-          ]
-    , tbSigTab =
-        U.fromList
-          [ PaymentKeyHash $
-              KeyHash $
-                hashFromPackedBytes $
-                  PackedBytes28
-                    0x3b3c8374dd851fb0
-                    0xc84d234e2085af62
-                    0xf759e914f34e039f
-                    0x0dcfb1f3
-          , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 1
-          , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 2
-          , PaymentKeyHash $ KeyHash $ hashFromPackedBytes $ PackedBytes28 0 0 0 4
-          ]
-    , tbGroupMemTab =
-        U.fromList
-          [ GroupMemHeader 0 0
-          , GroupMemHeader 1 1
-          , GroupMemHeader 1 2
-          , GroupMemHeader 1 3
-          , GroupMemHeader 2 2
-          ]
-    , tbTxBody =
-        either (error . show) C.getTxBody . unsafePerformIO $
-          readFileTextEnvelope (AsTx AsConwayEra) "../tx.json"
-    }
-
-addr1 :: AddressInEra ConwayEra
-addr1 =
-  AddressInEra (ShelleyAddressInEra ShelleyBasedEraConway) $
-    makeShelleyAddress
-      Mainnet
-      ( PaymentCredentialByKey $
-          PaymentKeyHash $
-            KeyHash $
-              hashFromPackedBytes $
-                PackedBytes28 0 0 0 0
-      )
-      NoStakeAddress
-
 data SomeTxBundle where
   SomeTxBundle
     :: (Typeable era) => ShelleyBasedEra era -> TxBundle era -> SomeTxBundle
@@ -454,6 +423,7 @@ instance Binary SomeTxBundle where
     U.mapM_ put tbGroupTab
     U.mapM_ put tbSigTab
     U.mapM_ put tbGroupMemTab
+    traverse_ put tbGroupNameTab
     putByteString txBodyBytes
   get = do
     TxBundleHeader{..} <- get
@@ -461,6 +431,7 @@ instance Binary SomeTxBundle where
     tbGroupTab <- U.replicateM (fromIntegral hGroupTabSize) get
     tbSigTab <- U.replicateM (fromIntegral hSigTabSize) get
     tbGroupMemTab <- U.replicateM (fromIntegral hGroupMemTabSize) get
+    tbGroupNameTab <- V.replicateM (U.length tbGroupTab) get
     tbTxBody <- getTxBody era hTxBodySize
     pure $ SomeTxBundle era TxBundle{..}
 
@@ -512,8 +483,8 @@ instance Binary TxId where
 
 deriving newtype instance Binary TxIx
 
-newtype instance U.MVector s GroupHeader = MV_GroupHeader (U.MVector s (Word16, Word16))
-newtype instance U.Vector GroupHeader = V_GroupHeader (U.Vector (Word16, Word16))
+newtype instance U.MVector s GroupHeader = MV_GroupHeader (U.MVector s (Word8, Word8))
+newtype instance U.Vector GroupHeader = V_GroupHeader (U.Vector (Word8, Word8))
 
 instance M.MVector U.MVector GroupHeader where
   {-# INLINE basicLength #-}
@@ -525,15 +496,15 @@ instance M.MVector U.MVector GroupHeader where
   {-# INLINE basicUnsafeCopy #-}
   {-# INLINE basicUnsafeMove #-}
   {-# INLINE basicUnsafeGrow #-}
-  basicLength = coerce $ M.basicLength @U.MVector @(Word16, Word16)
-  basicUnsafeSlice = coerce $ M.basicUnsafeSlice @U.MVector @(Word16, Word16)
-  basicOverlaps = coerce $ M.basicOverlaps @U.MVector @(Word16, Word16)
-  basicUnsafeNew = coerce $ M.basicUnsafeNew @U.MVector @(Word16, Word16)
-  basicInitialize = coerce $ M.basicInitialize @U.MVector @(Word16, Word16)
-  basicUnsafeCopy = coerce $ M.basicUnsafeCopy @U.MVector @(Word16, Word16)
-  basicUnsafeMove = coerce $ M.basicUnsafeMove @U.MVector @(Word16, Word16)
-  basicUnsafeGrow = coerce $ M.basicUnsafeGrow @U.MVector @(Word16, Word16)
-  basicClear = coerce $ M.basicClear @U.MVector @(Word16, Word16)
+  basicLength = coerce $ M.basicLength @U.MVector @(Word8, Word8)
+  basicUnsafeSlice = coerce $ M.basicUnsafeSlice @U.MVector @(Word8, Word8)
+  basicOverlaps = coerce $ M.basicOverlaps @U.MVector @(Word8, Word8)
+  basicUnsafeNew = coerce $ M.basicUnsafeNew @U.MVector @(Word8, Word8)
+  basicInitialize = coerce $ M.basicInitialize @U.MVector @(Word8, Word8)
+  basicUnsafeCopy = coerce $ M.basicUnsafeCopy @U.MVector @(Word8, Word8)
+  basicUnsafeMove = coerce $ M.basicUnsafeMove @U.MVector @(Word8, Word8)
+  basicUnsafeGrow = coerce $ M.basicUnsafeGrow @U.MVector @(Word8, Word8)
+  basicClear = coerce $ M.basicClear @U.MVector @(Word8, Word8)
   {-# INLINE basicUnsafeReplicate #-}
   {-# INLINE basicUnsafeRead #-}
   {-# INLINE basicUnsafeWrite #-}
@@ -553,23 +524,23 @@ instance G.Vector Vector GroupHeader where
   {-# INLINE basicLength #-}
   {-# INLINE basicUnsafeSlice #-}
   {-# INLINE basicUnsafeCopy #-}
-  basicUnsafeFreeze = coerce $ G.basicUnsafeFreeze @Vector @(Word16, Word16)
-  basicUnsafeThaw = coerce $ G.basicUnsafeThaw @Vector @(Word16, Word16)
-  basicLength = coerce $ G.basicLength @Vector @(Word16, Word16)
-  basicUnsafeSlice = coerce $ G.basicUnsafeSlice @Vector @(Word16, Word16)
-  basicUnsafeCopy = coerce $ G.basicUnsafeCopy @Vector @(Word16, Word16)
+  basicUnsafeFreeze = coerce $ G.basicUnsafeFreeze @Vector @(Word8, Word8)
+  basicUnsafeThaw = coerce $ G.basicUnsafeThaw @Vector @(Word8, Word8)
+  basicLength = coerce $ G.basicLength @Vector @(Word8, Word8)
+  basicUnsafeSlice = coerce $ G.basicUnsafeSlice @Vector @(Word8, Word8)
+  basicUnsafeCopy = coerce $ G.basicUnsafeCopy @Vector @(Word8, Word8)
   {-# INLINE basicUnsafeIndexM #-}
   {-# INLINE elemseq #-}
   basicUnsafeIndexM (V_GroupHeader v) i =
     uncurry GroupHeader <$> G.basicUnsafeIndexM v i
   elemseq _ GroupHeader{..} z =
-    G.elemseq (undefined :: Vector Word16) grpSize $
-      G.elemseq (undefined :: Vector Word16) grpThreshold z
+    G.elemseq (undefined :: Vector Word8) grpSize $
+      G.elemseq (undefined :: Vector Word8) grpThreshold z
 
 instance U.Unbox GroupHeader
 
-newtype instance U.MVector s GroupMemHeader = MV_GroupMemHeader (U.MVector s (Word16, Word16))
-newtype instance U.Vector GroupMemHeader = V_GroupMemHeader (U.Vector (Word16, Word16))
+newtype instance U.MVector s GroupMemHeader = MV_GroupMemHeader (U.MVector s (Word8, Word8))
+newtype instance U.Vector GroupMemHeader = V_GroupMemHeader (U.Vector (Word8, Word8))
 
 instance M.MVector U.MVector GroupMemHeader where
   {-# INLINE basicLength #-}
@@ -581,15 +552,15 @@ instance M.MVector U.MVector GroupMemHeader where
   {-# INLINE basicUnsafeCopy #-}
   {-# INLINE basicUnsafeMove #-}
   {-# INLINE basicUnsafeGrow #-}
-  basicLength = coerce $ M.basicLength @U.MVector @(Word16, Word16)
-  basicUnsafeSlice = coerce $ M.basicUnsafeSlice @U.MVector @(Word16, Word16)
-  basicOverlaps = coerce $ M.basicOverlaps @U.MVector @(Word16, Word16)
-  basicUnsafeNew = coerce $ M.basicUnsafeNew @U.MVector @(Word16, Word16)
-  basicInitialize = coerce $ M.basicInitialize @U.MVector @(Word16, Word16)
-  basicUnsafeCopy = coerce $ M.basicUnsafeCopy @U.MVector @(Word16, Word16)
-  basicUnsafeMove = coerce $ M.basicUnsafeMove @U.MVector @(Word16, Word16)
-  basicUnsafeGrow = coerce $ M.basicUnsafeGrow @U.MVector @(Word16, Word16)
-  basicClear = coerce $ M.basicClear @U.MVector @(Word16, Word16)
+  basicLength = coerce $ M.basicLength @U.MVector @(Word8, Word8)
+  basicUnsafeSlice = coerce $ M.basicUnsafeSlice @U.MVector @(Word8, Word8)
+  basicOverlaps = coerce $ M.basicOverlaps @U.MVector @(Word8, Word8)
+  basicUnsafeNew = coerce $ M.basicUnsafeNew @U.MVector @(Word8, Word8)
+  basicInitialize = coerce $ M.basicInitialize @U.MVector @(Word8, Word8)
+  basicUnsafeCopy = coerce $ M.basicUnsafeCopy @U.MVector @(Word8, Word8)
+  basicUnsafeMove = coerce $ M.basicUnsafeMove @U.MVector @(Word8, Word8)
+  basicUnsafeGrow = coerce $ M.basicUnsafeGrow @U.MVector @(Word8, Word8)
+  basicClear = coerce $ M.basicClear @U.MVector @(Word8, Word8)
   {-# INLINE basicUnsafeReplicate #-}
   {-# INLINE basicUnsafeRead #-}
   {-# INLINE basicUnsafeWrite #-}
@@ -609,18 +580,18 @@ instance G.Vector Vector GroupMemHeader where
   {-# INLINE basicLength #-}
   {-# INLINE basicUnsafeSlice #-}
   {-# INLINE basicUnsafeCopy #-}
-  basicUnsafeFreeze = coerce $ G.basicUnsafeFreeze @Vector @(Word16, Word16)
-  basicUnsafeThaw = coerce $ G.basicUnsafeThaw @Vector @(Word16, Word16)
-  basicLength = coerce $ G.basicLength @Vector @(Word16, Word16)
-  basicUnsafeSlice = coerce $ G.basicUnsafeSlice @Vector @(Word16, Word16)
-  basicUnsafeCopy = coerce $ G.basicUnsafeCopy @Vector @(Word16, Word16)
+  basicUnsafeFreeze = coerce $ G.basicUnsafeFreeze @Vector @(Word8, Word8)
+  basicUnsafeThaw = coerce $ G.basicUnsafeThaw @Vector @(Word8, Word8)
+  basicLength = coerce $ G.basicLength @Vector @(Word8, Word8)
+  basicUnsafeSlice = coerce $ G.basicUnsafeSlice @Vector @(Word8, Word8)
+  basicUnsafeCopy = coerce $ G.basicUnsafeCopy @Vector @(Word8, Word8)
   {-# INLINE basicUnsafeIndexM #-}
   {-# INLINE elemseq #-}
   basicUnsafeIndexM (V_GroupMemHeader v) i =
     uncurry GroupMemHeader <$> G.basicUnsafeIndexM v i
   elemseq _ GroupMemHeader{..} z =
-    G.elemseq (undefined :: Vector Word16) gmGroup $
-      G.elemseq (undefined :: Vector Word16) gmSig z
+    G.elemseq (undefined :: Vector Word8) gmGroup $
+      G.elemseq (undefined :: Vector Word8) gmSig z
 
 instance U.Unbox GroupMemHeader
 

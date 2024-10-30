@@ -91,26 +91,36 @@ So, we have to do it in two transactions.
       --mint-redeemer-file burn-hot/mint.redeemer.json \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
       --change-address $(cat orchestrator.addr) \
       --out-file burn-hot/body.json
    Estimated transaction fee: Coin 667729
+   $ tx-bundle build \
+     --tx-body-file burn-hot/body.json \
+     --group-name delegation \
+     --group-threshold 2 \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
+     --out-file burn-hot/body.txbundle
    $ cc-sign -q \
-      --tx-body-file burn-hot/body.json \
+      --tx-bundle-file burn-hot/body.txbundle \
       --private-key-file example-certificates/children/child-1/child-1.private \
-      --out-file burn-hot/child-1.witness
+      --out-file burn-hot/child-1.witbundle
    $ cc-sign -q \
-      --tx-body-file burn-hot/body.json \
+      --tx-bundle-file burn-hot/body.txbundle \
       --private-key-file example-certificates/children/child-2/child-2.private \
-      --out-file burn-hot/child-2.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file burn-hot/body.json \
+      --out-file burn-hot/child-2.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file burn-hot/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file burn-hot/orchestrator.witness
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file burn-hot/body.json \
-      --witness-file burn-hot/child-1.witness \
-      --witness-file burn-hot/child-2.witness \
-      --witness-file burn-hot/orchestrator.witness \
+      --out-file burn-hot/orchestrator.witbundle
+   $ tx-bundle assemble \
+      --tx-bundle-file burn-hot/body.txbundle \
+      --witness-bundle-file burn-hot/child-1.witbundle \
+      --witness-bundle-file burn-hot/child-2.witbundle \
+      --witness-bundle-file burn-hot/orchestrator.witbundle \
       --out-file burn-hot/tx.json
    $ cardano-cli conway transaction submit --tx-file burn-hot/tx.json
    Transaction successfully submitted.
@@ -185,37 +195,40 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
       --change-address $(cat orchestrator.addr) \
       --out-file burn-cold/body.json
    Estimated transaction fee: Coin 529119
+   $ tx-bundle build \
+     --tx-body-file burn-cold/body.json \
+     --group-name membership \
+     --group-threshold 1 \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
+     --out-file burn-cold/body.txbundle
    $ cc-sign -q \
-      --tx-body-file burn-cold/body.json \
-      --private-key-file example-certificates/children/child-4/child-4.private \
-      --out-file burn-cold/child-4.witness
-   $ cc-sign -q \
-      --tx-body-file burn-cold/body.json \
+      --tx-bundle-file burn-cold/body.txbundle \
       --private-key-file example-certificates/children/child-5/child-5.private \
-      --out-file burn-cold/child-5.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file burn-cold/body.json \
+      --out-file burn-cold/child-5.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file burn-cold/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file burn-cold/orchestrator.witness
+      --out-file burn-cold/orchestrator.witbundle
    # If using the custom minting script provided in this guide for the local testnet setup.
-   $ cardano-cli conway transaction witness \
-      --tx-body-file burn-cold/body.json \
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file burn-cold/body.txbundle \
       --signing-key-file coldMint.skey \
-      --out-file burn-cold/coldMint.witness
+      --out-file burn-cold/coldMint.witbundle
    # If using the real minting script (i.e. you are not following the guide in a local testnet)
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file burn-cold/body.json \
-      --witness-file burn-cold/child-4.witness \
-      --witness-file burn-cold/child-5.witness \
-      --witness-file burn-cold/orchestrator.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file burn-cold/body.txbundle \
+      --witness-bundle-file burn-cold/child-5.witbundle \
+      --witness-bundle-file burn-cold/orchestrator.witbundle \
       --out-file burn-cold/tx.json
    # If using the custom minting script provided in this guide for the local testnet setup.
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file burn-cold/body.json \
-      --witness-file burn-cold/child-4.witness \
-      --witness-file burn-cold/child-5.witness \
-      --witness-file burn-cold/orchestrator.witness \
-      --witness-file burn-cold/coldMint.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file burn-cold/body.txbundle \
+      --witness-bundle-file burn-cold/child-5.witbundle \
+      --witness-bundle-file burn-cold/orchestrator.witbundle \
+      --witness-bundle-file burn-cold/coldMint.witbundle \
       --out-file burn-cold/tx.json
    $ cardano-cli conway transaction submit --tx-file burn-cold/tx.json
    Transaction successfully submitted.

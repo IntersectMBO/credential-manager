@@ -129,7 +129,7 @@ Step 2: Create the Transaction
 Once again, we need signatures from multiple users.
 To authorize the ``rotate-cold`` action, the transaction must be signed by a majority of the (current) membership group.
 In addition to this, any new users in a group must sign the transaction (i.e. users who weren't present in the previous group).
-Because we are swapping all the keys, all the users are new in both groups, so everyone needs to sign the transaction.
+Because we are swapping all the keys, all the users are new in both groups, so everyone needs to sign the transaction, and there is no need to use ``tx-bundle``.
 
 Step 3. Distribute the Transaction to The Membership Group
 ----------------------------------------------------------

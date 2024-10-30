@@ -115,6 +115,7 @@ Now we have everything we need to build the transaction:
      --tx-out-inline-datum-file authorize/datum.json \
      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
+     --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-6.cert) \
      --certificate-file authorize/authorizeHot.cert \
      --certificate-script-file init-cold/credential.plutus \
      --certificate-redeemer-value {} \
@@ -155,13 +156,14 @@ The options related to the tx outputs are fairly straightforward - the first
 says the address and the value to send, and the second provides a datum to
 embed in the output.
 
-The next lines tell the transaction that it must be signed by ``child-4`` and
-``child-5``
+The next lines tell the transaction that it must be signed by ``child-4``,
+``child-5``, and ``child-6``.
 
 .. code-block:: bash
 
    --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
    --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
+   --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-6.cert) \
 
 The need for these arguments reveals a bit of an incompatibility (or at least
 a point of awkwardness) between the requirements of the scripts and the
@@ -176,9 +178,13 @@ send it to everyone who can sign it, and wait until you receive enough
 signatures to submit it. You need to first know who will sign it (e.g. who is
 in the office today and able to sign), then wait for all signatures. If it
 turns out one of the signers is unavailable, you will need to build a new
-transaction without requiring it to be signed by that person. For demonstration
-purposes, we are going to sign with child 4 and child 5 (let's assume child 6
-is on vacation).
+transaction without requiring it to be signed by that person. 
+
+We will shortly use the ``tx-bundle`` tool, which was developed to overcome
+this problem. For the time being, we will create a transaction that must be
+signed by all possible signatories for ``tx-bundle`` to use as a template. By
+specifying all signatories in the template, we ensure that the fees and
+execution units will be set to a conservative upper-bound.
 
 Finally, we add the certificate to the transaction:
 
@@ -201,12 +207,39 @@ hash credential, we need to provide the script in the transaction body for
 execution. The redeemer value is irrelevant in our script, so we pass in the
 unit value ``{}``.
 
-Step 5. Distribute the Transaction to The Delegation Group
+Step 5. Create a Transaction Bundle file
+----------------------------------------
+
+Now that we have our template transaction, we will turn it into a transaction
+bundle. This step will allow any valid number of signatories to sign the
+transaction so we don't need to know upfront exactly who will be signing. A
+transaction bundle bundles signatory group information alongside a transaction
+body. This allows all possible signature combinations to be enumerated simply
+by modifying the extra key wits field in the transaction body. When signing a
+transaction bundle, one produces a witness bundle file, which is a mapping of
+transaction hash to a signature for that transaction ID. One signature is added
+for all possible transaction that signatory can sign. Once sufficient
+witness bundles have been collected, the transaction signed by all signatories
+is selected and assembled.
+
+.. code-block:: bash
+
+   $ tx-bundle build \
+     --tx-body-file authorize/body.json \
+     --group-name delegation \
+     --group-threshold 2 \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
+     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-6.cert) \
+     --out-file authorize/body.txbundle
+
+
+Step 6. Distribute the Transaction to The Delegation Group
 ----------------------------------------------------------
 
 We now have an unsigned transaction body which we need our delegators to sign.
 Using the file transfer mechanism of your choice, send the transaction body
-file to all the signatories specified with ``--required-signer-hash`` options.
+file to all the members of the delegation group.
 In our example, we control all the keys anyway, so we can sign the transaction
 ourselves. We can do so with the ``cc-sign`` tool which is provided by the nix
 shell. This allows us to sign using the encrypted private key files that were
@@ -221,9 +254,9 @@ your password no matter what.
 .. code-block:: bash
 
    $ cc-sign \
-      --tx-body-file authorize/body.json \
+      --tx-bundle-file authorize/body.txbundle \
       --private-key-file example-certificates/children/child-4/child-4.private \
-      --out-file authorize/child-4.witness
+      --out-file authorize/child-4.witbundle
 
    Enter pass phrase for example-certificates/children/child-4/child-4.private:
    Checking transaction body file... OK
@@ -257,41 +290,40 @@ your password no matter what.
    Check extra tx body fields...
 
    Check transaction signatories...
-   Requires signature from 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c (you can sign)
-   Requires signature from a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4
+     you can sign
    Do you wish to sign this transaction? (yN): y
-   Saved witness to authorize/child-4.witness
+   Saved witness to authorize/child-4.witbundle
    $ cc-sign -q \
-      --tx-body-file authorize/body.json \
+      --tx-bundle-file authorize/body.txbundle \
       --private-key-file example-certificates/children/child-5/child-5.private \
-      --out-file authorize/child-5.witness
+      --out-file authorize/child-5.witbundle
 
 As you can see, the tool displays a summary of the relevant information from
 the transaction. It also looks for any abnormalities and warns if it finds any.
 
 Since we are spending an input from our own wallet to pay for fees, we also
-need to sign the transaction with our own signing key:
+need to sign the transaction with our own signing key. Since the orchestrator
+is not in any of the signing groups, we need to force sign all possible
+transactions with the ``--all`` flag:
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction witness \
-      --tx-body-file authorize/body.json \
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file authorize/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file authorize/orchestrator.witness
-
-Step 6. Assemble and Submit the Transaction
--------------------------------------------
+      --out-file authorize/orchestrator.witbundle
 
 Finally, we can put everything together to submit the transaction:
 
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file authorize/body.json \
-      --witness-file authorize/child-4.witness \
-      --witness-file authorize/child-5.witness \
-      --witness-file authorize/orchestrator.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file authorize/body.txbundle \
+      --witness-bundle-file authorize/child-4.witbundle \
+      --witness-bundle-file authorize/child-5.witbundle \
+      --witness-bundle-file authorize/orchestrator.witbundle \
       --out-file authorize/tx.json
    $ cardano-cli conway transaction submit --tx-file authorize/tx.json
    Transaction successfully submitted.

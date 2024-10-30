@@ -10,26 +10,32 @@ The usage of the command is as follows:
    cc-sign --help
 
    Usage: cc-sign [-v|--version] [-q|--quiet] [-y|--yes]
-                  (-k|--private-key-file FILEPATH) (-t|--tx-body-file FILEPATH)
+                  (-k|--private-key-file FILEPATH) 
+                  ((-t|--tx-body-file FILEPATH) | --tx-bundle-file FILEPATH)
                   (-o|--out-file FILEPATH)
 
-     CLI application for signing CC Credential Manager transactions.
+   CLI application for signing CC Credential Manager transactions.
 
    Available options:
-     -h,--help                Show this help text
-     -v,--version             Show version.
-     -q,--quiet               Do not print summary output (implies -y)
-     -y,--yes                 Automatically confirm all prompts
-     -k,--private-key-file FILEPATH
+   -h,--help                Show this help text
+   -v,--version             Show version.
+   -q,--quiet               Do not print summary output (implies -y)
+   -y,--yes                 Automatically confirm all prompts
+   -k,--private-key-file FILEPATH
                               The PEM file containing your encrypted private key
-     -t,--tx-body-file FILEPATH
+   -t,--tx-body-file FILEPATH
                               The file containing the transaction body to sign.
-     -o,--out-file FILEPATH   A file path to save the transaction witness file.
+   --tx-bundle-file FILEPATH
+                              The file containing the transaction bundle to sign.
+   -o,--out-file FILEPATH   A file path to save the transaction witness or
+                              witness bundle file.
+
 
 There are three required options that must always be provided:
 
 - ``--private-key-file``: This is the filepath of your private key file which you will use to sign the transaction.
-- ``--tx-body-file``: This is the filepath of the transaction body file which you will sign.
+- ``--tx-body-file`` or ``--tx-bundle-file``: This is the filepath of the transaction body or transaction bundle file which you will sign.
+  Use ``--tx-body-file`` to sign a JSON tx body text envelope file, use ``--tx-bundle-file`` to sign a binary tx bundle file.
 - ``--out-file``: This is the filepath where the resulting witness file will be saved.
 
 The command will first prompt you for the pass phrase you used to encrypt the private key file.
@@ -42,9 +48,9 @@ Here is an example output:
 .. code-block:: bash
 
    $ cc-sign \
-      --tx-body-file authorize/body.json \
-      --private-key-file example-certificates/children/child-4/child-4.private \
-      --out-file authorize/child-4.witness
+      --tx-bundle-file ~/Downloads/vote-info-demo.txbundle \
+      --private-key-file ~/private-keys/bob-voter.private \
+      --out-file ~/Desktop/vote-info-demo.bob.witbundle
 
    Enter pass phrase for example-certificates/children/child-4/child-4.private:
    Checking transaction body file... OK
