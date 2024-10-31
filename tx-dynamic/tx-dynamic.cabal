@@ -100,3 +100,6 @@ executable tx-bundle
     , tx-dynamic
     , uuid
     , vector
+
+  if os(windows)
+    buildable: False
