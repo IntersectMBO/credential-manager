@@ -33,9 +33,9 @@ The repository is a Nix Flake. Add it to your config flake to install it:
    }
 
    # configuration.nix
-   { config, lib, nixpkgs, credential-manager, ... }: {
+   { config, lib, pkgs, credential-manager, ... }: {
      environment.systemPackages = [
-       credential-manager.packages.x86_64-linux.cc-sign;
+       credential-manager.packages.${pkgs.system}.cc-sign;
      ];
    }
 
