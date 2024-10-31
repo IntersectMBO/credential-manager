@@ -92,9 +92,11 @@ executable tx-bundle
     , cardano-crypto-class
     , containers
     , directory
-    , optparse-applicative
+    , filepath
+    , optparse-applicative-fork
     , prettyprinter
     , prettyprinter-ansi-terminal
     , text
     , tx-dynamic
+    , uuid
     , vector

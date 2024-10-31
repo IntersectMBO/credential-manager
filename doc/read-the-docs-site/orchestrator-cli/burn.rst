@@ -78,7 +78,7 @@ So, we have to do it in two transactions.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -89,20 +89,14 @@ So, we have to do it in two transactions.
       --mint "-1 $(cat init-hot/minting.plutus.hash).$(cat init-hot/nft-token-name)" \
       --mint-script-file init-hot/minting.plutus \
       --mint-redeemer-file burn-hot/mint.redeemer.json \
+      --required-signer-group-name delegation \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file burn-hot/body.json
+      --out-file burn-hot/body.txbundle
    Estimated transaction fee: Coin 667729
-   $ tx-bundle build \
-     --tx-body-file burn-hot/body.json \
-     --group-name delegation \
-     --group-threshold 2 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
-     --out-file burn-hot/body.txbundle
    $ cc-sign -q \
       --tx-bundle-file burn-hot/body.txbundle \
       --private-key-file example-certificates/children/child-1/child-1.private \
@@ -165,7 +159,7 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
 .. code-block:: bash
 
    # If using the real minting script (i.e. you are not following the guide in a local testnet)
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -178,10 +172,10 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file burn-cold/body.json
+      --out-file burn-cold/body.txbundle
    Estimated transaction fee: Coin 667729
    # If using the custom minting script provided in this guide for the local testnet setup.
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -190,18 +184,13 @@ This will proceed similar to ``burn-hot``, except the membership group needs to 
       --tx-in-redeemer-file burn-cold/nft.redeemer.json \
       --mint "-1 $COLD_POLICY_ID" \
       --mint-script-file coldMint.native \
+      --required-signer-group-name membership \
+      --required-signer-group-threshold 1 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file burn-cold/body.json
+      --out-file burn-cold/body.txbundle
    Estimated transaction fee: Coin 529119
-   $ tx-bundle build \
-     --tx-body-file burn-cold/body.json \
-     --group-name membership \
-     --group-threshold 1 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
-     --out-file burn-cold/body.txbundle
    $ cc-sign -q \
       --tx-bundle-file burn-cold/body.txbundle \
       --private-key-file example-certificates/children/child-5/child-5.private \

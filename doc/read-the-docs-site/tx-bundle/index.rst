@@ -82,15 +82,15 @@ The command to build a transaction bundle file would be:
 
    $ tx-bundle build \
      --tx-body-file myTx.txbody \
-     --group-name my-group \
-     --group-threshold 4 \
-     --verification-key-hash 19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6 \
-     --verification-key-hash 2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d \
-     --verification-key-hash 95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366 \
-     --verification-key-hash 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c \
-     --verification-key-hash a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4 \
-     --verification-key-hash b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325 \
-     --verification-key-hash c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab \
+     --required-signer-group-name my-group \
+     --required-signer-group-threshold 4 \
+     --required-signer 19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6 \
+     --required-signer 2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d \
+     --required-signer 95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366 \
+     --required-signer 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c \
+     --required-signer a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4 \
+     --required-signer b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325 \
+     --required-signer c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab \
      --out-file myTx.txbundle
 
 You can specify more than one group if there are multiple signing groups:
@@ -99,18 +99,50 @@ You can specify more than one group if there are multiple signing groups:
 
    $ tx-bundle build \
      --tx-body-file myTx.txbody \
-     --group-name my-group-1 \
-     --group-threshold 2 \
-     --verification-key-hash 19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6 \
-     --verification-key-hash 2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d \
-     --verification-key-hash 95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366 \
-     --group-name my-group-2 \
-     --group-threshold 3 \
-     --verification-key-hash 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c \
-     --verification-key-hash a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4 \
-     --verification-key-hash b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325 \
-     --verification-key-hash c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab \
+     --required-signer-group-name my-group-1 \
+     --required-signer-group-threshold 2 \
+     --required-signer 19c04196cca86fb0fbf09a35e67d55148508acafa321ebc509bc5cd6 \
+     --required-signer 2b3d02d77ee80b219ca1a20cd3f82b95ff23eb28ca4e886ce3cc039d \
+     --required-signer 95bebd09ef4d125a595ae0bf5f15724731a7537b5fda32927bc7b366 \
+     --required-signer-group-name my-group-2 \
+     --required-signer-group-threshold 3 \
+     --required-signer 7c4ce0c3eca1b077d8465cf3b44db18beea87bacf55c05c9b4d0317c \
+     --required-signer a263b5a55cb7b8728a0a97092fad7054117f7695897990bc1ab499b4 \
+     --required-signer b381e71db0a8fcf7c6f928ad5d1c7925f8143e7bcd534208406f3325 \
+     --required-signer c6731b9c6de6bf11d91f08099953cb393505806ff522e5cc3a7574ab \
      --out-file myTxMultiGroup.txbundle
+
+Alternatively, ``tx-bundle build`` can create a tx bundle using the same parameters as ``cardano-cli build``.
+Indeed, under the hood it calls the same code used by ``cardano-cli build`` to do so.
+The only differences are that you must specify ``required-signer-group-name`` and ``required-signer-group-threshold`` as well as ``required-signer-hash``.
+You must also specify at least one signing group (otherwise, why are you using ``tx-bundle``?)
+
+Additionally, it only supports ``--out-file``, not ``--calculate-plutus-script-cost``.
+
+Here is an example, taken from the ``orchestrator-cli`` documentation
+
+.. code-block:: bash
+
+   $ tx-bundle build \
+      --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
+      --tx-in $(jq -r 'keys[0]' hot-nft.utxo) \
+      --tx-in-script-file init-hot/nft.plutus \
+      --tx-in-inline-datum-present \
+      --tx-in-redeemer-file vote/redeemer.json \
+      --tx-out "$(cat vote/value)" \
+      --tx-out-inline-datum-file vote/datum.json \
+      --required-signer-group-name voting \
+      --required-signer-group-threshold 2 \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
+      --vote-file vote/vote \
+      --vote-script-file init-hot/credential.plutus \
+      --vote-redeemer-value {} \
+      --change-address $(cat orchestrator.addr) \
+      --out-file vote/body.txbundle
+   Estimated transaction fee: Coin 702241
 
 Inspecting a transaction bundle
 -------------------------------

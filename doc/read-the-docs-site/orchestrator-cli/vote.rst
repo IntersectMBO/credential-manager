@@ -134,7 +134,7 @@ Now we have everything we need to build the transaction.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(jq -r 'keys[0]' hot-nft.utxo) \
@@ -143,6 +143,8 @@ Now we have everything we need to build the transaction.
       --tx-in-redeemer-file vote/redeemer.json \
       --tx-out "$(cat vote/value)" \
       --tx-out-inline-datum-file vote/datum.json \
+      --required-signer-group-name voting \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
@@ -150,16 +152,8 @@ Now we have everything we need to build the transaction.
       --vote-script-file init-hot/credential.plutus \
       --vote-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
-      --out-file vote/body.json
+      --out-file vote/body.txbundle
    Estimated transaction fee: Coin 702241
-   $ tx-bundle build \
-     --tx-body-file vote/body.json \
-     --group-name voting \
-     --group-threshold 2 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-8.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-9.cert) \
-     --out-file vote/body.txbundle
 
 
 Most of what we covered when building the hot credential authorization script

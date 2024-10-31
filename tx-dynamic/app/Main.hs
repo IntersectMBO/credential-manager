@@ -2,33 +2,101 @@ module Main where
 
 import Cardano.Api (
   AsType (..),
+  ConsensusModeParams,
+  ConwayEraOnwards (..),
   Doc,
-  Error (prettyError),
+  Error (..),
+  Featured,
   File (..),
-  FromSomeType (FromSomeType),
+  FileDirection (..),
+  FromSomeType (..),
+  HasTypeProxy (..),
   Hash,
-  InAnyShelleyBasedEra (InAnyShelleyBasedEra),
   Key (..),
+  NetworkId,
   PaymentKey,
+  ScriptValidity (..),
   SerialiseAsRawBytes,
   ShelleyBasedEra (..),
-  ToCardanoEra (toCardanoEra),
+  ShelleyToBabbageEra,
+  SlotNo,
+  SocketPath,
+  StakeAddress,
+  ToCardanoEra (..),
   TxBody (..),
   TxBodyContent (..),
   TxExtraKeyWitnesses (..),
   TxId,
+  TxIn,
+  TxMetadataJsonSchema,
+  TxValidityUpperBound,
+  Value,
+  WitCtxMint,
+  WitCtxStake,
+  WitCtxTxIn,
   castSigningKey,
+  conwayEraOnwardsToShelleyBasedEra,
   deserialiseFromRawBytesHex,
   getTxBody,
+  parseAddressAny,
+  readFileTextEnvelope,
   readFileTextEnvelopeAnyOf,
+  runExceptT,
   serialiseToRawBytesHexText,
   writeTxFileTextEnvelopeCddl,
  )
+import Cardano.Api.Ledger (Coin)
+import Cardano.CLI.Environment (EnvCli, getEnvCli)
+import Cardano.CLI.EraBased.Commands.Transaction (TransactionBuildCmdArgs (..))
+import Cardano.CLI.EraBased.Options.Common (
+  pCertificateFile,
+  pConsensusModeParams,
+  pFeatured,
+  pInvalidBefore,
+  pInvalidHereafter,
+  pMetadataFile,
+  pMintMultiAsset,
+  pNetworkId,
+  pProposalFiles,
+  pReadOnlyReferenceTxIn,
+  pReturnCollateral,
+  pScriptFor,
+  pSocketPath,
+  pTotalCollateral,
+  pTreasuryDonation,
+  pTxIn,
+  pTxInCollateral,
+  pTxMetadataJsonSchema,
+  pTxOut,
+  pUpdateProposalFile,
+  pVoteFiles,
+  pWithdrawal,
+  pWitnessOverride,
+  readerFromParsecParser,
+ )
+import Cardano.CLI.EraBased.Run.Transaction (runTransactionBuildCmd)
 import Cardano.CLI.Json.Friendly (
   friendlyTxBody,
   viewOutputFormatToFriendlyFormat,
  )
-import Cardano.CLI.Types.Common (ViewOutputFormat (..))
+import Cardano.CLI.Types.Common (
+  BalanceTxExecUnits (..),
+  CertificateFile,
+  MetadataFile,
+  ProposalFile,
+  RequiredSigner (..),
+  ScriptFile,
+  ScriptWitnessFiles,
+  TxBuildOutputOptions (..),
+  TxOutAnyEra,
+  TxOutChangeAddress (TxOutChangeAddress),
+  TxOutShelleyBasedEra,
+  TxTreasuryDonation,
+  UpdateProposalFile,
+  ViewOutputFormat (..),
+ )
+import Cardano.CLI.Types.Errors.TxCmdError (renderTxCmdError)
+import Cardano.CLI.Types.Governance (VoteFile)
 import Cardano.Crypto.DSIGN (SigDSIGN (..))
 import Cardano.Crypto.PinnedSizedBytes (psbToByteString)
 import Cardano.TxDynamic (
@@ -44,12 +112,14 @@ import Cardano.TxDynamic (
   signBundle,
   signBundleAll,
   signatureCombinations,
+  withShelleyBasedEra,
  )
 import Control.Monad (foldM, guard, join, unless)
 import Data.Base16.Types (extractBase16)
 import Data.Bifunctor (Bifunctor (..))
 import Data.Binary (decodeFile, encodeFile)
 import Data.ByteString.Base16 (encodeBase16)
+import Data.Data (Proxy (Proxy), Typeable)
 import Data.Foldable (Foldable (..), asum, for_)
 import Data.Functor (void)
 import Data.List (nub)
@@ -59,6 +129,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
+import Data.UUID.V4 (nextRandom)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Data.Version (showVersion)
@@ -82,6 +153,7 @@ import Options.Applicative (
   long,
   metavar,
   option,
+  optional,
   progDesc,
   short,
   strOption,
@@ -101,14 +173,17 @@ import Prettyprinter (
   (<+>),
  )
 import Prettyprinter.Render.Terminal (AnsiStyle, hPutDoc, putDoc)
+import System.Directory (getTemporaryDirectory)
 import System.Directory.Internal.Prelude (exitFailure, hPutStrLn)
 import System.Exit (die)
+import System.FilePath ((</>))
 import System.IO (stderr)
 import Text.Printf (printf)
 
 main :: IO ()
 main = do
-  join . execParser . info (helper <*> versionOption <*> rootParser) . fold $
+  envCli <- getEnvCli
+  join . execParser . info (helper <*> versionOption <*> rootParser envCli) . fold $
     [ fullDesc
     , progDesc
         "tx-bundle: a command line utility for interacting with transaction bundle files"
@@ -120,11 +195,12 @@ versionOption =
     ("tx-dynamic " <> showVersion version)
     (long "version" <> short 'v' <> help "Show version.")
 
-rootParser :: Parser (IO ())
-rootParser =
+rootParser :: EnvCli -> Parser (IO ())
+rootParser envCli =
   hsubparser $
     fold
-      [ command "build" $ runBuildCommand <$> buildCommandParser
+      [ command "build" $
+          runBuildCommand <$> buildCommandParser ConwayEraOnwardsConway envCli
       , command "witness" $ runWitnessCommand <$> witnessCommandParser
       , command "info" $ runInfoCommand <$> infoCommandParser
       , command "witness-info" $ runWitnessInfoCommand <$> witnessInfoCommandParser
@@ -140,29 +216,141 @@ data Group = Group
   }
   deriving (Show, Eq)
 
-data BuildCommand = BuildCommand
-  { bcTxBodyFile :: FilePath
+data BuildCommand era = BuildCommand
+  { bcCurrentEra :: ConwayEraOnwards era
+  , bcTxBodyFileOrBuildArgs :: Either FilePath (TransactionBuildArgs era)
   , bcGroups :: [Group]
   , bcOutFile :: FilePath
   }
-  deriving (Show)
 
-buildCommandParser :: ParserInfo BuildCommand
-buildCommandParser = info parser description
+data TransactionBuildArgs era = TransactionBuildArgs
+  { nodeSocketPath :: !SocketPath
+  , consensusModeParams :: !ConsensusModeParams
+  , networkId :: !NetworkId
+  , mScriptValidity :: !(Maybe ScriptValidity)
+  -- ^ Mark script as expected to pass or fail validation
+  , mOverrideWitnesses :: !(Maybe Word)
+  -- ^ Override the required number of tx witnesses
+  , txins :: ![(TxIn, Maybe (ScriptWitnessFiles WitCtxTxIn))]
+  -- ^ Transaction inputs with optional spending scripts
+  , readOnlyReferenceInputs :: ![TxIn]
+  -- ^ Read only reference inputs
+  , txinsc :: ![TxIn]
+  -- ^ Transaction inputs for collateral, only key witnesses, no scripts.
+  , mReturnCollateral :: !(Maybe TxOutShelleyBasedEra)
+  -- ^ Return collateral
+  , mTotalCollateral :: !(Maybe Coin)
+  -- ^ Total collateral
+  , txouts :: ![TxOutAnyEra]
+  -- ^ Normal outputs
+  , changeAddresses :: !TxOutChangeAddress
+  -- ^ A change output
+  , mValue :: !(Maybe (Value, [ScriptWitnessFiles WitCtxMint]))
+  -- ^ Multi-Asset value with script witness
+  , mValidityLowerBound :: !(Maybe SlotNo)
+  -- ^ Transaction validity lower bound
+  , mValidityUpperBound :: !(TxValidityUpperBound era)
+  -- ^ Transaction validity upper bound
+  , certificates :: ![(CertificateFile, Maybe (ScriptWitnessFiles WitCtxStake))]
+  -- ^ Certificates with potential script witness
+  , withdrawals :: ![(StakeAddress, Coin, Maybe (ScriptWitnessFiles WitCtxStake))]
+  -- ^ Withdrawals with potential script witness
+  , metadataSchema :: !TxMetadataJsonSchema
+  , scriptFiles :: ![ScriptFile]
+  -- ^ Auxiliary scripts
+  , metadataFiles :: ![MetadataFile]
+  , mUpdateProposalFile
+      :: !(Maybe (Featured ShelleyToBabbageEra era (Maybe UpdateProposalFile)))
+  , voteFiles :: ![(VoteFile 'In, Maybe (ScriptWitnessFiles WitCtxStake))]
+  , proposalFiles :: ![(ProposalFile 'In, Maybe (ScriptWitnessFiles WitCtxStake))]
+  , treasuryDonation :: !(Maybe TxTreasuryDonation)
+  }
+
+buildCommandParser
+  :: ConwayEraOnwards era -> EnvCli -> ParserInfo (BuildCommand era)
+buildCommandParser era envCli = info parser description
   where
     parser =
-      BuildCommand
-        <$> txBodyFileParser
+      BuildCommand era
+        <$> asum
+          [ Left <$> txBodyFileParser
+          , Right <$> buildArgsParser era envCli
+          ]
         <*> groupsParser
         <*> outFileParser "transaction bundle"
     description = progDesc "Build a transaction bundle signable by groups of signatories"
+
+buildArgsParser
+  :: ConwayEraOnwards era -> EnvCli -> Parser (TransactionBuildArgs era)
+buildArgsParser era envCli = do
+  let sbe = conwayEraOnwardsToShelleyBasedEra era
+  TransactionBuildArgs
+    <$> pSocketPath envCli
+    <*> pConsensusModeParams
+    <*> pNetworkId envCli
+    <*> optional pScriptValidity
+    <*> optional pWitnessOverride
+    <*> some (pTxIn sbe AutoBalance)
+    <*> many pReadOnlyReferenceTxIn
+    <*> many pTxInCollateral
+    <*> optional pReturnCollateral
+    <*> optional pTotalCollateral
+    <*> many pTxOut
+    <*> pChangeAddress
+    <*> optional (pMintMultiAsset sbe AutoBalance)
+    <*> optional pInvalidBefore
+    <*> pInvalidHereafter sbe
+    <*> many (pCertificateFile sbe AutoBalance)
+    <*> many (pWithdrawal sbe AutoBalance)
+    <*> pTxMetadataJsonSchema
+    <*> many
+      ( pScriptFor
+          "auxiliary-script-file"
+          Nothing
+          "Filepath of auxiliary script(s)"
+      )
+    <*> many pMetadataFile
+    <*> pFeatured (toCardanoEra sbe) (optional pUpdateProposalFile)
+    <*> pVoteFiles sbe AutoBalance
+    <*> pProposalFiles sbe AutoBalance
+    <*> pTreasuryDonation sbe
+
+pScriptValidity :: Parser ScriptValidity
+pScriptValidity =
+  asum
+    [ flag' ScriptValid $
+        mconcat
+          [ long "script-valid"
+          , help "Assertion that the script is valid. (default)"
+          ]
+    , flag' ScriptInvalid $
+        mconcat
+          [ long "script-invalid"
+          , help $
+              mconcat
+                [ "Assertion that the script is invalid.  "
+                , "If a transaction is submitted with such a script, "
+                , "the script will fail and the collateral will be taken."
+                ]
+          ]
+    ]
+
+pChangeAddress :: Parser TxOutChangeAddress
+pChangeAddress =
+  fmap TxOutChangeAddress $
+    option (readerFromParsecParser parseAddressAny) $
+      mconcat
+        [ long "change-address"
+        , metavar "ADDRESS"
+        , help "Address where ADA in excess of the tx fee will go to."
+        ]
 
 outFileParser :: String -> Parser FilePath
 outFileParser assetType =
   strOption . fold $
     [ long "out-file"
     , metavar "FILE"
-    , help $ printf "File to which to write the %s" assetType
+    , help $ printf "File to which to write the %s" $ show assetType
     ]
 
 groupsParser :: Parser [Group]
@@ -178,7 +366,7 @@ groupParser =
 groupNameParser :: Parser Text
 groupNameParser =
   strOption . fold $
-    [ long "group-name"
+    [ long "required-signer-group-name"
     , metavar "TEXT"
     , help
         "Starts a new group. The name of the group."
@@ -187,7 +375,7 @@ groupNameParser =
 groupThresholdParser :: Parser Word8
 groupThresholdParser =
   option auto . fold $
-    [ long "group-threshold"
+    [ long "required-signer-group-threshold"
     , metavar "INT"
     , help
         "The minimum number of signers from the group that must sign the transaction"
@@ -196,7 +384,7 @@ groupThresholdParser =
 groupMemberParser :: Parser (Hash PaymentKey)
 groupMemberParser =
   hexOption (AsHash AsPaymentKey) . fold $
-    [ long "verification-key-hash"
+    [ long "required-signer-hash"
     , metavar "HEX"
     , help "The verification key hash of a group member"
     ]
@@ -216,9 +404,11 @@ txBodyFileParser =
     , help "A JSON file containing the unwitnessed transaction as a text envelope."
     ]
 
-runBuildCommand :: BuildCommand -> IO ()
+runBuildCommand :: (Typeable era) => BuildCommand era -> IO ()
 runBuildCommand BuildCommand{..} = do
-  InAnyShelleyBasedEra era tbTxBody <- readTxBody bcTxBodyFile
+  txBodyFile <-
+    either pure (callTransactionBuild bcCurrentEra bcGroups) bcTxBodyFileOrBuildArgs
+  tbTxBody <- readTxBody bcCurrentEra txBodyFile
   let bundle =
         TxBundle
           { tbGroupTab = U.empty
@@ -239,7 +429,8 @@ runBuildCommand BuildCommand{..} = do
           stderr
           "WARNING: The template transaction was assembled without all extra key witnesses. Transaction fees and execution units may be higher than calculated."
 
-  encodeFile bcOutFile $ SomeTxBundle era bundle'
+  encodeFile bcOutFile $
+    SomeTxBundle (conwayEraOnwardsToShelleyBasedEra bcCurrentEra) bundle'
 
 processGroup :: TxBundle era -> Group -> IO (TxBundle era)
 processGroup bundle Group{..}
@@ -576,19 +767,30 @@ renderAssembleError = \case
 
 -- * Helpers
 
-readTxBody :: FilePath -> IO (InAnyShelleyBasedEra TxBody)
-readTxBody filePath = do
+callTransactionBuild
+  :: ConwayEraOnwards era -> [Group] -> TransactionBuildArgs era -> IO FilePath
+callTransactionBuild ConwayEraOnwardsConway groups TransactionBuildArgs{..} = do
+  tempDir <- getTemporaryDirectory
+  uuid <- nextRandom
+  let filename = printf "%s.txbody" $ show uuid
+  let path = tempDir </> filename
+  unwrapOrCrash renderTxCmdError =<< runExceptT do
+    runTransactionBuildCmd
+      TransactionBuildCmdArgs
+        { eon = ShelleyBasedEraConway
+        , requiredSigners = RequiredSignerHash <$> nub (groupMembers =<< groups)
+        , buildOutputOptions = OutputTxBodyOnly $ File path
+        , ..
+        }
+  pure path
+
+readTxBody :: forall era. ConwayEraOnwards era -> FilePath -> IO (TxBody era)
+readTxBody era filePath = withShelleyBasedEra (conwayEraOnwardsToShelleyBasedEra era) do
   result <-
-    readFileTextEnvelopeAnyOf
-      [ FromSomeType (AsTx AsAlonzoEra) $
-          InAnyShelleyBasedEra ShelleyBasedEraAlonzo . getTxBody
-      , FromSomeType (AsTx AsBabbageEra) $
-          InAnyShelleyBasedEra ShelleyBasedEraBabbage . getTxBody
-      , FromSomeType (AsTx AsConwayEra) $
-          InAnyShelleyBasedEra ShelleyBasedEraConway . getTxBody
-      ]
+    readFileTextEnvelope
+      (AsTx $ proxyToAsType $ Proxy @era)
       (File filePath)
-  unwrapOrCrash prettyError result
+  getTxBody <$> unwrapOrCrash prettyError result
 
 readSigningKey :: FilePath -> IO (SigningKey PaymentKey)
 readSigningKey filePath = do

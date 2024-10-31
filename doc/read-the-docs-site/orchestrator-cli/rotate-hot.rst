@@ -68,7 +68,7 @@ Otherwise, it is the same as it was for :ref:`cold-nft rotate <rotate_cold>`.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -78,24 +78,15 @@ Otherwise, it is the same as it was for :ref:`cold-nft rotate <rotate_cold>`.
       --tx-in-redeemer-file rotate-hot/redeemer.json \
       --tx-out "$(cat rotate-hot/value)" \
       --tx-out-inline-datum-file rotate-hot/datum.json \
+      --required-signer-group-name delegation \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-2.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-3.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-7.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file rotate-hot/body.json
+      --out-file rotate-hot/body.txbundle
    Estimated transaction fee: Coin 528607
-   $ tx-bundle build \
-     --tx-body-file rotate-hot/body.json \
-     --group-name delegation \
-     --group-threshold 2 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
-     --group-name voting-new \
-     --group-threshold 1 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-7.cert) \
-     --out-file rotate-hot/body.txbundle
 
 Recall that in the previous section, we swapped the membership and delegation roles, so ``child-1`` through ``child-3`` are now in the delegation group.
 As before, any added members need to sign the transaction too.

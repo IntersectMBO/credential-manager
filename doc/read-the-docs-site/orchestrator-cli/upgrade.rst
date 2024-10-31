@@ -66,7 +66,7 @@ We need to send the NFT to the new script and require the delegation group to si
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -75,20 +75,14 @@ We need to send the NFT to the new script and require the delegation group to si
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file upgrade-hot/redeemer.json \
       --tx-out "$(cat alwaysTrue.addr)+5000000 + 1 $(cat init-hot/minting.plutus.hash).$(cat init-hot/nft-token-name)" \
+      --required-signer-group-name voting \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file upgrade-hot/body.json
+      --out-file upgrade-hot/body.txbundle
    Estimated transaction fee: Coin 501866
-   $ tx-bundle build \
-     --tx-body-file upgrade-hot/body.json \
-     --group-name delegation \
-     --group-threshold 2 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
-     --out-file upgrade-hot/body.txbundle
    $ cc-sign -q \
       --tx-bundle-file upgrade-hot/body.txbundle \
       --private-key-file example-certificates/children/child-1/child-1.private \

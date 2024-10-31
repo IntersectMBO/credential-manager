@@ -89,7 +89,7 @@ The transaction must be signed by the membership group.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -98,21 +98,16 @@ The transaction must be signed by the membership group.
       --tx-in-redeemer-file resign/redeemer.json \
       --tx-out "$(cat resign/value)" \
       --tx-out-inline-datum-file resign/datum.json \
+      --required-signer-group-name membership \
+      --required-signer-group-threshold 1 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --certificate-file resign/resign.cert \
       --certificate-script-file init-cold/credential.plutus \
       --certificate-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign/body.json
+      --out-file resign/body.txbundle
    Estimated transaction fee: Coin 755398
-   $ tx-bundle build \
-     --tx-body-file resign/body.json \
-     --group-name membership \
-     --group-threshold 1 \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
-     --verification-key-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
-     --out-file resign/body.txbundle
 
 Again, recall that we previously swapped the membership and delegation roles,
 so ``child-4`` and ``child-5`` are now in the membership group.
