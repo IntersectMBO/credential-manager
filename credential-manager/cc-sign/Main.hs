@@ -58,6 +58,12 @@ import qualified Cardano.Ledger.Conway as L
 import qualified Cardano.Ledger.Conway.Core as L
 import qualified Cardano.Ledger.Conway.Scripts as L
 import qualified Cardano.Ledger.Plutus as L
+import Cardano.TxDynamic (
+  GroupMemHeader (..),
+  SomeTxBundle (..),
+  TxBundle (..),
+  signBundle,
+ )
 import Control.Exception (Exception (..))
 import Control.Monad (unless, when)
 import CredentialManager.Api (
@@ -69,6 +75,8 @@ import CredentialManager.Api (
   parsePrivateKeyFromPEMBytes,
  )
 import Crypto.PubKey.Ed25519 (toPublic)
+import Data.Bifunctor (Bifunctor (..))
+import Data.Binary (decodeFileOrFail, encodeFile)
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BS
 import qualified Data.ByteArray as BA
@@ -81,6 +89,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
 import Data.Traversable (for)
+import qualified Data.Vector.Unboxed as U
 import Data.Version (showVersion)
 import Formatting.Buildable (Buildable (..))
 import Options.Applicative
@@ -100,7 +109,7 @@ main = do
         exists <- doesFileExist file
         unless exists $ die $ "File " <> file <> " does not exist"
   checkExists signingKeyFile
-  checkExists txBodyFile
+  either checkExists checkExists txBodyOrBundleFile
   putStr $ "Enter pass phrase for " <> signingKeyFile <> ": "
   hFlush stdout
   hSetEcho stdin False
@@ -133,15 +142,25 @@ main = do
           . toPublic
           $ key
   unless (BS.member Quiet flags) $ putStr "Checking transaction body file... "
-  txResult <- readFileTextEnvelope (AsTx AsConwayEra) (File txBodyFile)
-  tx <- case txResult of
-    Left err -> do
-      renderError err
-      exitFailure
-    Right tx -> do
-      unless (BS.member Quiet flags) $ putStrLn "OK"
-      pure tx
-  let txBody = getTxBody tx
+  txOrBundle <- case txBodyOrBundleFile of
+    Left txBodyFile ->
+      Left <$> do
+        txResult <- readFileTextEnvelope (AsTx AsConwayEra) (File txBodyFile)
+        case txResult of
+          Left err -> do
+            renderError err
+            exitFailure
+          Right tx -> do
+            unless (BS.member Quiet flags) $ putStrLn "OK"
+            pure tx
+    Right txBundleFile ->
+      Right <$> do
+        result <- decodeFileOrFail txBundleFile
+        case result of
+          Left err -> die $ show err
+          Right (SomeTxBundle ShelleyBasedEraConway bundle) -> pure bundle
+          Right _ -> die "Tx bundle file is not in Conway era"
+  let txBody = either getTxBody tbTxBody txOrBundle
   classification <- classifyTx flags txBody
   promptToProceed flags "Is the transaction doing what you expect?"
   promptCertificates <- summarizeCertificates flags txBody classification
@@ -150,16 +169,26 @@ main = do
   when promptVotes $ promptToProceed flags "Are these votes correct?"
   summarizeOutputs flags pubKeyHash classification txBody
   checkExtraTxBodyFields classification flags txBody
-  summarizeSignatories flags pubKeyHash txBody
+  summarizeSignatories flags pubKeyHash $ first (const txBody) txOrBundle
   promptToProceed flags "Do you wish to sign this transaction?"
-  let witness =
-        makeShelleyKeyWitness ShelleyBasedEraConway txBody $
-          WitnessPaymentKey signingKey
-  saveResult <-
-    writeTxWitnessFileTextEnvelopeCddl ShelleyBasedEraConway (File outFile) witness
-  case saveResult of
-    Left err -> die $ show err
-    Right _ -> unless (BS.member Quiet flags) $ putStrLn $ "Saved witness to " <> outFile
+  case txOrBundle of
+    Left _ -> do
+      let witness =
+            makeShelleyKeyWitness ShelleyBasedEraConway txBody $
+              WitnessPaymentKey signingKey
+      saveResult <-
+        writeTxWitnessFileTextEnvelopeCddl ShelleyBasedEraConway (File outFile) witness
+      case saveResult of
+        Left err -> die $ show err
+        Right _ -> unless (BS.member Quiet flags) $ putStrLn $ "Saved witness to " <> outFile
+    Right bundle -> do
+      witBundle <- case signBundle signingKey bundle of
+        Left err -> die $ show err
+        Right x -> pure x
+      encodeFile outFile witBundle
+      unless (BS.member Quiet flags) $
+        putStrLn $
+          "Saved witness bundle to " <> outFile
 
 promptToProceed :: BitSet Flags -> String -> IO ()
 promptToProceed flags msg
@@ -178,7 +207,7 @@ data Flags
 data Options = Options
   { flags :: BitSet Flags
   , signingKeyFile :: FilePath
-  , txBodyFile :: FilePath
+  , txBodyOrBundleFile :: Either FilePath FilePath -- Left = tx body file, Right = tx bundle file
   , outFile :: FilePath
   }
   deriving (Show)
@@ -194,7 +223,10 @@ optionsParser =
   Options
     <$> flagsParser
     <*> signingKeyFileParser
-    <*> txBodyFileParser
+    <*> asum
+      [ Left <$> txBodyFileParser
+      , Right <$> txBundleFileParser
+      ]
     <*> outFileParser
 
 flagsParser :: Parser (BitSet Flags)
@@ -261,6 +293,16 @@ txBodyFileParser =
       , action "file"
       ]
 
+txBundleFileParser :: Parser FilePath
+txBundleFileParser =
+  strOption $
+    fold
+      [ long "tx-bundle-file"
+      , metavar "FILEPATH"
+      , help "The file containing the transaction bundle to sign."
+      , action "file"
+      ]
+
 outFileParser :: Parser FilePath
 outFileParser =
   strOption $
@@ -268,7 +310,7 @@ outFileParser =
       [ long "out-file"
       , short 'o'
       , metavar "FILEPATH"
-      , help "A file path to save the transaction witness file."
+      , help "A file path to save the transaction witness or witness bundle file."
       , action "file"
       ]
 
@@ -590,13 +632,16 @@ checkExtraTxBodyFields classification flags (TxBody TxBodyContent{..}) = do
           promptToProceed flags "Are you OK with this?"
 
 summarizeSignatories
-  :: BitSet Flags -> Hash PaymentKey -> TxBody ConwayEra -> IO ()
-summarizeSignatories flags myKey (TxBody TxBodyContent{..}) = do
+  :: BitSet Flags
+  -> Hash PaymentKey
+  -> Either (TxBody ConwayEra) (TxBundle ConwayEra)
+  -> IO ()
+summarizeSignatories flags myKey bodyOrBundle = do
   printTitle flags "Check transaction signatories..."
-  case txExtraKeyWits of
-    TxExtraKeyWitnessesNone -> dieIndented "This transaction requires no signatures"
-    TxExtraKeyWitnesses _ signatories -> do
-      canSign <-
+  canSign <- case bodyOrBundle of
+    Left (TxBody TxBodyContent{txExtraKeyWits}) -> case txExtraKeyWits of
+      TxExtraKeyWitnessesNone -> dieIndented "This transaction requires no signatures"
+      TxExtraKeyWitnesses _ signatories -> do
         or <$> for signatories \pkh -> do
           let canSign = pkh == myKey
           printIndented flags $
@@ -606,8 +651,14 @@ summarizeSignatories flags myKey (TxBody TxBodyContent{..}) = do
                 then " (you can sign)"
                 else ""
           pure canSign
-      unless canSign do
-        dieIndented "You cannot sign this transaction."
+    Right TxBundle{..} -> do
+      let canSign = case U.findIndex (== myKey) tbSigTab of
+            Nothing -> False
+            Just mySigIndex -> U.any ((== mySigIndex) . fromIntegral . gmSig) tbGroupMemTab
+      when canSign $ printIndented flags "You can sign"
+      pure canSign
+  unless canSign do
+    dieIndented "You cannot sign this transaction."
 
 spendingRedeemers
   :: Map.Map (L.ConwayPlutusPurpose L.AsIx (L.ConwayEra L.StandardCrypto)) a -> [a]

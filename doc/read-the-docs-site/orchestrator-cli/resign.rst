@@ -89,7 +89,7 @@ The transaction must be signed by the membership group.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -98,13 +98,15 @@ The transaction must be signed by the membership group.
       --tx-in-redeemer-file resign/redeemer.json \
       --tx-out "$(cat resign/value)" \
       --tx-out-inline-datum-file resign/datum.json \
+      --required-signer-group-name membership \
+      --required-signer-group-threshold 1 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-4.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-5.cert) \
       --certificate-file resign/resign.cert \
       --certificate-script-file init-cold/credential.plutus \
       --certificate-redeemer-value {} \
       --change-address $(cat orchestrator.addr) \
-      --out-file resign/body.json
+      --out-file resign/body.txbundle
    Estimated transaction fee: Coin 755398
 
 Again, recall that we previously swapped the membership and delegation roles,
@@ -119,17 +121,14 @@ sign.
 .. code-block:: bash
 
    $ cc-sign -q \
-      --tx-body-file resign/body.json \
+      --tx-bundle-file resign/body.txbundle \
       --private-key-file example-certificates/children/child-4/child-4.private \
-      --out-file resign/child-4.witness
-   $ cc-sign -q \
-      --tx-body-file resign/body.json \
-      --private-key-file example-certificates/children/child-5/child-5.private \
-      --out-file resign/child-5.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file resign/body.json \
+      --out-file resign/child-4.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file resign/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file resign/orchestrator.witness
+      --out-file resign/orchestrator.witbundle
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
@@ -138,11 +137,10 @@ Finally, we can put everything together to submit the transaction:
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file resign/body.json \
-      --witness-file resign/child-4.witness \
-      --witness-file resign/child-5.witness \
-      --witness-file resign/orchestrator.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file resign/body.txbundle \
+      --witness-bundle-file resign/child-4.witbundle \
+      --witness-bundle-file resign/orchestrator.witbundle \
       --out-file resign/tx.json
    $ cardano-cli conway transaction submit --tx-file resign/tx.json
    Transaction successfully submitted.

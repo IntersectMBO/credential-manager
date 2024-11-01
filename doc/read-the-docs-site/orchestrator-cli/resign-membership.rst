@@ -77,8 +77,8 @@ this user.
 Step 2: Create the Transaction
 ------------------------------
 
-Since we are only spending an input, and not issuing a certificate or casting a
-vote, the transaction is somewhat easier to build:
+Since we are only spending an input, and not issuing a certificate or casting a vote, the transaction is somewhat easier to build.
+We can also use ``cardano-cli`` instead of ``tx-bundle``, as there is only one required signer and there is no question of who will have to sign the transaction:
 
 .. code-block:: bash
 
@@ -100,6 +100,7 @@ Step 3. Send the Transaction to The Resignee
 --------------------------------------------
 
 To build the transaction, we need to get a signature from the resignee.
+Note the use of ``--tx-body-file`` instead of ``--tx-bundle-file``, as we are signing a regular tx body, not a tx bundle.
 
 .. code-block:: bash
 

@@ -216,6 +216,18 @@ cabalProject:
       '';
     };
 
+    tx-bundle = {
+      description = "Wrapper for Tx Bundle executable";
+      group = "general";
+      exec = ''
+        set -e
+        set -u
+        set -o pipefail
+
+        cabal run tx-bundle -- "$@"
+      '';
+    };
+
     cc-sign = {
       description = "Wrapper for CC sign executable";
       group = "general";

@@ -68,7 +68,7 @@ Otherwise, it is the same as it was for :ref:`cold-nft rotate <rotate_cold>`.
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -78,16 +78,24 @@ Otherwise, it is the same as it was for :ref:`cold-nft rotate <rotate_cold>`.
       --tx-in-redeemer-file rotate-hot/redeemer.json \
       --tx-out "$(cat rotate-hot/value)" \
       --tx-out-inline-datum-file rotate-hot/datum.json \
+      --required-signer-group-name delegation \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-2.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-3.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash  example-certificates/child-7.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file rotate-hot/body.json
+      --out-file rotate-hot/body.txbundle
    Estimated transaction fee: Coin 528607
 
-Recall that in the previous section, we swapped the membership and delegation roles, so ``child-1`` and ``child-2`` are now in the delegation group.
+Recall that in the previous section, we swapped the membership and delegation roles, so ``child-1`` through ``child-3`` are now in the delegation group.
 As before, any added members need to sign the transaction too.
 Since we are adding ``child-7`` to the voting group, they need to sign as well.
+
+This is also the first time we've seen ``tx-bundle`` used to create a
+transaction with more than one signing group. In this case, two groups of
+signatures are needed: any two of the three delegators, and all the new voters
+who were added in the rotation.
 
 Step 3. Distribute the Transaction to Signatories
 -------------------------------------------------
@@ -95,33 +103,34 @@ Step 3. Distribute the Transaction to Signatories
 .. code-block:: bash
 
    $ cc-sign -q \
-      --tx-body-file rotate-hot/body.json \
+      --tx-bundle-file rotate-hot/body.txbundle \
       --private-key-file example-certificates/children/child-1/child-1.private \
-      --out-file rotate-hot/child-1.witness
+      --out-file rotate-hot/child-1.witbundle
    $ cc-sign -q \
-      --tx-body-file rotate-hot/body.json \
+      --tx-bundle-file rotate-hot/body.txbundle \
       --private-key-file example-certificates/children/child-2/child-2.private \
-      --out-file rotate-hot/child-2.witness
+      --out-file rotate-hot/child-2.witbundle
    $ cc-sign -q \
-      --tx-body-file rotate-hot/body.json \
+      --tx-bundle-file rotate-hot/body.txbundle \
       --private-key-file example-certificates/children/child-7/child-7.private \
-      --out-file rotate-hot/child-7.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file rotate-hot/body.json \
+      --out-file rotate-hot/child-7.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file rotate-hot/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file rotate-hot/orchestrator.witness
+      --out-file rotate-hot/orchestrator.witbundle
 
 Step 4. Assemble and Submit the Transaction
 -------------------------------------------
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file rotate-hot/body.json \
-      --witness-file rotate-hot/child-1.witness \
-      --witness-file rotate-hot/child-2.witness \
-      --witness-file rotate-hot/child-7.witness \
-      --witness-file rotate-hot/orchestrator.witness \
+   $ tx-bundle assemble \
+      --tx-bundle-file rotate-hot/body.txbundle \
+      --witness-bundle-file rotate-hot/child-1.witbundle \
+      --witness-bundle-file rotate-hot/child-2.witbundle \
+      --witness-bundle-file rotate-hot/child-7.witbundle \
+      --witness-bundle-file rotate-hot/orchestrator.witbundle \
       --out-file rotate-hot/tx.json
    $ cardano-cli conway transaction submit --tx-file rotate-hot/tx.json
    Transaction successfully submitted.

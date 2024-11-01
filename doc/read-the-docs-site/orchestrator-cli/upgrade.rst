@@ -66,7 +66,7 @@ We need to send the NFT to the new script and require the delegation group to si
 
 .. code-block:: bash
 
-   $ cardano-cli conway transaction build \
+   $ tx-bundle build \
       --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
       --tx-in-collateral "$(get-orchestrator-ada-only | jq -r '.key')" \
       --read-only-tx-in-reference $(cardano-cli query utxo --address $(cat init-cold/nft.addr) --output-json | jq -r 'keys[0]') \
@@ -75,28 +75,32 @@ We need to send the NFT to the new script and require the delegation group to si
       --tx-in-inline-datum-present \
       --tx-in-redeemer-file upgrade-hot/redeemer.json \
       --tx-out "$(cat alwaysTrue.addr)+5000000 + 1 $(cat init-hot/minting.plutus.hash).$(cat init-hot/nft-token-name)" \
+      --required-signer-group-name voting \
+      --required-signer-group-threshold 2 \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-1.cert) \
       --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-2.cert) \
+      --required-signer-hash $(orchestrator-cli extract-pub-key-hash example-certificates/child-3.cert) \
       --change-address $(cat orchestrator.addr) \
-      --out-file upgrade-hot/body.json
+      --out-file upgrade-hot/body.txbundle
    Estimated transaction fee: Coin 501866
    $ cc-sign -q \
-      --tx-body-file upgrade-hot/body.json \
+      --tx-bundle-file upgrade-hot/body.txbundle \
       --private-key-file example-certificates/children/child-1/child-1.private \
-      --out-file upgrade-hot/child-1.witness
+      --out-file upgrade-hot/child-1.witbundle
    $ cc-sign -q \
-      --tx-body-file upgrade-hot/body.json \
+      --tx-bundle-file upgrade-hot/body.txbundle \
       --private-key-file example-certificates/children/child-2/child-2.private \
-      --out-file upgrade-hot/child-2.witness
-   $ cardano-cli conway transaction witness \
-      --tx-body-file upgrade-hot/body.json \
+      --out-file upgrade-hot/child-2.witbundle
+   $ tx-bundle witness \
+      --all \
+      --tx-bundle-file upgrade-hot/body.txbundle \
       --signing-key-file orchestrator.skey \
-      --out-file upgrade-hot/orchestrator.witness
-   $ cardano-cli conway transaction assemble \
-      --tx-body-file upgrade-hot/body.json \
-      --witness-file upgrade-hot/child-1.witness \
-      --witness-file upgrade-hot/child-2.witness \
-      --witness-file upgrade-hot/orchestrator.witness \
+      --out-file upgrade-hot/orchestrator.witbundle
+   $ tx-bundle assemble \
+      --tx-bundle-file upgrade-hot/body.txbundle \
+      --witness-bundle-file upgrade-hot/child-1.witbundle \
+      --witness-bundle-file upgrade-hot/child-2.witbundle \
+      --witness-bundle-file upgrade-hot/orchestrator.witbundle \
       --out-file upgrade-hot/tx.json
    $ cardano-cli conway transaction submit --tx-file upgrade-hot/tx.json
    Transaction successfully submitted.
