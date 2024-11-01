@@ -3,9 +3,9 @@
 ARCH="$(arch)"
 if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "i386" ]];
 then
-  ZIP_URL="https://github.com/IntersectMBO/credential-manager/releases/download/0.1.1.0/cc-sign-mac-os-intel.zip"
+  ZIP_URL="https://github.com/IntersectMBO/credential-manager/releases/download/0.1.2.0/cc-sign-mac-os-intel.zip"
 else
-  ZIP_URL="https://github.com/IntersectMBO/credential-manager/releases/download/0.1.1.0/cc-sign-mac-os-arm.zip"
+  ZIP_URL="https://github.com/IntersectMBO/credential-manager/releases/download/0.1.2.0/cc-sign-mac-os-arm.zip"
 fi
 
 curl -L --output /tmp/cc-sign.zip $ZIP_URL
