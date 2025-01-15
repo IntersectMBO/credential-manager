@@ -20,15 +20,34 @@ let
     signDarwinBinariesInAllOutputs
   '';
 
+  outputs = lib.foldl lib.recursiveUpdate project.flake [
+    (lib.optionalAttrs pkgs.stdenv.isLinux {
+      hydraJobs.musl64 = project.cross.musl64.hydraJobs;
+    })
+    (lib.optionalAttrs pkgs.stdenv.isDarwin {
+      packages = { inherit cc-sign-native; };
+      hydraJobs = { inherit cc-sign-native; };
+    })
+  ];
 in
 
 [
-  project.flake
-  (lib.optionalAttrs pkgs.stdenv.isLinux {
-    hydraJobs.musl64 = project.cross.musl64.hydraJobs;
-  })
-  (lib.optionalAttrs pkgs.stdenv.isDarwin {
-    packages = { inherit cc-sign-native; };
-    hydraJobs = { inherit cc-sign-native; };
-  })
+  (removeAttrs outputs [ "checks" ])
+  {
+    checks =
+      let
+        # https://github.com/numtide/flake-utils/issues/121#issuecomment-2589899217
+        recurseIntoDeepAttrs = attrs:
+          lib.recurseIntoAttrs
+            (lib.mapAttrs
+              (_: v:
+                if builtins.typeOf v == "set" && !lib.isDerivation v
+                then recurseIntoDeepAttrs v
+                else v
+              )
+              attrs
+            );
+      in
+      inputs.iogx.inputs.flake-utils.lib.flattenTree (recurseIntoDeepAttrs outputs.hydraJobs);
+  }
 ]
