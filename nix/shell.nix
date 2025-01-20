@@ -79,6 +79,9 @@ cabalProject:
         set -u
         set -o pipefail
 
+        rm -Rf init-cold
+        rm -Rf init-hot
+        rm -Rf authorize
         cd $(git rev-parse --show-toplevel)/testnet
         rm -rf example logs
       '';
@@ -155,7 +158,7 @@ cabalProject:
 
         cd $(git rev-parse --show-toplevel)
         cardano-cli conway query utxo --address $(cat init-cold/nft.addr) --output-json \
-         | jq '[to_entries | .[] | select(.value.value["'"$(cat init-cold/minting.plutus.hash)"'"]["'"$(cat init-cold/nft-token-name)"'"])] | from_entries' > cold-nft.utxo
+         | jq '[to_entries | .[] | select(.value.value["'"$(cat init-cold/minting.plutus.hash)"'"]["'"$(cat init-cold/nft-token-name)"'"])] | from_entries' > init-cold/cold-nft.utxo
       '';
     };
 

@@ -286,8 +286,10 @@
   },
   "committee": {
     "members": {
-      "scriptHash-533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f28": 50000
+      "scriptHash-533e8af4515ba4cf6035ac7087ae8978e09692fea68e9466f1683f28": 500,
+      "keyHash-51aa5efffd8734f0b74e514b2e906543546ddbcf07876a70c59bbe36": 500,
+      "keyHash-13fbd6f16f4cc48d0c0839181e668fb72860168b1518e5c12128a2a4": 500
     },
-    "threshold": 0
+    "threshold": 0.66
   }
 }
