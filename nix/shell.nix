@@ -96,11 +96,10 @@ cabalProject:
         set -o pipefail
 
         cd $(git rev-parse --show-toplevel)
-        cp testnet/example/utxo-keys/utxo1.vkey orchestrator.vkey
-        cp testnet/example/utxo-keys/utxo1.skey orchestrator.skey
-        cardano-cli stake-address key-gen \
-          --verification-key-file orchestrator-stake.vkey \
-          --signing-key-file orchestrator-stake.skey
+        cp testnet/example/utxo-keys/payment1.vkey orchestrator.vkey
+        cp testnet/example/utxo-keys/payment1.skey orchestrator.skey
+        cp testnet/example/utxo-keys/stake1.vkey orchestrator-stake.vkey
+        cp testnet/example/utxo-keys/stake2.vkey orchestrator-stake.skey
         cardano-cli address build \
           --payment-verification-key-file orchestrator.vkey \
           --out-file orchestrator.addr
