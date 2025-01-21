@@ -185,7 +185,7 @@ sleep 9
 
 setup-orchestrator
 
-sleep 7
+sleep 9
 
 orchestrator-cli init-cold \
     --policy-id "$COLD_POLICY_ID" \
@@ -314,13 +314,29 @@ sleep 7
 
 for i in {1..2} ; do
   cardano-cli conway governance committee create-hot-key-authorization-certificate \
-  --cold-verification-key-file cc"${i}"-cold.vkey \
-  --hot-verification-key-file cc"${i}"-hot.vkey \
-  --out-file cc"${i}"-authorizeHot.cert
+  --cold-verification-key-file testnet/cckeys/cc"${i}"-cold.vkey \
+  --hot-verification-key-file testnet/cckeys/cc"${i}"-hot.vkey \
+  --out-file  ${TRANSACTIONS_DIR}/cc"${i}"-authorizeHot.cert
 done
 
-
-
 cardano-cli conway transaction build \
-  --tx-in 
+  --tx-in "$(get-orchestrator-ada-only | jq -r '.key')" \
+  --change-address "$(cat orchestrator.addr)" \
+  --witness-override 3 \
+  --certificate-file ${TRANSACTIONS_DIR}/cc1-authorizeHot.cert \
+  --certificate-file ${TRANSACTIONS_DIR}/cc2-authorizeHot.cert \
+  --out-file ${TRANSACTIONS_DIR}/cc-authorizeHot-tx.raw
+
+cardano-cli conway transaction sign \
+  --tx-body-file ${TRANSACTIONS_DIR}/cc-authorizeHot-tx.raw \
+  --signing-key-file orchestrator.skey \
+  --signing-key-file testnet/cckeys/cc1-cold.skey \
+  --signing-key-file testnet/cckeys/cc2-cold.skey \
+  --out-file ${TRANSACTIONS_DIR}/cc-authorizeHot-tx.signed
+
+cardano-cli conway transaction submit --tx-file ${TRANSACTIONS_DIR}/cc-authorizeHot-tx.signed
+
+sleep 7 
+
+cardano-cli conway query committee-state | jq . 
 

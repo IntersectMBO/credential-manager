@@ -20,9 +20,9 @@
   },
   "committeeMinSize": 0,
   "committeeMaxTermLength": 5000000,
-  "govActionLifetime": 100,
+  "govActionLifetime": 6,
   "govActionDeposit": 1000000000,
-  "dRepDeposit": 2000000,
+  "dRepDeposit": 50000000,
   "dRepActivity": 20,
   "minFeeRefScriptCostPerByte": 0,
   "plutusV3CostModel": [
