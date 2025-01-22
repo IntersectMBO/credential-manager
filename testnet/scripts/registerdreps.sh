@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+exec 2> >(while IFS= read -r line; do echo -e "\e[34m${line}\e[0m" >&2; done)
 set -x
 set -euo pipefail
 

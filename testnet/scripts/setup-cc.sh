@@ -5,18 +5,20 @@
 # The "exec 2>" below this comment helps the user to differenciate between the commands and its outputs by changing the color
 # of the set -x output (the commands).
 
-exec 2> >(while IFS= read -r line; do echo -e "\e[34m${line}\e[0m" >&2; done)
 
 # Unofficial bash strict mode.
 # See: http://redsymbol.net/articles/unofficial-bash-strict-mode/
-set -x
-set -euo pipefail
+
 
 UTXO_DIR=testnet/example/utxo-keys
 POOL_DIR=testnet/example/pools
 TRANSACTIONS_DIR=testnet/example/transactions
 
 mkdir -p "$TRANSACTIONS_DIR"
+
+exec 2> >(while IFS= read -r line; do echo -e "\e[34m${line}\e[0m" >&2; done)
+set -x
+set -euo pipefail
 
 # ----------------------
 
