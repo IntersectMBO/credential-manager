@@ -96,6 +96,7 @@ import Options.Applicative
 import Paths_credential_manager (version)
 import PlutusLedgerApi.Common (Data (..), fromData)
 import PlutusLedgerApi.V3 (Credential (..), HotCommitteeCredential (..))
+import System.Console.ANSI
 import System.Directory (doesFileExist)
 import System.Exit (die, exitFailure)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
@@ -317,6 +318,21 @@ outFileParser =
 printIndented :: BitSet Flags -> String -> IO ()
 printIndented flags s = unless (BS.member Quiet flags) $ putStrLn $ "  " <> s
 
+printIndentedColored :: BitSet Flags -> String -> IO () -> IO ()
+printIndentedColored flags prefix coloredPart
+  | BS.member Quiet flags = pure ()
+  | otherwise = do
+      putStr "  "
+      putStr prefix
+      coloredPart
+      putStrLn ""
+
+withColor :: Color -> IO () -> IO ()
+withColor color act = do
+  setSGR [SetColor Foreground Vivid color]
+  act
+  setSGR [Reset]
+
 printTitle :: BitSet Flags -> String -> IO ()
 printTitle flags s = unless (BS.member Quiet flags) $ do
   putStrLn ""
@@ -507,10 +523,20 @@ summarizeVote
   -> VotingProcedure (L.ConwayEra StandardCrypto)
   -> IO ()
 summarizeVote flags govActionId (VotingProcedure vote mAnchor) = do
-  printIndented flags $ "Vote " <> show vote <> " on " <> show govActionId
+  printIndented flags "Vote cast:"
+  printIndentedColored flags "  Vote: " $
+    withColor Red $
+      putStr (show vote)
+  printIndentedColored flags "  On:   " $
+    withColor Green $
+      putStr (show govActionId)
   case mAnchor of
     SNothing -> printIndented flags "WARNING: No rationale file anchor included in vote"
-    SJust anchor -> printIndented flags $ "Rationale " <> show anchor
+    SJust anchor -> do
+      printIndented flags "Rationale:"
+      printIndentedColored flags "  Anchor: " $
+        withColor Blue $
+          putStr (show anchor)
 
 summarizeOutputs
   :: BitSet Flags -> Hash PaymentKey -> TxClassification -> TxBody ConwayEra -> IO ()
