@@ -536,8 +536,8 @@ summarizeVote flags govActionId (VotingProcedure vote mAnchor) = do
   printIndented flags "Vote cast:"
   case vote of
     L.VoteYes -> printStyled flags (Just Green) True "  Vote: " "Yes"
-    L.VoteNo -> printStyled flags (Just Red) True "  Vote: Vote: " "No"
-    L.Abstain -> printStyled flags (Just Magenta) True "  Vote: Vote: " "Abstain"
+    L.VoteNo -> printStyled flags (Just Red) True "  Vote: " "No"
+    L.Abstain -> printStyled flags (Just Magenta) True "  Vote: " "Abstain"
   let govactionText = govActionIdToText govActionId
   printStyled
     flags
