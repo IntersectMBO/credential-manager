@@ -56,6 +56,7 @@ import Cardano.Api.Shelley (TxWithdrawals (..), toPlutusData)
 import Cardano.Ledger.Alonzo.TxWits (Redeemers (..))
 import qualified Cardano.Ledger.Conway as L
 import qualified Cardano.Ledger.Conway.Core as L
+import Cardano.Ledger.Conway.Governance (govActionIdToText)
 import qualified Cardano.Ledger.Conway.Scripts as L
 import qualified Cardano.Ledger.Plutus as L
 import Cardano.TxDynamic (
@@ -318,14 +319,17 @@ outFileParser =
 printIndented :: BitSet Flags -> String -> IO ()
 printIndented flags s = unless (BS.member Quiet flags) $ putStrLn $ "  " <> s
 
-printIndentedColored :: BitSet Flags -> String -> IO () -> IO ()
-printIndentedColored flags prefix coloredPart
+printStyled :: BitSet Flags -> Maybe Color -> Bool -> String -> String -> IO ()
+printStyled flags mColor bold label val
   | BS.member Quiet flags = pure ()
   | otherwise = do
       putStr "  "
-      putStr prefix
-      coloredPart
-      putStrLn ""
+      when bold $ setSGR [SetConsoleIntensity BoldIntensity]
+      putStr label
+      when bold $ setSGR [Reset]
+      case mColor of
+        Just c -> withColor c $ putStrLn val
+        Nothing -> putStrLn val
 
 withColor :: Color -> IO () -> IO ()
 withColor color act = do
@@ -493,7 +497,13 @@ summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
               | Map.null votes -> do
                   dieIndented "No votes cast"
               | otherwise -> do
-                  printIndented flags $ "Voting as: " <> show voter
+                  case voter of
+                    L.CommitteeVoter (L.ScriptHashObj (L.ScriptHash h)) ->
+                      printIndented flags $
+                        "Voting as hot credential: "
+                          <> show h
+                    _ ->
+                      dieIndented $ "Unexpected voter type: " <> show voter
                   traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
                   pure True
             _ -> do
@@ -524,19 +534,33 @@ summarizeVote
   -> IO ()
 summarizeVote flags govActionId (VotingProcedure vote mAnchor) = do
   printIndented flags "Vote cast:"
-  printIndentedColored flags "  Vote: " $
-    withColor Red $
-      putStr (show vote)
-  printIndentedColored flags "  On:   " $
-    withColor Green $
-      putStr (show govActionId)
+  case vote of
+    L.VoteYes -> printStyled flags (Just Green) True "  Vote: " "Yes"
+    L.VoteNo -> printStyled flags (Just Red) True "  Vote: Vote: " "No"
+    L.Abstain -> printStyled flags (Just Magenta) True "  Vote: Vote: " "Abstain"
+  let govactionText = govActionIdToText govActionId
+  printStyled
+    flags
+    (Just Yellow)
+    True
+    "On governance action: "
+    (T.unpack govactionText)
   case mAnchor of
     SNothing -> printIndented flags "WARNING: No rationale file anchor included in vote"
     SJust anchor -> do
       printIndented flags "Rationale:"
-      printIndentedColored flags "  Anchor: " $
-        withColor Blue $
-          putStr (show anchor)
+      printStyled
+        flags
+        (Just Blue)
+        True
+        "  Anchor url: "
+        (show $ L.urlToText $ L.anchorUrl anchor)
+      printStyled
+        flags
+        (Just Blue)
+        True
+        "  Anchor hash: "
+        (show $ L.extractHash $ L.anchorDataHash anchor)
 
 summarizeOutputs
   :: BitSet Flags -> Hash PaymentKey -> TxClassification -> TxBody ConwayEra -> IO ()
