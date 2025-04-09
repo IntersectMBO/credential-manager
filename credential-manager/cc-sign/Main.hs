@@ -56,6 +56,7 @@ import Cardano.Api.Shelley (TxWithdrawals (..), toPlutusData)
 import Cardano.Ledger.Alonzo.TxWits (Redeemers (..))
 import qualified Cardano.Ledger.Conway as L
 import qualified Cardano.Ledger.Conway.Core as L
+import Cardano.Ledger.Conway.Governance (govActionIdToText)
 import qualified Cardano.Ledger.Conway.Scripts as L
 import qualified Cardano.Ledger.Plutus as L
 import Cardano.TxDynamic (
@@ -96,6 +97,7 @@ import Options.Applicative
 import Paths_credential_manager (version)
 import PlutusLedgerApi.Common (Data (..), fromData)
 import PlutusLedgerApi.V3 (Credential (..), HotCommitteeCredential (..))
+import System.Console.ANSI
 import System.Directory (doesFileExist)
 import System.Exit (die, exitFailure)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
@@ -317,6 +319,24 @@ outFileParser =
 printIndented :: BitSet Flags -> String -> IO ()
 printIndented flags s = unless (BS.member Quiet flags) $ putStrLn $ "  " <> s
 
+printStyled :: BitSet Flags -> Maybe Color -> Bool -> String -> String -> IO ()
+printStyled flags mColor bold label val
+  | BS.member Quiet flags = pure ()
+  | otherwise = do
+      putStr "  "
+      when bold $ setSGR [SetConsoleIntensity BoldIntensity]
+      putStr label
+      when bold $ setSGR [Reset]
+      case mColor of
+        Just c -> withColor c $ putStrLn val
+        Nothing -> putStrLn val
+
+withColor :: Color -> IO () -> IO ()
+withColor color act = do
+  setSGR [SetColor Foreground Vivid color]
+  act
+  setSGR [Reset]
+
 printTitle :: BitSet Flags -> String -> IO ()
 printTitle flags s = unless (BS.member Quiet flags) $ do
   putStrLn ""
@@ -477,7 +497,13 @@ summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
               | Map.null votes -> do
                   dieIndented "No votes cast"
               | otherwise -> do
-                  printIndented flags $ "Voting as: " <> show voter
+                  case voter of
+                    L.CommitteeVoter (L.ScriptHashObj (L.ScriptHash h)) ->
+                      printIndented flags $
+                        "Voting as hot credential: "
+                          <> show h
+                    _ ->
+                      dieIndented $ "Unexpected voter type: " <> show voter
                   traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
                   pure True
             _ -> do
@@ -507,10 +533,34 @@ summarizeVote
   -> VotingProcedure (L.ConwayEra StandardCrypto)
   -> IO ()
 summarizeVote flags govActionId (VotingProcedure vote mAnchor) = do
-  printIndented flags $ "Vote " <> show vote <> " on " <> show govActionId
+  printIndented flags "Vote cast:"
+  case vote of
+    L.VoteYes -> printStyled flags (Just Green) True "  Vote: " "Yes"
+    L.VoteNo -> printStyled flags (Just Red) True "  Vote: " "No"
+    L.Abstain -> printStyled flags (Just Magenta) True "  Vote: " "Abstain"
+  let govactionText = govActionIdToText govActionId
+  printStyled
+    flags
+    (Just Yellow)
+    True
+    "On governance action: "
+    (T.unpack govactionText)
   case mAnchor of
     SNothing -> printIndented flags "WARNING: No rationale file anchor included in vote"
-    SJust anchor -> printIndented flags $ "Rationale " <> show anchor
+    SJust anchor -> do
+      printIndented flags "Rationale:"
+      printStyled
+        flags
+        (Just Blue)
+        True
+        "  Anchor url: "
+        (show $ L.urlToText $ L.anchorUrl anchor)
+      printStyled
+        flags
+        (Just Blue)
+        True
+        "  Anchor hash: "
+        (show $ L.extractHash $ L.anchorDataHash anchor)
 
 summarizeOutputs
   :: BitSet Flags -> Hash PaymentKey -> TxClassification -> TxBody ConwayEra -> IO ()
