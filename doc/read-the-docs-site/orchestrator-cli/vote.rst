@@ -39,9 +39,9 @@ and we will be voting ``yes`` on the governance action.
 
 The only missing piece of information we need to prepare is a hash of the
 rationale document, for downstream verification of the contents. In accordance
-with CIP-100, the way to obtain this hash is by converting the JSONLD document
-to `RDF 1.2 canonical N-Quads form <https://www.w3.org/TR/rdf12-n-quads/#canonical-quads>`_
-and hashing it. We can use the `jsonld` CLI to help with this:
+with CIP-100, the way to obtain this hash is by using the hashing algorithm
+specified in the metadata ``"hashAlgorithm": "blake2b-256"``. We can use the CLI
+to help with this:
 
 .. code-block:: bash
 
@@ -55,6 +55,12 @@ As before, we also need the current output of the hot NFT script:
 .. code-block:: bash
 
    $ fetch-hot-nft-utxo
+
+Alternatively, you can use a ``cardano-cli`` query for this:
+
+.. code-block:: bash
+
+   $ cardano-cli conway query utxo --address $(cat init-hot/nft.addr) --output-json > hot-nft.utxo
 
 
 Step 2: Creating the assets
