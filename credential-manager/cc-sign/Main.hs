@@ -504,7 +504,15 @@ summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
                           <> show h
                     _ ->
                       dieIndented $ "Unexpected voter type: " <> show voter
-                  traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
+                  -- traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
+                  let voteList = Map.toList votes
+                  for_ voteList $ \(govActionId, votingProcedure) -> do
+                    System.Console.ANSI.clearScreen
+                    putStrLn "Governance Vote Review"
+                    putStrLn "======================="
+                    summarizeVote flags govActionId votingProcedure
+                    promptToProceed flags "Do you want to include this vote?"
+
                   pure True
             _ -> do
               dieIndented "Votes cast by multiple voters"
