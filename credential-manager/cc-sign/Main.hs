@@ -168,7 +168,7 @@ main = do
   promptCertificates <- summarizeCertificates flags txBody classification
   when promptCertificates $ promptToProceed flags "Is this certificate correct?"
   promptVotes <- summarizeVotes flags txBody classification
-  when promptVotes $ promptToProceed flags "Are these votes correct?"
+  when promptVotes $ promptToProceed flags "Are you sure these votes are correct?"
   summarizeOutputs flags pubKeyHash classification txBody
   checkExtraTxBodyFields classification flags txBody
   summarizeSignatories flags pubKeyHash $ first (const txBody) txOrBundle
@@ -497,14 +497,19 @@ summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
               | Map.null votes -> do
                   dieIndented "No votes cast"
               | otherwise -> do
-                  case voter of
-                    L.CommitteeVoter (L.ScriptHashObj (L.ScriptHash h)) ->
-                      printIndented flags $
-                        "Voting as hot credential: "
-                          <> show h
-                    _ ->
-                      dieIndented $ "Unexpected voter type: " <> show voter
-                  traverse_ (uncurry $ summarizeVote flags) (Map.toList votes)
+                  let voteList = Map.toList votes
+                  for_ voteList $ \(govActionId, votingProcedure) -> do
+                    System.Console.ANSI.clearScreen
+                    case voter of
+                      L.CommitteeVoter (L.ScriptHashObj (L.ScriptHash h)) ->
+                        printIndented flags $
+                          "Voting as hot credential: "
+                            <> show h
+                      _ ->
+                        dieIndented $ "Unexpected voter type: " <> show voter
+                    summarizeVote flags govActionId votingProcedure
+                    promptToProceed flags "Do you want to include this vote?"
+
                   pure True
             _ -> do
               dieIndented "Votes cast by multiple voters"
