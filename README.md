@@ -16,7 +16,7 @@ with an X.509 certificate chain. It provides the following features:
 
 ## Installing the cc-sign tool
 
-The `cc-sign` tool is a simplified CLI tool for signing transaction with
+The `cc-sign` tool is a simplified CLI tool for signing transactions with
 encrypted openssl private keys. Installation instructions are listed per system
 below:
 
