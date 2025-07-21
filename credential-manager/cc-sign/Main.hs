@@ -498,8 +498,10 @@ summarizeVotes flags (TxBody TxBodyContent{..}) classification = do
                   dieIndented "No votes cast"
               | otherwise -> do
                   let voteList = Map.toList votes
-                  for_ voteList $ \(govActionId, votingProcedure) -> do
+                      totalVotes = length voteList
+                  for_ (zip [1 ..] voteList) $ \(i, (govActionId, votingProcedure)) -> do
                     System.Console.ANSI.clearScreen
+                    printIndented flags $ "Vote " <> show i <> " out of " <> show totalVotes
                     case voter of
                       L.CommitteeVoter (L.ScriptHashObj (L.ScriptHash h)) ->
                         printIndented flags $
