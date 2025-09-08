@@ -18,6 +18,7 @@ import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V1.Value (AssetClass, assetClassValueOf)
+import PlutusLedgerApi.V3.MintValue
 import PlutusLedgerApi.V3 (
   Address,
   ColdCommitteeCredential,
@@ -103,7 +104,7 @@ invariantBC3EmptyMembership args@ValidArgs{..} =
 invariantBC4NotBurned :: ValidArgs -> Property
 invariantBC4NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \_ _ ctx -> do
-    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf v coldNFT /= -1
+    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf (mintValueMinted v) coldNFT /= -1
     let ctx' =
           ctx
             { scriptContextTxInfo =

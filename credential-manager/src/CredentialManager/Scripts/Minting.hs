@@ -20,6 +20,7 @@ import PlutusLedgerApi.V1.Value (valueOf)
 import PlutusLedgerApi.V2
 import qualified PlutusTx.AssocMap as AMap
 import PlutusTx.Prelude
+import PlutusTx.List
 
 -- | A version of the minting script that performs no datum checks on the
 -- output.

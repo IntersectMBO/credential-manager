@@ -15,6 +15,7 @@ import Data.Monoid (Sum (..))
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, Nat, natVal)
+import PlutusLedgerApi.V3.MintValue
 import PlutusLedgerApi.V1.Value (
   AssetClass (AssetClass),
   assetClass,
@@ -204,6 +205,15 @@ instance Arbitrary Value where
       , mkValue ada <$> shrink tokens
       ]
 
+instance Arbitrary MintValue where
+  arbitrary = do
+    tokens <-
+      mapOf arbitrary $
+        mapOf arbitrary $
+          succ <$> chooseIntegerHyperbolic
+    pure $ mkMintValue tokens
+  shrink v = mkMintValue <$> (shrink $ splitMintValue v)
+
 mkValue
   :: Lovelace -> Map.Map CurrencySymbol (Map.Map TokenName Integer) -> Value
 mkValue (Lovelace ada) tokens =
@@ -211,12 +221,20 @@ mkValue (Lovelace ada) tokens =
     fromMap $
       fromMap <$> Map.insert adaSymbol (Map.singleton adaToken ada) tokens
 
+mkMintValue
+  :: Map.Map CurrencySymbol (Map.Map TokenName Integer) -> MintValue
+mkMintValue tokens = UnsafeMintValue $ fromMap $ fromMap <$> tokens
+
 splitValue
   :: Value -> (Lovelace, Map.Map CurrencySymbol (Map.Map TokenName Integer))
 splitValue (Value (fmap toMap . toMap -> m)) =
   ( Lovelace $ getSum $ (foldMap . foldMap) Sum $ Map.lookup adaSymbol m
   , Map.delete adaSymbol m
   )
+
+splitMintValue
+  :: MintValue -> (Map.Map CurrencySymbol (Map.Map TokenName Integer))
+splitMintValue (UnsafeMintValue (fmap toMap . toMap -> m)) = Map.delete adaSymbol m  
 
 mapOf :: (Ord k) => Gen k -> Gen v -> Gen (Map.Map k v)
 mapOf k v = Map.fromList <$> listOf ((,) <$> k <*> v)
@@ -459,12 +477,12 @@ genIncorrectlyPreservedValue = \v ->
     nonAda (_, _, 0) = False
     nonAda (sym, tok, _) = sym /= adaSymbol || tok /= adaToken
 
-genTxInfoMintForNFTBurn :: AssetClass -> Gen Value
+genTxInfoMintForNFTBurn :: AssetClass -> Gen MintValue
 genTxInfoMintForNFTBurn nft = do
   baseMintValue <-
     arbitrary `suchThat` \v ->
       assetClassValueOf v nft == 0
-  pure $
+  pure $ UnsafeMintValue $ getValue $
     baseMintValue
       <> assetClassValue nft (-1)
       <> inv (lovelaceValue (lovelaceValueOf baseMintValue))

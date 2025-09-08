@@ -23,6 +23,7 @@ import PlutusLedgerApi.V1.Value (
   assetClassValueOf,
   flattenValue,
  )
+import PlutusLedgerApi.V3 (mintValueMinted)
 import PlutusLedgerApi.V3 (
   Address (..),
   Credential (..),
@@ -44,6 +45,7 @@ import PlutusLedgerApi.V3 (
  )
 import PlutusLedgerApi.V3.Contexts (findOwnInput)
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
+import PlutusTx.List
 #ifdef TRACE_GHC
 import qualified Prelude as H
 #else
@@ -223,7 +225,7 @@ checkRotation signatories getGroup datumIn datumOut =
 
 {-# INLINEABLE checkBurn #-}
 checkBurn :: AssetClass -> TxInfo -> Bool
-checkBurn assetClass TxInfo{txInfoMint} = assetClassValueOf txInfoMint assetClass == -1
+checkBurn assetClass TxInfo{txInfoMint} = assetClassValueOf (mintValueMinted txInfoMint) assetClass == -1
 
 {-# INLINEABLE checkUpgrade #-}
 checkUpgrade :: AssetClass -> ScriptHash -> [TxOut] -> Bool

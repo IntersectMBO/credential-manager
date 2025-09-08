@@ -16,6 +16,7 @@ import Data.Foldable (Foldable (..))
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import GHC.Generics (Generic)
+import PlutusLedgerApi.V3.MintValue
 import PlutusLedgerApi.V1.Value (
   AssetClass (..),
   assetClassValueOf,
@@ -162,7 +163,7 @@ invariantBH4ColdRefMissing args@ValidArgs{..} =
 invariantBH5NotBurned :: ValidArgs -> Property
 invariantBH5NotBurned args@ValidArgs{..} =
   forAllValidScriptContexts args \coldNFT hotNFT _ ctx -> do
-    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf v hotNFT /= -1
+    mintValue <- arbitrary `suchThat` \v -> assetClassValueOf (mintValueMinted v) hotNFT /= -1
     let ctx' =
           ctx
             { scriptContextTxInfo =

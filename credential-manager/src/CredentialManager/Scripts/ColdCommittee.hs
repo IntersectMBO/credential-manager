@@ -24,6 +24,7 @@ import PlutusLedgerApi.V3 (
   TxOut (..),
  )
 import PlutusTx.Prelude hiding (trace, traceIfFalse)
+import PlutusTx.List 
 
 -- | This script checks that the hard-coded cold NFT is
 -- in any spending input of the transaction.

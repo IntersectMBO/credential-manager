@@ -30,7 +30,7 @@
     #   url = "github:input-output-hk/haskell.nix";
     #   inputs.hackage.follows = "hackage";
     # };
-    cardano-node.url = "github:IntersectMBO/cardano-node/9.1.0";
+    cardano-node.url = "github:IntersectMBO/cardano-node/10.5.1";
   };
 
 

@@ -26,6 +26,7 @@ import PlutusLedgerApi.V3 (
  )
 import PlutusLedgerApi.V3.Contexts (ColdCommitteeCredential)
 import PlutusTx.Prelude hiding (traceIfFalse)
+import PlutusTx.List
 
 -- | This script validates:
 -- * delegators group actions beside voting group management
