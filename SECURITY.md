@@ -16,7 +16,7 @@ how we will respond to and remediate such reports.
 If you discover a security vulnerability in xxxx, we encourage you to
 responsibly disclose it to us. To report a vulnerability, please use
 the [private reporting form on
-GitHub](https://github.com/input-output-hk/mithril/security/advisories/new)
+GitHub](https://github.com/IntersectMBO/credential-manager/security/advisories/new)
 to draft a new _Security advisory_.
 
 Please include as much details as needed to clearly qualify the issue:
