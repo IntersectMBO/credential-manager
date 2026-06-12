@@ -43,11 +43,11 @@ let
     includeMingwW64HydraJobs = true;
 
     readTheDocs = {
-      enable = true;
+      enable = false;
       siteFolder = "doc/read-the-docs-site";
     };
     combinedHaddock = {
-      enable = true;
+      enable = false;
     };
   };
 
