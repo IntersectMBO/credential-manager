@@ -16,7 +16,7 @@ cabalProject:
     pkgs.jq
     pkgs.openssl
     pkgs.ghcid
-    pkgs.wrapGAppsHook4
+
     pkgs.coreutils
     pkgs.gnused
     # inputs.nixgl.packages.nixGLDefault
@@ -27,7 +27,7 @@ cabalProject:
   preCommit = {
     cabal-fmt.enable = true;
     cabal-fmt.extraOptions = "--no-tabular";
-    fourmolu.enable = true;
+    fourmolu.enable = false;
     hlint.enable = true;
     shellcheck.enable = true;
     nixpkgs-fmt.enable = true;

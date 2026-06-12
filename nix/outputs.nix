@@ -3,6 +3,7 @@
 let
 
   project = repoRoot.nix.project;
+
   cc-sign-native = pkgs.runCommand "cc-sign"
     {
       nativeBuildInputs = [
